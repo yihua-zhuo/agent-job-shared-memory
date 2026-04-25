@@ -1,21 +1,54 @@
 {
   "agent": "code-review",
-  "status": "pass",
-  "generated_at": "2026-04-25T17:55:51.036304Z",
+  "status": "fail",
+  "generated_at": "2026-04-25T19:08:07.853704Z",
   "details": {
-    "llm_status": "pass",
+    "llm_status": "fail",
     "llm_parsed": {
-      "status": "pass",
-      "critical": [],
-      "warnings": [],
-      "suggestions": [],
-      "summary": "No code changes detected between origin/master and origin/develop — nothing to review."
+      "status": "fail",
+      "critical": [
+        {
+          "dim": "security",
+          "line": 1180,
+          "msg": "Token extraction regex changed from [^@:]+ to [^@]+ — now captures password colon and everything after it. For URL like https://x-access-token:ghp_xxxx@github.com the captured group becomes 'ghp_xxxx:password' instead of 'ghp_xxxx', breaking GitHub API auth when remote has user:token format."
+        },
+        {
+          "dim": "security",
+          "line": 132,
+          "msg": "_Lock.__enter__ dropped atomic os.O_EXCL file creation. New code uses write_text() on an already-checked path — classic TOCTOU race: multiple processes check path.exists() simultaneously, both pass, both write, last-write-wins non-atomically. On heavily loaded CI, two pipeline.py runs could corrupt each other's lock."
+        },
+        {
+          "dim": "quality",
+          "line": 40,
+          "msg": "Bare except: in create_deploy_issue.py catches Exception plus KeyboardInterrupt and SystemExit, masking scripting errors and preventing graceful interrupt. Also silently swallows JSONDecodeError which indicates file exists but is corrupted — different severity than FileNotFoundError."
+        },
+        {
+          "dim": "architecture",
+          "line": null,
+          "msg": "shared-memory/PROGRESS.md and shared-memory/logs/code-review.log added to repo. These are generated runtime artifacts (production status reports, execution logs) and should not be committed. They belong in the ignore list or remote shared-memory only."
+        }
+      ],
+      "warnings": [
+        "Bare except: in create_deploy_issue.py (line 40) and pipeline.py Write result envelope blocks — same pattern",
+        "_FILENAME_RE regex compiled but never used in pipeline.py",
+        "implement removed from _collect_stats agents list but step_implement() still exists",
+        "PIPELINE_NO_DOTENV guard removed — _load_dotenv_into_environ now runs on import, could pollute test environment isolation",
+        "step_orchestrator docstring simplified but no functional change — minor"
+      ],
+      "suggestions": [
+        "Restore [^@:]+ in _gh_open_pr token extraction (line 1180) to exclude colon from captured token",
+        "Restore os.O_EXCL atomic create in _Lock.__enter__ or use rename-based atomic write to prevent TOCTOU races",
+        "Replace bare except: with except (FileNotFoundError, JSONDecodeError): to preserve error distinction",
+        "Add shared-memory/PROGRESS.md and shared-memory/logs/ to .gitignore or remove from commit",
+        "Consider re-adding PIPELINE_NO_DOTENV guard for testability of pipeline.py"
+      ],
+      "summary": "Four critical-severity issues block merge. 1) Token regex [^@]+ now captures password colon — all GitHub API calls broken when remote uses user:token format. 2) _Lock lost atomic exclusive file creation — concurrent pipeline runs can race and corrupt locks. 3) Bare except: swallows KeyboardInterrupt/SystemExit and collapses FileNotFoundError vs JSONDecodeError into silent failure. 4) Generated runtime artifacts (PROGRESS.md, code-review.log) added to repo — should be ignored. Warnings include unused _FILENAME_RE, removed implement from stats collection, removed PIPELINE_NO_DOTENV guard. Recommend reverting regex and _Lock atomicity, fixing except clauses, removing generated files."
     },
-    "llm_elapsed_sec": 5.73,
+    "llm_elapsed_sec": 57.66,
     "local": {
-      "diff_chars": 0,
-      "truncated_chars": 0,
-      "base": "f607fe4384d5d176180f3acaa95cdf7c303a1266 Merge pull request #23 from yihua-zhuo/develop",
+      "diff_chars": 60029,
+      "truncated_chars": 399847,
+      "base": "b3d47bb19ac3f0d01115cbbfe780a993c485cb80 memory from repo",
       "head": "ecb8893de62f2cdacdad964fa93381f057c37853 fix(ci): disable broken code-review job (use pipeline-code-review.yml instead)"
     }
   }
