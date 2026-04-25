@@ -1,7 +1,7 @@
 {
   "agent": "test",
   "status": "pass",
-  "generated_at": "2026-04-25T18:53:00.803866Z",
+  "generated_at": "2026-04-25T19:41:41.880460Z",
   "details": {
     "returncode": 0,
     "tail": [
@@ -12,7 +12,7 @@
       "    def test_as_status_value_string(self, workflow_service):",
       "",
       "-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html",
-      "======================= 288 passed, 16 warnings in 5.52s ======================="
+      "======================= 288 passed, 16 warnings in 5.79s ======================="
     ]
   }
 }
