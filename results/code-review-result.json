@@ -1,8 +1,53 @@
 {
   "agent": "code-review",
-  "status": "skipped",
-  "generated_at": "2026-04-25T21:49:07.307618Z",
+  "status": "fail",
+  "generated_at": "2026-04-25T22:51:28.679449Z",
   "details": {
-    "reason": "test not green or artifact not available"
+    "llm_status": "fail",
+    "llm_parsed": {
+      "status": "fail",
+      "critical": [
+        {
+          "dim": "security",
+          "line": 140,
+          "msg": "_Lock.__enter__ lost atomic os.O_EXCL create; now has TOCTOU race — two concurrent runs can both pass the exists-check and write, breaking mutual exclusion. Revert to os.open(path, os.O_CREAT | os.O_EXCL | os.O_WRONLY) or use fcntl.flock."
+        },
+        {
+          "dim": "security",
+          "line": 1072,
+          "msg": "_gh_open_pr token embedded via f-string interpolation into curl -H header; visible in /proc/<pid>/cmdline. Must pass via environment variable (e.g. GITHUB_TOKEN env var or PIPELINE_GH_TOKEN as before)."
+        },
+        {
+          "dim": "quality",
+          "line": 44,
+          "msg": "datetime.fromisoformat(...).replace(tzinfo=timezone.utc) removed — rstrip('Z') alone does NOT convert local time to UTC; the timestamp comparison (age_h < 24) will be wrong for non-UTC timezones."
+        },
+        {
+          "dim": "architecture",
+          "line": 221,
+          "msg": "'implement' removed from _collect_stats agent list; orchestrator stats will skip implement stage entirely."
+        }
+      ],
+      "warnings": [
+        "Bare `except:` (lines 96, 56, 77, 45) — catches all exceptions including FileNotFoundError, JSONDecodeError, silently swallowing errors",
+        "pipeline.py line 76: `re` moved inside function; top-level import still present (duplicate)",
+        "pipeline.py line 781: already-parsed task dict discarded, file re-read immediately with json.loads(pending.read_text())",
+        ".gitignore removed shared-memory/ entirely — now only subdirs; stale git-tracked shared-memory content could still be committed",
+        "pipeline.py: PIPELINE_NO_DOTENV mechanism removed — tests can no longer opt out of .env loading, breaking test isolation"
+      ],
+      "suggestions": [
+        "pipeline-test.yml writes to pipeline-artifacts/ while other workflows use artifacts/ — normalize to artifacts/ for consistency",
+        "Timezone guard (age_h < 0.5, age_h < 24) should also validate the parsed datetime is timezone-aware before subtraction",
+        "Consider adding timeout to _Lock.__enter__ flock call to prevent indefinite blocking"
+      ],
+      "summary": "4 critical-severity issues found. Two security vulnerabilities: (1) _Lock lost its atomic exclusive-create and is now a TOCTOU race condition, breaking mutual exclusion between concurrent runs. (2) GitHub token embedded directly in curl -H header via f-string, exposing it in /proc/<pid>/cmdline. Two quality/architecture issues: (3) timezone conversion removed — rstrip('Z') does not make a naive datetime timezone-aware; time comparisons will be incorrect in non-UTC timezones. (4) 'implement' dropped from stats collection loop, so orchestrator stats will skip that stage."
+    },
+    "llm_elapsed_sec": 22.02,
+    "local": {
+      "diff_chars": 60029,
+      "truncated_chars": 399847,
+      "base": "b3d47bb19ac3f0d01115cbbfe780a993c485cb80 memory from repo",
+      "head": "ecb8893de62f2cdacdad964fa93381f057c37853 fix(ci): disable broken code-review job (use pipeline-code-review.yml instead)"
+    }
   }
 }
