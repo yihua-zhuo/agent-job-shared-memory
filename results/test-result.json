@@ -1,0 +1,18 @@
+{
+  "agent": "test",
+  "status": "pass",
+  "generated_at": "2026-04-25T17:30:56.519014Z",
+  "details": {
+    "returncode": 0,
+    "tail": [
+      "    def test_as_status_value_enum(self, workflow_service):",
+      "",
+      "tests/unit/test_workflow_service.py::TestWorkflowService::test_as_status_value_string",
+      "  tests/unit/test_workflow_service.py:288: PytestWarning: The test <Function test_as_status_value_string> is marked with '@pytest.mark.asyncio' but it is not an async function. Please remove the asyncio mark. If the test is not marked explicitly, check for global marks applied via 'pytestmark'.",
+      "    def test_as_status_value_string(self, workflow_service):",
+      "",
+      "-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html",
+      "======================= 288 passed, 17 warnings in 3.08s ======================="
+    ]
+  }
+}

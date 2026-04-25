@@ -1,0 +1,2 @@
+# Lock files are local-only (PID-based, not portable across machines)
+locks/

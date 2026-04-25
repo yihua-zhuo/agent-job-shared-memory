@@ -1,0 +1,22 @@
+{
+  "agent": "code-review",
+  "status": "pass",
+  "generated_at": "2026-04-25T17:34:13.218528Z",
+  "details": {
+    "llm_status": "pass",
+    "llm_parsed": {
+      "status": "pass",
+      "critical": [],
+      "warnings": [],
+      "suggestions": [],
+      "summary": "No diff between master (f607fe4384d5d176180f3acaa95cdf7c303a1266) and develop (ecb8893de62f2cdacdad964fa93381f057c37853). The develop branch is at the same commit as master with no new changes to review."
+    },
+    "llm_elapsed_sec": 9.86,
+    "local": {
+      "diff_chars": 0,
+      "truncated_chars": 0,
+      "base": "f607fe4384d5d176180f3acaa95cdf7c303a1266 Merge pull request #23 from yihua-zhuo/develop",
+      "head": "ecb8893de62f2cdacdad964fa93381f057c37853 fix(ci): disable broken code-review job (use pipeline-code-review.yml instead)"
+    }
+  }
+}
