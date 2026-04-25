@@ -1,7 +1,7 @@
 {
   "agent": "code-review",
   "status": "pass",
-  "generated_at": "2026-04-25T17:50:02.923439Z",
+  "generated_at": "2026-04-25T17:55:51.036304Z",
   "details": {
     "llm_status": "pass",
     "llm_parsed": {
@@ -9,9 +9,9 @@
       "critical": [],
       "warnings": [],
       "suggestions": [],
-      "summary": "No changes detected between origin/master and origin/develop. Nothing to review."
+      "summary": "No code changes detected between origin/master and origin/develop — nothing to review."
     },
-    "llm_elapsed_sec": 6.32,
+    "llm_elapsed_sec": 5.73,
     "local": {
       "diff_chars": 0,
       "truncated_chars": 0,
