@@ -1,0 +1,8 @@
+{
+  "agent": "deploy",
+  "status": "skipped",
+  "generated_at": "2026-04-25T18:37:07.129306Z",
+  "details": {
+    "reason": "qc not green today"
+  }
+}
