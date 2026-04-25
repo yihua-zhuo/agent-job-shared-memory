@@ -1,7 +1,7 @@
 {
   "agent": "qc",
   "status": "skipped",
-  "generated_at": "2026-04-25T19:13:02.625980Z",
+  "generated_at": "2026-04-25T20:59:08.818957Z",
   "details": {
     "reason": "code-review not green in last 24h"
   }
