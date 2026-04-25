@@ -1,48 +1,60 @@
 {
   "agent": "code-review",
   "status": "fail",
-  "generated_at": "2026-04-25T22:51:28.679449Z",
+  "generated_at": "2026-04-25T23:51:26.876578Z",
   "details": {
     "llm_status": "fail",
     "llm_parsed": {
       "status": "fail",
       "critical": [
         {
-          "dim": "security",
-          "line": 140,
-          "msg": "_Lock.__enter__ lost atomic os.O_EXCL create; now has TOCTOU race — two concurrent runs can both pass the exists-check and write, breaking mutual exclusion. Revert to os.open(path, os.O_CREAT | os.O_EXCL | os.O_WRONLY) or use fcntl.flock."
+          "dim": "REGRESSION",
+          "line": 36,
+          "msg": "Bare `except:` catches SystemExit, KeyboardInterrupt, and MemoryError —掩盖真实错误，使调试困难"
         },
         {
-          "dim": "security",
-          "line": 1072,
-          "msg": "_gh_open_pr token embedded via f-string interpolation into curl -H header; visible in /proc/<pid>/cmdline. Must pass via environment variable (e.g. GITHUB_TOKEN env var or PIPELINE_GH_TOKEN as before)."
+          "dim": "REGRESSION",
+          "line": 1233,
+          "msg": "Shared memory sync 完全移除：`_sync_shared_memory_pull/push` 被删除 — 跨运行持久化丢失，pipeline 结果不再同步到共享 repo"
         },
         {
-          "dim": "quality",
-          "line": 44,
-          "msg": "datetime.fromisoformat(...).replace(tzinfo=timezone.utc) removed — rstrip('Z') alone does NOT convert local time to UTC; the timestamp comparison (age_h < 24) will be wrong for non-UTC timezones."
+          "dim": "SECURITY",
+          "line": 1186,
+          "msg": "GitHub token 直接内嵌在 curl 命令行中 (`Authorization: Bearer {token}`)，可通过 `/proc/<pid>/cmdline` 读取 — 原实现通过环境变量传递 token"
         },
         {
-          "dim": "architecture",
-          "line": 221,
-          "msg": "'implement' removed from _collect_stats agent list; orchestrator stats will skip implement stage entirely."
+          "dim": "REGRESSION",
+          "line": 144,
+          "msg": "_Lock.__enter__ 丢失原子性：使用 `path.exists()` + `write_text()` 非原子操作替代 `os.O_EXCL`，存在 TOCTOU 竞态条件"
+        },
+        {
+          "dim": "BUG",
+          "line": 47,
+          "msg": "Labels 空格分隔传递给 gh：'--label', 'pipeline', 'code-review', 'automated' — gh CLI 要求每个标签单独使用 `--label` flag"
+        },
+        {
+          "dim": "REGRESSION",
+          "line": 1403,
+          "msg": "step_implement 移除 --force bypass：强制运行时无法绕过 'test not green' gate，失去手动覆盖能力"
         }
       ],
       "warnings": [
-        "Bare `except:` (lines 96, 56, 77, 45) — catches all exceptions including FileNotFoundError, JSONDecodeError, silently swallowing errors",
-        "pipeline.py line 76: `re` moved inside function; top-level import still present (duplicate)",
-        "pipeline.py line 781: already-parsed task dict discarded, file re-read immediately with json.loads(pending.read_text())",
-        ".gitignore removed shared-memory/ entirely — now only subdirs; stale git-tracked shared-memory content could still be committed",
-        "pipeline.py: PIPELINE_NO_DOTENV mechanism removed — tests can no longer opt out of .env loading, breaking test isolation"
+        "第 61 行：dotenv 解析丢失 inline comment stripping — 含有 `#` 的 value 会被错误截断",
+        "第 329 行：'implement' 从 agents 列表移除 — 状态收集将报告 implement 为 'missing' 而非实际状态",
+        "第 446 行：git fetch 移除 `--no-write-fetch-head` — 可能污染 FETCH_HEAD",
+        "第 728 行：task dict spread 顺序改回 `**task` 在前 — LLM 可覆盖 task_id/claimed_at 等关键字段",
+        "第 781 行：step_task 恢复 json.loads(pending.read_text()) 重复读取 — Fix #12 优化被回退"
       ],
       "suggestions": [
-        "pipeline-test.yml writes to pipeline-artifacts/ while other workflows use artifacts/ — normalize to artifacts/ for consistency",
-        "Timezone guard (age_h < 0.5, age_h < 24) should also validate the parsed datetime is timezone-aware before subtraction",
-        "Consider adding timeout to _Lock.__enter__ flock call to prevent indefinite blocking"
+        "考虑保留环境变量传递 token 的方式（可同时支持 curl --oauth2-bearer 和 Authorization header）",
+        "恢复 os.O_EXCL 原子锁或使用 fcntl.flock() 实现原子性",
+        "gh labels 应恢复为重复 --label flag：'--label', 'pipeline', '--label', 'code-review', ...",
+        "shared memory sync 可改为可选功能（环境变量控制），不应完全删除",
+        "dotenv 解析应保留对 quoted value 内 # 字符的处理"
       ],
-      "summary": "4 critical-severity issues found. Two security vulnerabilities: (1) _Lock lost its atomic exclusive-create and is now a TOCTOU race condition, breaking mutual exclusion between concurrent runs. (2) GitHub token embedded directly in curl -H header via f-string, exposing it in /proc/<pid>/cmdline. Two quality/architecture issues: (3) timezone conversion removed — rstrip('Z') does not make a naive datetime timezone-aware; time comparisons will be incorrect in non-UTC timezones. (4) 'implement' dropped from stats collection loop, so orchestrator stats will skip that stage."
+      "summary": "发现 6 个关键问题：(1) create_deploy_issue.py 使用 bare except 捕获所有异常，(2) shared memory 同步功能被完全删除导致跨运行状态丢失，(3) GitHub token 通过命令行传递存在安全隐患，(4) 锁机制丢失原子性引入竞态条件，(5) gh label 参数格式错误，(6) implement 的 --force bypass 被移除。此外还有 dotenv 解析退化、'implement' 从状态收集移除、重复读取文件等回归问题。建议优先修复 token 安全传递和 label 参数格式问题。"
     },
-    "llm_elapsed_sec": 22.02,
+    "llm_elapsed_sec": 30.45,
     "local": {
       "diff_chars": 60029,
       "truncated_chars": 399847,
