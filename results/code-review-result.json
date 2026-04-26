@@ -1,7 +1,7 @@
 {
   "agent": "code-review",
   "status": "pass",
-  "generated_at": "2026-04-26T14:56:49.576955Z",
+  "generated_at": "2026-04-26T16:57:37.514295Z",
   "details": {
     "llm_status": "pass",
     "llm_parsed": {
@@ -9,9 +9,9 @@
       "critical": [],
       "warnings": [],
       "suggestions": [],
-      "summary": "No diff between origin/master and origin/develop. No code changes to review."
+      "summary": "No diff between origin/master and origin/develop (both at 58c592d). Nothing to review — no code changes pending release."
     },
-    "llm_elapsed_sec": 7.87,
+    "llm_elapsed_sec": 6.94,
     "local": {
       "diff_chars": 0,
       "truncated_chars": 0,
