@@ -1,65 +1,8 @@
 {
   "agent": "code-review",
-  "status": "fail",
-  "generated_at": "2026-04-25T23:51:26.876578Z",
+  "status": "skipped",
+  "generated_at": "2026-04-26T01:02:40.606193Z",
   "details": {
-    "llm_status": "fail",
-    "llm_parsed": {
-      "status": "fail",
-      "critical": [
-        {
-          "dim": "REGRESSION",
-          "line": 36,
-          "msg": "Bare `except:` catches SystemExit, KeyboardInterrupt, and MemoryError —掩盖真实错误，使调试困难"
-        },
-        {
-          "dim": "REGRESSION",
-          "line": 1233,
-          "msg": "Shared memory sync 完全移除：`_sync_shared_memory_pull/push` 被删除 — 跨运行持久化丢失，pipeline 结果不再同步到共享 repo"
-        },
-        {
-          "dim": "SECURITY",
-          "line": 1186,
-          "msg": "GitHub token 直接内嵌在 curl 命令行中 (`Authorization: Bearer {token}`)，可通过 `/proc/<pid>/cmdline` 读取 — 原实现通过环境变量传递 token"
-        },
-        {
-          "dim": "REGRESSION",
-          "line": 144,
-          "msg": "_Lock.__enter__ 丢失原子性：使用 `path.exists()` + `write_text()` 非原子操作替代 `os.O_EXCL`，存在 TOCTOU 竞态条件"
-        },
-        {
-          "dim": "BUG",
-          "line": 47,
-          "msg": "Labels 空格分隔传递给 gh：'--label', 'pipeline', 'code-review', 'automated' — gh CLI 要求每个标签单独使用 `--label` flag"
-        },
-        {
-          "dim": "REGRESSION",
-          "line": 1403,
-          "msg": "step_implement 移除 --force bypass：强制运行时无法绕过 'test not green' gate，失去手动覆盖能力"
-        }
-      ],
-      "warnings": [
-        "第 61 行：dotenv 解析丢失 inline comment stripping — 含有 `#` 的 value 会被错误截断",
-        "第 329 行：'implement' 从 agents 列表移除 — 状态收集将报告 implement 为 'missing' 而非实际状态",
-        "第 446 行：git fetch 移除 `--no-write-fetch-head` — 可能污染 FETCH_HEAD",
-        "第 728 行：task dict spread 顺序改回 `**task` 在前 — LLM 可覆盖 task_id/claimed_at 等关键字段",
-        "第 781 行：step_task 恢复 json.loads(pending.read_text()) 重复读取 — Fix #12 优化被回退"
-      ],
-      "suggestions": [
-        "考虑保留环境变量传递 token 的方式（可同时支持 curl --oauth2-bearer 和 Authorization header）",
-        "恢复 os.O_EXCL 原子锁或使用 fcntl.flock() 实现原子性",
-        "gh labels 应恢复为重复 --label flag：'--label', 'pipeline', '--label', 'code-review', ...",
-        "shared memory sync 可改为可选功能（环境变量控制），不应完全删除",
-        "dotenv 解析应保留对 quoted value 内 # 字符的处理"
-      ],
-      "summary": "发现 6 个关键问题：(1) create_deploy_issue.py 使用 bare except 捕获所有异常，(2) shared memory 同步功能被完全删除导致跨运行状态丢失，(3) GitHub token 通过命令行传递存在安全隐患，(4) 锁机制丢失原子性引入竞态条件，(5) gh label 参数格式错误，(6) implement 的 --force bypass 被移除。此外还有 dotenv 解析退化、'implement' 从状态收集移除、重复读取文件等回归问题。建议优先修复 token 安全传递和 label 参数格式问题。"
-    },
-    "llm_elapsed_sec": 30.45,
-    "local": {
-      "diff_chars": 60029,
-      "truncated_chars": 399847,
-      "base": "b3d47bb19ac3f0d01115cbbfe780a993c485cb80 memory from repo",
-      "head": "ecb8893de62f2cdacdad964fa93381f057c37853 fix(ci): disable broken code-review job (use pipeline-code-review.yml instead)"
-    }
+    "reason": "test not green or artifact not available"
   }
 }
