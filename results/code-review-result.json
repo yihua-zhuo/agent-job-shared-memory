@@ -1,8 +1,53 @@
 {
   "agent": "code-review",
-  "status": "skipped",
-  "generated_at": "2026-04-26T01:05:30.014289Z",
+  "status": "fail",
+  "generated_at": "2026-04-26T01:17:18.787394Z",
   "details": {
-    "reason": "test not green or artifact not available"
+    "llm_status": "fail",
+    "llm_parsed": {
+      "status": "fail",
+      "critical": [
+        {
+          "dim": "security",
+          "line": 1044,
+          "msg": "GitHub token exposed in curl command-line arguments. The token is now passed via -H 'Authorization: Bearer {token}' inline instead of via PIPELINE_GH_TOKEN environment variable. Token will be visible in /proc/<pid>/cmdline and potentially shell history."
+        },
+        {
+          "dim": "architecture",
+          "line": 144,
+          "msg": "Lock acquisition lost atomicity guarantee. The os.O_EXCL atomic exclusive-create was replaced with simple path.exists() check followed by write_text. Two concurrent cron fires can both pass the exists() check before either writes, then both acquire the lock."
+        },
+        {
+          "dim": "security",
+          "line": 1041,
+          "msg": "Token extraction regex changed from ([^@:]+) to ([^@]+). For URLs like https://x-access-token:TOKEN@github.com/..., the pattern now incorrectly captures 'x-access-token:TOKEN' as the token instead of just 'TOKEN'."
+        },
+        {
+          "dim": "quality",
+          "line": 36,
+          "msg": "Bare except: clause silently swallows FileNotFoundError and JSONDecodeError in create_deploy_issue.py, replacing them with an empty dict. Critical errors are masked—no issue is created when artifact is missing or malformed, and the failure is invisible."
+        }
+      ],
+      "warnings": [
+        "datetime.fromisoformat() no longer wraps result in .replace(tzinfo=timezone.utc). New code produces timezone-naive datetimes; datetime.now(timezone.utc) is timezone-aware. This can cause comparison RuntimeErrors in some Python versions/configurations.",
+        "The --force bypass for test-not-green in step_implement() was removed. This is a documented feature referenced in SOUL.md. Manual runs can no longer bypass the test gate.",
+        "step_research() now spreads **task AFTER canonical keys (task_id, created_at, source). The LLM-provided dict can now override these fields, contrary to the original Fix #7 intent."
+      ],
+      "suggestions": [
+        "Consider restoring PIPELINE_GH_TOKEN environment variable approach for _gh_open_pr to avoid token exposure in process arguments.",
+        "Restore O_EXCL | O_CREAT atomic create in _Lock.__enter__ for race-condition-free lock acquisition.",
+        "Use except Exception instead of bare except to avoid catching SystemExit and KeyboardInterrupt.",
+        "Add timezone awareness consistently: datetime.fromisoformat(data['generated_at'].rstrip('Z')).replace(tzinfo=timezone.utc) was correct before the change.",
+        "The implement agent was removed from the _collect_stats agent list (Fix #13 reverted). Restore 'implement' to the list if that agent should be tracked."
+      ],
+      "summary": "Four critical issues found. Security regression: GitHub token now exposed in curl command-line args (visible in /proc/cmdline) instead of via environment variable. Architecture regression: Lock acquisition lost atomic exclusive-create (O_EXCL), introducing race condition for concurrent cron fires. Token extraction regex changed to capture key-name prefix as part of token. Quality issue: bare except silently swallows FileNotFoundError/JSONDecodeError, masking critical failures. Warning: timezone-naive datetime comparisons may cause RuntimeError in strict environments."
+    },
+    "llm_elapsed_sec": 43.49,
+    "local": {
+      "diff_chars": 60029,
+      "truncated_chars": 401805,
+      "base": "58c592d2586060c0ac96c3e8ef602ce384963c0a memory from repo",
+      "head": "ecb8893de62f2cdacdad964fa93381f057c37853 fix(ci): disable broken code-review job (use pipeline-code-review.yml instead)"
+    }
   }
 }
