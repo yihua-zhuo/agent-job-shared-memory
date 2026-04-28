@@ -1,7 +1,7 @@
 {
   "agent": "code-review",
   "status": "pass",
-  "generated_at": "2026-04-27T20:16:15.040462Z",
+  "generated_at": "2026-04-28T09:31:38.973650Z",
   "details": {
     "llm_status": "pass",
     "llm_parsed": {
@@ -9,9 +9,9 @@
       "critical": [],
       "warnings": [],
       "suggestions": [],
-      "summary": "No diff between origin/master and origin/develop. Both references point to commit 58c592d2586060c0ac96c3e8ef602ce384963c0a. No code changes to review."
+      "summary": "No diff detected between origin/master and origin/develop. Both commits reference the same SHA (58c592d2586060c0ac96c3e8ef602ce384963c0a). No new code to review."
     },
-    "llm_elapsed_sec": 3.84,
+    "llm_elapsed_sec": 5.73,
     "local": {
       "diff_chars": 0,
       "truncated_chars": 0,
