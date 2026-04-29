@@ -1,7 +1,7 @@
 {
   "agent": "qc",
   "status": "fail",
-  "generated_at": "2026-04-29T21:33:12.806502Z",
+  "generated_at": "2026-04-29T23:13:01.066424Z",
   "details": {
     "llm_status": "fail",
     "llm_parsed": {
