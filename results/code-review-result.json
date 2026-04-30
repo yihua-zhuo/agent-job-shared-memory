@@ -1,21 +1,17 @@
 {
   "agent": "code-review",
   "status": "pass",
-  "generated_at": "2026-04-30T11:48:12.480574Z",
+  "generated_at": "2026-04-30T18:19:27.423645Z",
   "details": {
     "llm_status": "pass",
     "llm_parsed": {
       "status": "pass",
       "critical": [],
-      "warnings": [
-        "No diff found between origin/master and origin/develop - nothing new to review"
-      ],
-      "suggestions": [
-        "Ensure changes are staged before triggering review pipeline"
-      ],
-      "summary": "No code changes detected between base and head commits (58c592d2586060c0ac96c3e8ef602ce384963c0a). Develop branch is in sync with master - no review needed."
+      "warnings": [],
+      "suggestions": [],
+      "summary": "No diff between origin/master and origin/develop — both branches reference the same commit 58c592d. Nothing to review."
     },
-    "llm_elapsed_sec": 10.53,
+    "llm_elapsed_sec": 4.86,
     "local": {
       "diff_chars": 0,
       "truncated_chars": 0,
