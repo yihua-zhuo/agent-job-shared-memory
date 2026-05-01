@@ -1,27 +1,47 @@
 {
   "agent": "code-review",
-  "status": "pass",
-  "generated_at": "2026-05-01T17:09:49.595975Z",
+  "status": "fail",
+  "generated_at": "2026-05-01T19:25:01.917152Z",
   "details": {
-    "llm_status": "pass",
+    "llm_status": "fail",
     "llm_parsed": {
-      "status": "pass",
-      "critical": [],
+      "status": "fail",
+      "critical": [
+        {
+          "dim": "security",
+          "line": 55,
+          "msg": "Hardcoded database credentials exposed in docs/EXTERNAL_ACCESS.md - postgresql connection string contains actual hostname and credentials (aws-1-ap-south-1.pooler.supabase.com). This document could be committed to public repos."
+        },
+        {
+          "dim": "security",
+          "line": 63,
+          "msg": "SECRET_KEY and JWT_SECRET_KEY exposed in plain text in docs/EXTERNAL_ACCESS.md environment variables section"
+        },
+        {
+          "dim": "architecture",
+          "line": null,
+          "msg": "Framework regression: Migrating from FastAPI to Flask loses async capabilities, automatic OpenAPI docs, and Pydantic validation. FastAPI was async-native with proper dependency injection."
+        },
+        {
+          "dim": "architecture",
+          "line": null,
+          "msg": "Dependencies not synchronized: Dockerfile hardcodes flask/gunicorn but pyproject.toml has different dependencies. Changes to pyproject.toml won't reflect in container builds."
+        }
+      ],
       "warnings": [
-        "docs/EXTERNAL_ACCESS.md reveals internal hostnames/connection strings (aws-1-ap-south-1.pooler.supabase.com) — ensure this document is not exposed publicly",
-        "CDN dependencies in crm_ui.html (tailwindcss, alpinejs, font-awesome) create supply-chain risk — consider self-hosting or pinning specific versions",
-        "Dockerfile layers pip install before copying src/ which prevents proper Docker build cache reuse — copy source first then install",
-        "FastAPI framework completely removed — OpenAPI docs endpoint (/docs, /redoc) no longer auto-generated, no longer available for consumers"
+        "Dockerfile removed HEALTHCHECK CMD - reduced container orchestration observability",
+        "Removed alembic/ directory copy but alembic.ini remains - potential missing migration files",
+        "asyncpg removed from dependencies but still referenced in database connection logic"
       ],
       "suggestions": [
-        "Add healthcheck endpoint for Flask app: /health returning JSON like {\"status\":\"ok\"} since the Dockerfile HEALTHCHECK references http://localhost:8080/",
-        "Re-add alembic/ directory for database migrations if schema management is needed in the future",
-        "Consider restoring pydantic or similar validation layer even with Flask for request/response validation",
-        "The pyproject.toml still references DATABASE_DIALECT=postgresql+asyncpg but new Dockerfile installs pymysql instead — potential config mismatch"
+        "Move credentials to environment variables or secrets manager - never commit to docs",
+        "Consider keeping FastAPI for async operations or fully document why Flask is preferred",
+        "Add back healthcheck or use orchestrator-level probes (Kubernetes readiness/liveness)",
+        "Ensure Dockerfile installs from pyproject.toml to maintain consistency: pip install -e ."
       ],
-      "summary": "This diff implements a significant framework migration: FastAPI → Flask, removing async patterns, Pydantic models, Alembic migrations, and healthcheck endpoints. No critical security vulnerabilities (no SQL injection, hardcoded secrets, or XSS vectors introduced). All CDN resources in crm_ui.html are from reputable CDNs but represent a supply-chain dependency. The EXTERNAL_ACCESS.md document exposes internal infrastructure details (hostnames, connection patterns) which should be reviewed before publishing. Overall pass — zero critical-severity issues across quality, security, performance, and architecture dimensions."
+      "summary": "REJECTED - 4 critical issues: (1) SECURITY: Database credentials, SECRET_KEY, JWT_SECRET_KEY hardcoded in docs/EXTERNAL_ACCESS.md - must remove immediately and use env vars. (2) ARCHITECTURE: Framework downgrade from FastAPI to Flask loses async capabilities and native OpenAPI support. (3) ARCHITECTURE: Dependencies desynchronized between Dockerfile and pyproject.toml. (4) Missing healthchecks reduces deployment reliability. Fix credentials exposure before merging."
     },
-    "llm_elapsed_sec": 59.3,
+    "llm_elapsed_sec": 20.49,
     "local": {
       "diff_chars": 60029,
       "truncated_chars": 324088,
