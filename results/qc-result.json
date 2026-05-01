@@ -1,17 +1,16 @@
 {
   "agent": "qc",
   "status": "fail",
-  "generated_at": "2026-05-01T08:26:27.339979Z",
+  "generated_at": "2026-05-01T11:34:46.290043Z",
   "details": {
     "llm_status": "fail",
     "llm_parsed": {
       "status": "fail",
       "blocking": [
-        "compileall reported errors",
-        "mypy reported errors"
+        "compileall reported errors"
       ],
       "non_blocking": [],
-      "summary": "QC gate: style=compileall, mypy=fail, docs=ok"
+      "summary": "QC gate: style=compileall, mypy=pass, docs=ok"
     },
     "local": {
       "signals": {
@@ -21,7 +20,7 @@
         },
         "types": {
           "tool": "mypy",
-          "returncode": 1
+          "returncode": 0
         },
         "docs": {
           "readme_exists": true
