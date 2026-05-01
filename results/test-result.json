@@ -1,18 +1,18 @@
 {
   "agent": "test",
-  "status": "pass",
-  "generated_at": "2026-05-01T08:10:23.159945Z",
+  "status": "fail",
+  "generated_at": "2026-05-01T09:57:54.761328Z",
   "details": {
-    "returncode": 0,
+    "returncode": 2,
     "tail": [
-      "    def test_as_status_value_enum(self, workflow_service):",
-      "",
-      "tests/unit/test_workflow_service.py::TestWorkflowService::test_as_status_value_string",
-      "  tests/unit/test_workflow_service.py:288: PytestWarning: The test <Function test_as_status_value_string> is marked with '@pytest.mark.asyncio' but it is not an async function. Please remove the asyncio mark. If the test is not marked explicitly, check for global marks applied via 'pytestmark'.",
-      "    def test_as_status_value_string(self, workflow_service):",
-      "",
-      "-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html",
-      "======================= 288 passed, 6 warnings in 5.01s ========================"
+      "ERROR tests/unit/test_main_app.py - RuntimeError: The starlette.testclient module requires the httpx package to be installed.",
+      "You can install this with:",
+      "    $ pip install httpx",
+      "ERROR tests/unit/test_sales_router.py - RuntimeError: The starlette.testclient module requires the httpx package to be installed.",
+      "You can install this with:",
+      "    $ pip install httpx",
+      "!!!!!!!!!!!!!!!!!!! Interrupted: 3 errors during collection !!!!!!!!!!!!!!!!!!!!",
+      "============================== 3 errors in 1.39s ==============================="
     ]
   }
 }
