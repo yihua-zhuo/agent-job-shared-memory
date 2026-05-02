@@ -1,18 +1,18 @@
 {
   "agent": "test",
-  "status": "fail",
-  "generated_at": "2026-05-02T09:07:31.945275Z",
+  "status": "pass",
+  "generated_at": "2026-05-02T09:14:23.674666Z",
   "details": {
-    "returncode": 2,
+    "returncode": 0,
     "tail": [
-      "ERROR tests/unit/test_activities_router.py",
-      "ERROR tests/unit/test_customers_router.py",
-      "ERROR tests/unit/test_sales_router.py",
-      "ERROR tests/unit/test_tenants_router.py",
-      "ERROR tests/unit/test_tickets_router.py",
-      "ERROR tests/unit/test_users_router.py",
-      "!!!!!!!!!!!!!!!!!!! Interrupted: 6 errors during collection !!!!!!!!!!!!!!!!!!!!",
-      "============================== 6 errors in 1.61s ==============================="
+      "    def test_as_status_value_enum(self, workflow_service):",
+      "",
+      "tests/unit/test_workflow_service.py::TestWorkflowService::test_as_status_value_string",
+      "  tests/unit/test_workflow_service.py:288: PytestWarning: The test <Function test_as_status_value_string> is marked with '@pytest.mark.asyncio' but it is not an async function. Please remove the asyncio mark. If the test is not marked explicitly, check for global marks applied via 'pytestmark'.",
+      "    def test_as_status_value_string(self, workflow_service):",
+      "",
+      "-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html",
+      "====================== 647 passed, 16 warnings in 11.71s ======================="
     ]
   }
 }
