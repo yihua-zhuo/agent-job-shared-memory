@@ -1,18 +1,18 @@
 {
   "agent": "test",
-  "status": "pass",
-  "generated_at": "2026-05-03T00:08:23.272183Z",
+  "status": "fail",
+  "generated_at": "2026-05-03T04:10:50.629199Z",
   "details": {
-    "returncode": 0,
+    "returncode": 1,
     "tail": [
-      "    def test_as_status_value_enum(self, workflow_service):",
-      "",
-      "tests/unit/test_workflow_service.py::TestWorkflowService::test_as_status_value_string",
-      "  tests/unit/test_workflow_service.py:288: PytestWarning: The test <Function test_as_status_value_string> is marked with '@pytest.mark.asyncio' but it is not an async function. Please remove the asyncio mark. If the test is not marked explicitly, check for global marks applied via 'pytestmark'.",
-      "    def test_as_status_value_string(self, workflow_service):",
-      "",
-      "-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html",
-      "====================== 673 passed, 16 warnings in 13.62s ======================="
+      " +  where 500 = <Response [500 Internal Server Error]>.status_code",
+      "FAILED tests/unit/test_users_router.py::TestRegisterEndpoint::test_service_error_returns_4xx - assert 500 == 400",
+      " +  where 500 = <Response [500 Internal Server Error]>.status_code",
+      "FAILED tests/unit/test_users_router.py::TestLoginEndpoint::test_success_returns_200 - assert 500 == 200",
+      " +  where 500 = <Response [500 Internal Server Error]>.status_code",
+      "FAILED tests/unit/test_users_router.py::TestLoginEndpoint::test_invalid_credentials_returns_401 - assert 500 == 401",
+      " +  where 500 = <Response [500 Internal Server Error]>.status_code",
+      "================= 8 failed, 665 passed, 16 warnings in 12.42s =================="
     ]
   }
 }
