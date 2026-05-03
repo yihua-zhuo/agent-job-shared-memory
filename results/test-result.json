@@ -1,7 +1,7 @@
 {
   "agent": "test",
   "status": "fail",
-  "generated_at": "2026-05-03T11:39:10.218805Z",
+  "generated_at": "2026-05-03T12:35:34.948748Z",
   "details": {
     "returncode": 1,
     "tail": [
@@ -12,7 +12,7 @@
       " +  where 500 = <Response [500 Internal Server Error]>.status_code",
       "FAILED tests/unit/test_users_router.py::TestLoginEndpoint::test_invalid_credentials_returns_401 - assert 500 == 401",
       " +  where 500 = <Response [500 Internal Server Error]>.status_code",
-      "================= 8 failed, 665 passed, 16 warnings in 13.14s =================="
+      "================= 8 failed, 665 passed, 16 warnings in 13.30s =================="
     ]
   }
 }
