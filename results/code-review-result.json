@@ -1,4 +1,16 @@
 {
-  "error": "Claude returned an error result: subtype=success",
-  "raw": "\":0,\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":0,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"\",\"iterations\":[],\"speed\":\"standard\"},\"modelUsage\":{},\"permission_denials\":[],\"fast_mode_state\":\"off\",\"uuid\":\"e708ec07-ae79-409c-856d-038947401b81\"}]\nWarning: no stdin data received in 3s, proceeding without it. If piping from a slow command, redirect stdin explicitly: < /dev/null to skip, or wait longer.\n"
+  "verdict": "fail",
+  "critical_issues": [
+    "frontend/next.config.ts: API proxy destination hardcoded to production URL `https://agent-job-production.up.railway.app` \u2014 breaks local dev and exposes internal infrastructure in committed code. This should be an environment variable.",
+    "API router refactor (activities, automation, customers, notifications, rbac, reports, sales, tenants, tickets, users): All routers replaced `async with get_db() as session:` context manager pattern with `session: AsyncSession = Depends(get_db)`. This is an architectural change \u2014 need to verify `get_db` is actually a FastAPI dependency (not a context manager) in `db/connection.py`, otherwise runtime errors will occur.",
+    "No global AppException handler added to `main.py` \u2014 the router refactor depends on a global exception handler converting AppException subclasses to JSON responses, but this handler is not shown in the diff. Without it, all services raising exceptions will produce unhandled 500 errors."
+  ],
+  "suggestions": [
+    "Use environment variable for the frontend API proxy destination instead of hardcoding production URL",
+    "Add `app.add_exception_handler(AppException, ...)` to main.py if not already present",
+    "The deleted workflow files (pipeline-qc.yml, pipeline-test.yml) leave no CI coverage for QC or Test stages \u2014 verify these are handled elsewhere",
+    "pipeline-code-review.yml now triggers on all PRs and pushes (`branches: ['*']`) \u2014 consider scoping to specific branches to avoid unnecessary pipeline runs",
+    "The `auto_assign` method in ticket_service returns `dict` but other methods return `Ticket` ORM object \u2014 inconsistent return types within the same service"
+  ],
+  "summary": "Commit introduces significant architectural changes (ApiResponse \u2192 exception pattern, session injection refactor, ruff migration) with a critical hardcoded production URL in the frontend config that must be fixed before merging."
 }
