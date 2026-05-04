@@ -1,4 +1,38 @@
 {
-  "error": "Claude error: subtype=success",
-  "raw": "h_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":0,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"\",\"iterations\":[],\"speed\":\"standard\"},\"modelUsage\":{\"claude-sonnet-4-6\":{\"inputTokens\":195587,\"outputTokens\":764,\"cacheReadInputTokens\":256,\"cacheCreationInputTokens\":0,\"webSearchRequests\":0,\"costUSD\":0.5982978000000001,\"contextWindow\":200000,\"maxOutputTokens\":32000}},\"permission_denials\":[],\"fast_mode_state\":\"off\",\"uuid\":\"39903df5-d787-44f6-800f-8cdc0084ac71\"}"
+  "verdict": "fail",
+  "summary": "Refactoring commit introduces 3 critical issues: a hardcoded production API URL in the frontend config, a logic bug in automation `_execute_action` where dict truthiness replaces the old enum status check, and inconsistent `tenant_id=None` being passed to services that expect `int` (breaking the SQL `WHERE tenant_id = :tenant_id` pattern used everywhere).",
+  "critical_issues": [
+    {
+      "file": "frontend/next.config.ts",
+      "line": 9,
+      "description": "Production URL `https://agent-job-production.up.railway.app` is hardcoded in next.config.ts. Local development will proxy API calls to a live production server instead of localhost:8000. Should use environment variables (e.g. `process.env.NEXT_PUBLIC_API_URL`)."
+    },
+    {
+      "file": "src/services/automation_service.py",
+      "line": 87,
+      "description": "In `_execute_action`, the result of `send_notification` is now a dict, but the code still reads `result.status.value == \"success\"` \u2014 dicts don't have a `.status` attribute, so this will raise `AttributeError` at runtime. The old pattern was `result.status.value == 'success'`, and the new `send_notification` returns a plain dict. Also, `if result` uses dict truthiness (always True for non-empty dict) instead of checking any success field, so a dict return value `{}` would incorrectly evaluate to 'sent'."
+    },
+    {
+      "file": "src/api/routers/activities.py",
+      "line": 63,
+      "description": "`tenant_id=ctx.tenant_id` is passed without the `or 0` fallback that was used in the old code (`ctx.tenant_id or 0`). `AuthContext.tenant_id` is typed `int | None`, and if None is passed to services (which use `tenant_id: int = 0`), SQL queries will filter by NULL instead of 0, silently returning no results. All other affected routers have inconsistent fallbacks (e.g. `tickets.py` kept `or 0`)."
+    }
+  ],
+  "suggestions": [
+    {
+      "file": "src/api/routers/notifications.py",
+      "line": 74,
+      "description": "`tenant_id=current_user.tenant_id` lacks `or 0` fallback. Same None-passing risk as activities.py. Also, `get_notification_preferences` and `update_notification_preferences` still use `session=Depends(get_db)` without the new `AsyncSession` type annotation used in other routers."
+    },
+    {
+      "file": "src/api/routers/rbac.py",
+      "line": 80,
+      "description": "`list_permissions` gained `page` and `page_size` parameters that weren't in the old signature. The old service returned all permissions without pagination. This is a behavioral change that could break callers relying on getting all permissions in one response."
+    },
+    {
+      "file": "src/api/routers/automation.py",
+      "line": 219,
+      "description": "`trigger_event` endpoint hardcodes `executed_by=0` instead of using `ctx.user_id` (which is available in AuthContext). The old code pattern throughout the codebase uses `ctx.user_id` for audit fields."
+    }
+  ]
 }
