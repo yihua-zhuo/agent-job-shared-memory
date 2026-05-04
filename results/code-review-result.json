@@ -1,4 +1,4 @@
 {
-  "error": "Expecting value: line 3 column 1 (char 2)",
-  "raw": "\":[],\"speed\":\"standard\"},\"modelUsage\":{\"claude-sonnet-4-6\":{\"inputTokens\":190913,\"outputTokens\":951,\"cacheReadInputTokens\":256,\"cacheCreationInputTokens\":0,\"webSearchRequests\":0,\"costUSD\":0.5870808,\"contextWindow\":200000,\"maxOutputTokens\":32000}},\"permission_denials\":[],\"fast_mode_state\":\"off\",\"uuid\":\"8e3aeb58-9670-4467-a0c3-f1aa694b5aa6\"}]\nWarning: no stdin data received in 3s, proceeding without it. If piping from a slow command, redirect stdin explicitly: < /dev/null to skip, or wait longer.\n"
+  "error": "Claude returned an error result: subtype=success",
+  "raw": "\":0,\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":0,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"\",\"iterations\":[],\"speed\":\"standard\"},\"modelUsage\":{},\"permission_denials\":[],\"fast_mode_state\":\"off\",\"uuid\":\"e708ec07-ae79-409c-856d-038947401b81\"}]\nWarning: no stdin data received in 3s, proceeding without it. If piping from a slow command, redirect stdin explicitly: < /dev/null to skip, or wait longer.\n"
 }
