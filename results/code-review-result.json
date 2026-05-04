@@ -1,16 +1,18 @@
 {
   "verdict": "fail",
   "critical_issues": [
-    "frontend/next.config.ts: API proxy destination hardcoded to production URL `https://agent-job-production.up.railway.app` \u2014 breaks local dev and exposes internal infrastructure in committed code. This should be an environment variable.",
-    "API router refactor (activities, automation, customers, notifications, rbac, reports, sales, tenants, tickets, users): All routers replaced `async with get_db() as session:` context manager pattern with `session: AsyncSession = Depends(get_db)`. This is an architectural change \u2014 need to verify `get_db` is actually a FastAPI dependency (not a context manager) in `db/connection.py`, otherwise runtime errors will occur.",
-    "No global AppException handler added to `main.py` \u2014 the router refactor depends on a global exception handler converting AppException subclasses to JSON responses, but this handler is not shown in the diff. Without it, all services raising exceptions will produce unhandled 500 errors."
+    "CI workflow deletion: pipeline-qc.yml and pipeline-test.yml are entirely deleted. Hourly QC checks (cron '20 */2 * * *'), 15-minute test runs (cron '*/15 * * * *'), and GitHub Issue creation on test failures are all gone. This is a significant regression in automated quality gates.",
+    "Integration test bug in test_rules_integration.py: sla_svc.check_sla_status() is a sync method (no async def), but tests call it with `await sla_svc.check_sla_status(ticket)` \u2014 this will raise AttributeError at runtime. Same pattern for calculate_remaining_time and get_breach_tickets.",
+    "Integration test bug in test_services_integration.py: svc.get_unread_count() is not async, but tests call `await svc.get_unread_count(...)` \u2014 will raise AttributeError at runtime.",
+    "Potential runtime bug in automation_service.py: action result truthiness check `result.status.value == \"success\"` is replaced with `if result else \"failed\"` \u2014 if NotificationService.send_notification returns a dict (non-None), this always evaluates to 'sent', but if it returns None on error, this would still produce 'failed' (correct by accident, but fragile).",
+    "frontend/next.config.ts: API proxy hardcoded to production Railway URL (`https://agent-job-production.up.railway.app`) instead of localhost \u2014 could route dev traffic to production if this config ships."
   ],
   "suggestions": [
-    "Use environment variable for the frontend API proxy destination instead of hardcoding production URL",
-    "Add `app.add_exception_handler(AppException, ...)` to main.py if not already present",
-    "The deleted workflow files (pipeline-qc.yml, pipeline-test.yml) leave no CI coverage for QC or Test stages \u2014 verify these are handled elsewhere",
-    "pipeline-code-review.yml now triggers on all PRs and pushes (`branches: ['*']`) \u2014 consider scoping to specific branches to avoid unnecessary pipeline runs",
-    "The `auto_assign` method in ticket_service returns `dict` but other methods return `Ticket` ORM object \u2014 inconsistent return types within the same service"
+    "ticket_service.py still imports ResponseStatus from models.response \u2014 dead import should be removed.",
+    "list_opportunities in sales_service.py returns a dict with pagination fields when it's called in sales_router but sales_router discards those fields and uses len(items) for total \u2014 pagination is broken at the router level for list_opportunities.",
+    "automation_service._execute_action checks truthiness of result.status.value for task.create but not for other action types \u2014 consider a consistent result pattern.",
+    "The removed workflows had secrets.COMMIT_GITHUB_TOKEN dependency for shared-memory push \u2014 ensure that capability is preserved or documented as removed.",
+    "web_conftest.py has redundant sys.path.insert of integration.conftest imports \u2014 cleanup import path setup."
   ],
-  "summary": "Commit introduces significant architectural changes (ApiResponse \u2192 exception pattern, session injection refactor, ruff migration) with a critical hardcoded production URL in the frontend config that must be fixed before merging."
+  "summary": "This commit removes two CI workflows (qc and test pipelines), introduces async/sync mismatches in multiple integration tests (sla_svc and notification_svc methods are sync but called with await), and hardcodes a production URL in the frontend proxy \u2014 the workflow deletion alone is a critical regression in automated quality gates."
 }
