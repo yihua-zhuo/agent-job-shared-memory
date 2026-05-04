@@ -1,4 +1,4 @@
 {
-  "error": "Extra data: line 1 column 189 (char 188)",
-  "raw": "[],\"speed\":\"standard\"},\"modelUsage\":{\"claude-sonnet-4-6\":{\"inputTokens\":132,\"outputTokens\":1831,\"cacheReadInputTokens\":0,\"cacheCreationInputTokens\":191017,\"webSearchRequests\":0,\"costUSD\":0.74417475,\"contextWindow\":200000,\"maxOutputTokens\":32000}},\"permission_denials\":[],\"fast_mode_state\":\"off\",\"uuid\":\"c51cd9a8-14ff-42dc-bc40-b0f228b26850\"}]\nWarning: no stdin data received in 3s, proceeding without it. If piping from a slow command, redirect stdin explicitly: < /dev/null to skip, or wait longer.\n"
+  "error": "Extra data: line 2 column 1 (char 7859)",
+  "raw": "\":0,\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":0,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"\",\"iterations\":[],\"speed\":\"standard\"},\"modelUsage\":{},\"permission_denials\":[],\"fast_mode_state\":\"off\",\"uuid\":\"60108a41-7d0b-4850-a742-aff2b97da256\"}]\nWarning: no stdin data received in 3s, proceeding without it. If piping from a slow command, redirect stdin explicitly: < /dev/null to skip, or wait longer.\n"
 }
