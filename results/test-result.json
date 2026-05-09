@@ -1,7 +1,7 @@
 {
   "agent": "test",
   "status": "fail",
-  "generated_at": "2026-05-09T14:20:30.368617Z",
+  "generated_at": "2026-05-09T15:29:29.772865Z",
   "details": {
     "returncode": 1,
     "tail": [
