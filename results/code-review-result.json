@@ -1,135 +1,133 @@
 {
-  "status": "fail",
-  "verdict": "fail",
-  "critical_issues": [
-    {
-      "file": "src/internal/db/engine.py",
-      "line": 118,
-      "severity": "critical",
-      "msg": "SUPABASE_POOLER_HOST is read from the environment at module init time, making the connection endpoint user-controllable \u2014 an attacker with filesystem or environment control could redirect database traffic",
-      "suggestion": "Require SUPABASE_POOLER_HOST to be set only via a trusted config file or secret management, not os.environ.get at module load time; or remove the override entirely and require the host to be embedded in the URL"
-    },
-    {
-      "file": "src/internal/db/engine.py",
-      "line": 111,
-      "severity": "critical",
-      "msg": "If the Supabase pooler URL has no path component (e.g. no '/' after the port), port_and_path.split('/', 1) produces port = '5432/mydb' \u2014 the port includes the database name and connect_args['database'] is set to an empty string",
-      "suggestion": "Add a guard: if '/' not in port_and_path: port = port_and_path; path = '' before the split, then handle path only when present"
-    }
-  ],
+  "status": "pass",
+  "verdict": "pass",
+  "critical_issues": [],
   "suggestions": [
     {
       "file": "src/internal/db/__init__.py",
-      "line": 54,
+      "line": 69,
       "severity": "info",
-      "msg": "SessionLocal() return type is implied by the docstring but not annotated \u2014 type-checkers cannot verify it matches get_async_session_factory()",
-      "suggestion": "Add return type annotation: def SessionLocal() -> async_sessionmaker[AsyncSession]:"
+      "msg": "session_scope() is a pure pass-through wrapper over async_session_scope() with no additional logic \u2014 it adds a second name for the same thing with no benefit.",
+      "suggestion": "Remove session_scope() wrapper and export async_session_scope directly, or keep it only if a distinct sync session_scope is planned."
     },
     {
       "file": "src/internal/db/__init__.py",
-      "line": 0,
+      "line": 103,
       "severity": "info",
-      "msg": "The __init__.py re-exports sync-layer symbols (create_engine_from_env, get_engine) alongside async ones \u2014 callers may accidentally use the sync engine in async contexts",
-      "suggestion": "Consider a clear split or deprecation notice for sync vs async public API, or document which layer each symbol belongs to"
+      "msg": "__all__ omits 'async_session_scope' while exporting it implicitly via session_scope; this is inconsistent with the public API intent.",
+      "suggestion": "Add 'async_session_scope' to __all__ explicitly since it is the actual implementation that SessionDep / get_db uses."
     },
     {
       "file": "src/internal/db/engine.py",
-      "line": 18,
+      "line": 23,
       "severity": "warning",
-      "msg": "AsyncEngine is imported at runtime but only used in TYPE_CHECKING blocks (function return annotations); it should be moved inside TYPE_CHECKING to avoid unnecessary module load cost and signal intent clearly",
-      "suggestion": "Move 'AsyncEngine' inside the TYPE_CHECKING block alongside any other type-only imports"
+      "msg": "load_dotenv() is called at module import time, which runs before any test can mock environment variables.",
+      "suggestion": "Call load_dotenv() inside create_engine_from_env() / create_async_engine_from_env() instead, or remove it entirely if FastAPI's lifespan or your entrypoint already loads the dotenv."
+    },
+    {
+      "file": "src/internal/db/engine.py",
+      "line": 130,
+      "severity": "warning",
+      "msg": "Hardcoded default Supabase pooler IP '13.114.6.6' is a stable internal infrastructure address that should not be baked into source.",
+      "suggestion": "Make the default an empty string and require SUPABASE_POOLER_HOST to be set explicitly, so missing the env var produces a clear failure rather than silently connecting to a hardcoded IP."
+    },
+    {
+      "file": "src/internal/db/engine.py",
+      "line": 148,
+      "severity": "info",
+      "msg": "Async engine pool config {'pool_pre_ping': True, 'pool_size': 5} lacks max_overflow, unlike the sync engine which also lacks it \u2014 both should be consistent.",
+      "suggestion": "Add max_overflow=10 (or explicit 0) to both engine pool configs so pool exhaustion behaviour is predictable under concurrent load."
+    },
+    {
+      "file": "src/internal/db/engine.py",
+      "line": 0,
+      "severity": "info",
+      "msg": "Missing test coverage for create_async_engine_from_env: the test suite only covers the sync path (test_create_engine_requires_url), leaving the async path untested.",
+      "suggestion": "Add a test_create_async_engine_requires_url similar to test_create_engine_requires_url, patching _async_engine and _async_session_factory to None and os.environ to {}."
     },
     {
       "file": "tests/unit/test_db_engine.py",
       "line": 21,
       "severity": "warning",
-      "msg": "Test restores _sync_engine via direct module-level reassignment, which does not clean up if create_engine_from_env() raises before the assignment executes \u2014 a crash on line 27 leaves _sync_engine permanently None for the process",
-      "suggestion": "Use a try/finally with a flag or mock.patch to handle restoration safely regardless of where pytest.raises intercepts the exception"
+      "msg": "Test directly mutates module-level global state (_sync_engine = None) to isolate itself, which can silently leak state if an exception occurs before the finally block runs.",
+      "suggestion": "Use pytest's monkeypatch fixture instead: monkeypatch.setenv('DATABASE_URL', ''); this avoids manual save/restore and is exception-safe by design."
     },
     {
       "file": "tests/unit/test_db_engine.py",
-      "line": 0,
+      "line": 12,
       "severity": "info",
-      "msg": "load_dotenv() is called at module import time in engine.py; test_db_engine.py does not isolate or mock this side effect, so tests may be ordering-dependent and fail when dotenv state is unexpected",
-      "suggestion": "Add a test fixture or autouse fixture that patches dotenv or resets the relevant engine module globals before each test"
-    },
-    {
-      "file": "tests/unit/test_db_engine.py",
-      "line": 0,
-      "severity": "info",
-      "msg": "Only two of the many engine functions are tested \u2014 create_engine_from_env, get_async_engine, get_async_session_factory, _build_async_engine, and the Supabase pooler path have no unit test coverage",
-      "suggestion": "Add unit tests for _build_async_engine (Supabase URL, standard URL, path-with-database edge case) and for get_async_session_factory"
+      "msg": "sys.path.insert(0, ...) to locate src is a fragile pattern; it bypasses the PYTHONPATH convention described in CLAUDE.md.",
+      "suggestion": "Ensure the test runner sets PYTHONPATH=src (e.g., via pytest.ini or the shell profile) and remove the sys.path.insert, so the import path matches how the app is actually run."
     }
   ],
   "summary": "Reviewed 3 file(s) between origin/master and origin/issue-272-sqlalchemy-db-engine.",
   "details": {
     "llm_parsed": {
-      "verdict": "fail",
-      "critical": [
-        {
-          "file": "src/internal/db/engine.py",
-          "line": 118,
-          "severity": "critical",
-          "msg": "SUPABASE_POOLER_HOST is read from the environment at module init time, making the connection endpoint user-controllable \u2014 an attacker with filesystem or environment control could redirect database traffic",
-          "suggestion": "Require SUPABASE_POOLER_HOST to be set only via a trusted config file or secret management, not os.environ.get at module load time; or remove the override entirely and require the host to be embedded in the URL"
-        },
-        {
-          "file": "src/internal/db/engine.py",
-          "line": 111,
-          "severity": "critical",
-          "msg": "If the Supabase pooler URL has no path component (e.g. no '/' after the port), port_and_path.split('/', 1) produces port = '5432/mydb' \u2014 the port includes the database name and connect_args['database'] is set to an empty string",
-          "suggestion": "Add a guard: if '/' not in port_and_path: port = port_and_path; path = '' before the split, then handle path only when present"
-        }
-      ],
+      "verdict": "pass",
+      "critical": [],
       "warnings": [
         {
           "file": "src/internal/db/__init__.py",
-          "line": 54,
+          "line": 69,
           "severity": "info",
-          "msg": "SessionLocal() return type is implied by the docstring but not annotated \u2014 type-checkers cannot verify it matches get_async_session_factory()",
-          "suggestion": "Add return type annotation: def SessionLocal() -> async_sessionmaker[AsyncSession]:"
+          "msg": "session_scope() is a pure pass-through wrapper over async_session_scope() with no additional logic \u2014 it adds a second name for the same thing with no benefit.",
+          "suggestion": "Remove session_scope() wrapper and export async_session_scope directly, or keep it only if a distinct sync session_scope is planned."
         },
         {
           "file": "src/internal/db/__init__.py",
-          "line": 0,
+          "line": 103,
           "severity": "info",
-          "msg": "The __init__.py re-exports sync-layer symbols (create_engine_from_env, get_engine) alongside async ones \u2014 callers may accidentally use the sync engine in async contexts",
-          "suggestion": "Consider a clear split or deprecation notice for sync vs async public API, or document which layer each symbol belongs to"
+          "msg": "__all__ omits 'async_session_scope' while exporting it implicitly via session_scope; this is inconsistent with the public API intent.",
+          "suggestion": "Add 'async_session_scope' to __all__ explicitly since it is the actual implementation that SessionDep / get_db uses."
         },
         {
           "file": "src/internal/db/engine.py",
-          "line": 18,
+          "line": 23,
           "severity": "warning",
-          "msg": "AsyncEngine is imported at runtime but only used in TYPE_CHECKING blocks (function return annotations); it should be moved inside TYPE_CHECKING to avoid unnecessary module load cost and signal intent clearly",
-          "suggestion": "Move 'AsyncEngine' inside the TYPE_CHECKING block alongside any other type-only imports"
+          "msg": "load_dotenv() is called at module import time, which runs before any test can mock environment variables.",
+          "suggestion": "Call load_dotenv() inside create_engine_from_env() / create_async_engine_from_env() instead, or remove it entirely if FastAPI's lifespan or your entrypoint already loads the dotenv."
+        },
+        {
+          "file": "src/internal/db/engine.py",
+          "line": 130,
+          "severity": "warning",
+          "msg": "Hardcoded default Supabase pooler IP '13.114.6.6' is a stable internal infrastructure address that should not be baked into source.",
+          "suggestion": "Make the default an empty string and require SUPABASE_POOLER_HOST to be set explicitly, so missing the env var produces a clear failure rather than silently connecting to a hardcoded IP."
+        },
+        {
+          "file": "src/internal/db/engine.py",
+          "line": 148,
+          "severity": "info",
+          "msg": "Async engine pool config {'pool_pre_ping': True, 'pool_size': 5} lacks max_overflow, unlike the sync engine which also lacks it \u2014 both should be consistent.",
+          "suggestion": "Add max_overflow=10 (or explicit 0) to both engine pool configs so pool exhaustion behaviour is predictable under concurrent load."
+        },
+        {
+          "file": "src/internal/db/engine.py",
+          "line": 0,
+          "severity": "info",
+          "msg": "Missing test coverage for create_async_engine_from_env: the test suite only covers the sync path (test_create_engine_requires_url), leaving the async path untested.",
+          "suggestion": "Add a test_create_async_engine_requires_url similar to test_create_engine_requires_url, patching _async_engine and _async_session_factory to None and os.environ to {}."
         },
         {
           "file": "tests/unit/test_db_engine.py",
           "line": 21,
           "severity": "warning",
-          "msg": "Test restores _sync_engine via direct module-level reassignment, which does not clean up if create_engine_from_env() raises before the assignment executes \u2014 a crash on line 27 leaves _sync_engine permanently None for the process",
-          "suggestion": "Use a try/finally with a flag or mock.patch to handle restoration safely regardless of where pytest.raises intercepts the exception"
+          "msg": "Test directly mutates module-level global state (_sync_engine = None) to isolate itself, which can silently leak state if an exception occurs before the finally block runs.",
+          "suggestion": "Use pytest's monkeypatch fixture instead: monkeypatch.setenv('DATABASE_URL', ''); this avoids manual save/restore and is exception-safe by design."
         },
         {
           "file": "tests/unit/test_db_engine.py",
-          "line": 0,
+          "line": 12,
           "severity": "info",
-          "msg": "load_dotenv() is called at module import time in engine.py; test_db_engine.py does not isolate or mock this side effect, so tests may be ordering-dependent and fail when dotenv state is unexpected",
-          "suggestion": "Add a test fixture or autouse fixture that patches dotenv or resets the relevant engine module globals before each test"
-        },
-        {
-          "file": "tests/unit/test_db_engine.py",
-          "line": 0,
-          "severity": "info",
-          "msg": "Only two of the many engine functions are tested \u2014 create_engine_from_env, get_async_engine, get_async_session_factory, _build_async_engine, and the Supabase pooler path have no unit test coverage",
-          "suggestion": "Add unit tests for _build_async_engine (Supabase URL, standard URL, path-with-database edge case) and for get_async_session_factory"
+          "msg": "sys.path.insert(0, ...) to locate src is a fragile pattern; it bypasses the PYTHONPATH convention described in CLAUDE.md.",
+          "suggestion": "Ensure the test runner sets PYTHONPATH=src (e.g., via pytest.ini or the shell profile) and remove the sys.path.insert, so the import path matches how the app is actually run."
         }
       ],
       "summary": "Reviewed 3 file(s) between origin/master and origin/issue-272-sqlalchemy-db-engine."
     },
     "reviewed_refs": {
       "base": "2f0a5df310d4318699955a7abadabce77ef92ff1",
-      "head": "dc774de886cb06f52b35d7b7cf5145f118eb28f9",
+      "head": "0e3d3fc93391665e6dca45d89e6929370af78292",
       "base_label": "origin/master",
       "head_label": "origin/issue-272-sqlalchemy-db-engine"
     },
@@ -142,82 +140,82 @@
       {
         "file": "src/internal/db/__init__.py",
         "returncode": 0,
-        "output": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"api_error_status\":null,\"duration_ms\":41050,\"duration_api_ms\":41003,\"num_turns\":4,\"result\":\"\\n\\n```json\\n[\\n  {\\n    \\\"filename\\\": \\\"src/internal/db/__init__.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 54,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"SessionLocal() return type is implied by the docstring but not annotated \u2014 type-checkers cannot verify it matches get_async_session_factory()\\\",\\n        \\\"suggestion\\\": \\\"Add return type annotation: def SessionLocal() -> async_sessionmaker[AsyncSession]:\\\"\\n      },\\n      {\\n        \\\"line\\\": 0,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"The __init__.py re-exports sync-layer symbols (create_engine_from_env, get_engine) alongside async ones \u2014 callers may accidentally use the sync engine in async contexts\\\",\\n        \\\"suggestion\\\": \\\"Consider a clear split or deprecation notice for sync vs async public API, or document which layer each symbol belongs to\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Thin, well-documented re-export layer; a missing return type annotation on SessionLocal() is the only issue.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"src/internal/db/engine.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 118,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"SUPABASE_POOLER_HOST is read from the environment at module init time, making the connection endpoint user-controllable \u2014 an attacker with filesystem or environment control could redirect database traffic\\\",\\n        \\\"suggestion\\\": \\\"Require SUPABASE_POOLER_HOST to be set only via a trusted config file or secret management, not os.environ.get at module load time; or remove the override entirely and require the host to be embedded in the URL\\\"\\n      },\\n      {\\n        \\\"line\\\": 111,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"If the Supabase pooler URL has no path component (e.g. no '/' after the port), port_and_path.split('/', 1) produces port = '5432/mydb' \u2014 the port includes the database name and connect_args['database'] is set to an empty string\\\",\\n        \\\"suggestion\\\": \\\"Add a guard: if '/' not in port_and_path: port = port_and_path; path = '' before the split, then handle path only when present\\\"\\n      },\\n      {\\n        \\\"line\\\": 18,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"AsyncEngine is imported at runtime but only used in TYPE_CHECKING blocks (function return annotations); it should be moved inside TYPE_CHECKING to avoid unnecessary module load cost and signal intent clearly\\\",\\n        \\\"suggestion\\\": \\\"Move 'AsyncEngine' inside the TYPE_CHECKING block alongside any other type-only imports\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Core engine infrastructure is solid; two critical bugs (URL parsing edge case, env-driven host injection) and one quality issue (unused runtime import).\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"tests/unit/test_db_engine.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 21,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"Test restores _sync_engine via direct module-level reassignment, which does not clean up if create_engine_from_env() raises before the assignment executes \u2014 a crash on line 27 leaves _sync_engine permanently None for the process\\\",\\n        \\\"suggestion\\\": \\\"Use a try/finally with a flag or mock.patch to handle restoration safely regardless of where pytest.raises intercepts the exception\\\"\\n      },\\n      {\\n        \\\"line\\\": 0,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"load_dotenv() is called at module import time in engine.py; test_db_engine.py does not isolate or mock this side effect, so tests may be ordering-dependent and fail when dotenv state is unexpected\\\",\\n        \\\"suggestion\\\": \\\"Add a test fixture or autouse fixture that patches dotenv or resets the relevant engine module globals before each test\\\"\\n      },\\n      {\\n        \\\"line\\\": 0,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"Only two of the many engine functions are tested \u2014 create_engine_from_env, get_async_engine, get_async_session_factory, _build_async_engine, and the Supabase pooler path have no unit test coverage\\\",\\n        \\\"suggestion\\\": \\\"Add unit tests for _build_async_engine (Supabase URL, standard URL, path-with-database edge case) and for get_async_session_factory\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Two tests with correct intent but fragile global-state teardown; comprehensive coverage of engine creation paths and side effects is missing.\\\"\\n  }\\n]\\n```\",\"stop_reason\":\"end_turn\",\"session_id\":\"ced58142-2e75-4de8-bf47-2fa2c7782eb1\",\"total_cost_usd\":0.128547,\"usage\":{\"input_tokens\":29931,\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":31680,\"output_tokens\":1950,\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":0,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"\",\"iterations\":[],\"speed\":\"standard\"},\"modelUsage\":{\"claude-sonnet-4-6\":{\"inputTokens\":29931,\"outputTokens\":1950,\"cacheReadInputTokens\":31680,\"cacheCreationInputTokens\":0,\"webSearchRequests\":0,\"costUSD\":0.128547,\"contextWindow\":200000,\"maxOutputTokens\":32000}},\"permission_denials\":[],\"terminal_reason\":\"completed\",\"fast_mode_state\":\"off\",\"uuid\":\"761f3441-b5a9-455a-b837-d52e7e21fc33\"}\n",
+        "output": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"api_error_status\":null,\"duration_ms\":102155,\"duration_api_ms\":102084,\"num_turns\":4,\"result\":\"\\n\\n```json\\n[\\n  {\\n    \\\"filename\\\": \\\"src/internal/db/engine.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 23,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"load_dotenv() is called at module import time, which runs before any test can mock environment variables.\\\",\\n        \\\"suggestion\\\": \\\"Call load_dotenv() inside create_engine_from_env() / create_async_engine_from_env() instead, or remove it entirely if FastAPI's lifespan or your entrypoint already loads the dotenv.\\\"\\n      },\\n      {\\n        \\\"line\\\": 130,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"Hardcoded default Supabase pooler IP '13.114.6.6' is a stable internal infrastructure address that should not be baked into source.\\\",\\n        \\\"suggestion\\\": \\\"Make the default an empty string and require SUPABASE_POOLER_HOST to be set explicitly, so missing the env var produces a clear failure rather than silently connecting to a hardcoded IP.\\\"\\n      },\\n      {\\n        \\\"line\\\": 148,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"Async engine pool config {'pool_pre_ping': True, 'pool_size': 5} lacks max_overflow, unlike the sync engine which also lacks it \u2014 both should be consistent.\\\",\\n        \\\"suggestion\\\": \\\"Add max_overflow=10 (or explicit 0) to both engine pool configs so pool exhaustion behaviour is predictable under concurrent load.\\\"\\n      },\\n      {\\n        \\\"line\\\": 0,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"Missing test coverage for create_async_engine_from_env: the test suite only covers the sync path (test_create_engine_requires_url), leaving the async path untested.\\\",\\n        \\\"suggestion\\\": \\\"Add a test_create_async_engine_requires_url similar to test_create_engine_requires_url, patching _async_engine and _async_session_factory to None and os.environ to {}.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Engine module is well-structured with correct double-checked locking, Supabase pooler URL parsing, and session scope handling, but module-level load_dotenv() hurts testability and a hardcoded pooler IP should be made explicit.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"src/internal/db/__init__.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 69,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"session_scope() is a pure pass-through wrapper over async_session_scope() with no additional logic \u2014 it adds a second name for the same thing with no benefit.\\\",\\n        \\\"suggestion\\\": \\\"Remove session_scope() wrapper and export async_session_scope directly, or keep it only if a distinct sync session_scope is planned.\\\"\\n      },\\n      {\\n        \\\"line\\\": 103,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"__all__ omits 'async_session_scope' while exporting it implicitly via session_scope; this is inconsistent with the public API intent.\\\",\\n        \\\"suggestion\\\": \\\"Add 'async_session_scope' to __all__ explicitly since it is the actual implementation that SessionDep / get_db uses.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"The __init__.py re-exports are clean and idiomatic; the only notable issue is that session_scope() is a redundant wrapper and __all__ is missing async_session_scope.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"tests/unit/test_db_engine.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 21,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"Test directly mutates module-level global state (_sync_engine = None) to isolate itself, which can silently leak state if an exception occurs before the finally block runs.\\\",\\n        \\\"suggestion\\\": \\\"Use pytest's monkeypatch fixture instead: monkeypatch.setenv('DATABASE_URL', ''); this avoids manual save/restore and is exception-safe by design.\\\"\\n      },\\n      {\\n        \\\"line\\\": 12,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"sys.path.insert(0, ...) to locate src is a fragile pattern; it bypasses the PYTHONPATH convention described in CLAUDE.md.\\\",\\n        \\\"suggestion\\\": \\\"Ensure the test runner sets PYTHONPATH=src (e.g., via pytest.ini or the shell profile) and remove the sys.path.insert, so the import path matches how the app is actually run.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Tests are minimal but correct; the main improvement is switching from manual global patching to pytest's monkeypatch fixture for cleaner exception safety.\\\"\\n  }\\n]\\n```\",\"stop_reason\":\"end_turn\",\"session_id\":\"1ea4693f-5e7f-4b58-8fb9-20e6aa2fa64d\",\"total_cost_usd\":0.16502640000000002,\"usage\":{\"input_tokens\":40476,\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":19328,\"output_tokens\":2520,\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":0,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"\",\"iterations\":[],\"speed\":\"standard\"},\"modelUsage\":{\"claude-sonnet-4-6\":{\"inputTokens\":40476,\"outputTokens\":2520,\"cacheReadInputTokens\":19328,\"cacheCreationInputTokens\":0,\"webSearchRequests\":0,\"costUSD\":0.16502640000000002,\"contextWindow\":200000,\"maxOutputTokens\":32000}},\"permission_denials\":[],\"terminal_reason\":\"completed\",\"fast_mode_state\":\"off\",\"uuid\":\"e3fccb38-1f83-405b-905a-84cc94af0247\"}\n",
         "parsed": {
           "filename": "src/internal/db/__init__.py",
           "issues": [
             {
-              "line": 54,
+              "line": 69,
               "severity": "info",
-              "message": "SessionLocal() return type is implied by the docstring but not annotated \u2014 type-checkers cannot verify it matches get_async_session_factory()",
-              "suggestion": "Add return type annotation: def SessionLocal() -> async_sessionmaker[AsyncSession]:"
+              "message": "session_scope() is a pure pass-through wrapper over async_session_scope() with no additional logic \u2014 it adds a second name for the same thing with no benefit.",
+              "suggestion": "Remove session_scope() wrapper and export async_session_scope directly, or keep it only if a distinct sync session_scope is planned."
             },
             {
-              "line": 0,
+              "line": 103,
               "severity": "info",
-              "message": "The __init__.py re-exports sync-layer symbols (create_engine_from_env, get_engine) alongside async ones \u2014 callers may accidentally use the sync engine in async contexts",
-              "suggestion": "Consider a clear split or deprecation notice for sync vs async public API, or document which layer each symbol belongs to"
+              "message": "__all__ omits 'async_session_scope' while exporting it implicitly via session_scope; this is inconsistent with the public API intent.",
+              "suggestion": "Add 'async_session_scope' to __all__ explicitly since it is the actual implementation that SessionDep / get_db uses."
             }
           ],
-          "summary": "Thin, well-documented re-export layer; a missing return type annotation on SessionLocal() is the only issue."
+          "summary": "The __init__.py re-exports are clean and idiomatic; the only notable issue is that session_scope() is a redundant wrapper and __all__ is missing async_session_scope."
         }
       },
       {
         "file": "src/internal/db/engine.py",
         "returncode": 0,
-        "output": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"api_error_status\":null,\"duration_ms\":41050,\"duration_api_ms\":41003,\"num_turns\":4,\"result\":\"\\n\\n```json\\n[\\n  {\\n    \\\"filename\\\": \\\"src/internal/db/__init__.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 54,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"SessionLocal() return type is implied by the docstring but not annotated \u2014 type-checkers cannot verify it matches get_async_session_factory()\\\",\\n        \\\"suggestion\\\": \\\"Add return type annotation: def SessionLocal() -> async_sessionmaker[AsyncSession]:\\\"\\n      },\\n      {\\n        \\\"line\\\": 0,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"The __init__.py re-exports sync-layer symbols (create_engine_from_env, get_engine) alongside async ones \u2014 callers may accidentally use the sync engine in async contexts\\\",\\n        \\\"suggestion\\\": \\\"Consider a clear split or deprecation notice for sync vs async public API, or document which layer each symbol belongs to\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Thin, well-documented re-export layer; a missing return type annotation on SessionLocal() is the only issue.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"src/internal/db/engine.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 118,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"SUPABASE_POOLER_HOST is read from the environment at module init time, making the connection endpoint user-controllable \u2014 an attacker with filesystem or environment control could redirect database traffic\\\",\\n        \\\"suggestion\\\": \\\"Require SUPABASE_POOLER_HOST to be set only via a trusted config file or secret management, not os.environ.get at module load time; or remove the override entirely and require the host to be embedded in the URL\\\"\\n      },\\n      {\\n        \\\"line\\\": 111,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"If the Supabase pooler URL has no path component (e.g. no '/' after the port), port_and_path.split('/', 1) produces port = '5432/mydb' \u2014 the port includes the database name and connect_args['database'] is set to an empty string\\\",\\n        \\\"suggestion\\\": \\\"Add a guard: if '/' not in port_and_path: port = port_and_path; path = '' before the split, then handle path only when present\\\"\\n      },\\n      {\\n        \\\"line\\\": 18,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"AsyncEngine is imported at runtime but only used in TYPE_CHECKING blocks (function return annotations); it should be moved inside TYPE_CHECKING to avoid unnecessary module load cost and signal intent clearly\\\",\\n        \\\"suggestion\\\": \\\"Move 'AsyncEngine' inside the TYPE_CHECKING block alongside any other type-only imports\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Core engine infrastructure is solid; two critical bugs (URL parsing edge case, env-driven host injection) and one quality issue (unused runtime import).\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"tests/unit/test_db_engine.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 21,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"Test restores _sync_engine via direct module-level reassignment, which does not clean up if create_engine_from_env() raises before the assignment executes \u2014 a crash on line 27 leaves _sync_engine permanently None for the process\\\",\\n        \\\"suggestion\\\": \\\"Use a try/finally with a flag or mock.patch to handle restoration safely regardless of where pytest.raises intercepts the exception\\\"\\n      },\\n      {\\n        \\\"line\\\": 0,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"load_dotenv() is called at module import time in engine.py; test_db_engine.py does not isolate or mock this side effect, so tests may be ordering-dependent and fail when dotenv state is unexpected\\\",\\n        \\\"suggestion\\\": \\\"Add a test fixture or autouse fixture that patches dotenv or resets the relevant engine module globals before each test\\\"\\n      },\\n      {\\n        \\\"line\\\": 0,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"Only two of the many engine functions are tested \u2014 create_engine_from_env, get_async_engine, get_async_session_factory, _build_async_engine, and the Supabase pooler path have no unit test coverage\\\",\\n        \\\"suggestion\\\": \\\"Add unit tests for _build_async_engine (Supabase URL, standard URL, path-with-database edge case) and for get_async_session_factory\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Two tests with correct intent but fragile global-state teardown; comprehensive coverage of engine creation paths and side effects is missing.\\\"\\n  }\\n]\\n```\",\"stop_reason\":\"end_turn\",\"session_id\":\"ced58142-2e75-4de8-bf47-2fa2c7782eb1\",\"total_cost_usd\":0.128547,\"usage\":{\"input_tokens\":29931,\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":31680,\"output_tokens\":1950,\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":0,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"\",\"iterations\":[],\"speed\":\"standard\"},\"modelUsage\":{\"claude-sonnet-4-6\":{\"inputTokens\":29931,\"outputTokens\":1950,\"cacheReadInputTokens\":31680,\"cacheCreationInputTokens\":0,\"webSearchRequests\":0,\"costUSD\":0.128547,\"contextWindow\":200000,\"maxOutputTokens\":32000}},\"permission_denials\":[],\"terminal_reason\":\"completed\",\"fast_mode_state\":\"off\",\"uuid\":\"761f3441-b5a9-455a-b837-d52e7e21fc33\"}\n",
+        "output": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"api_error_status\":null,\"duration_ms\":102155,\"duration_api_ms\":102084,\"num_turns\":4,\"result\":\"\\n\\n```json\\n[\\n  {\\n    \\\"filename\\\": \\\"src/internal/db/engine.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 23,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"load_dotenv() is called at module import time, which runs before any test can mock environment variables.\\\",\\n        \\\"suggestion\\\": \\\"Call load_dotenv() inside create_engine_from_env() / create_async_engine_from_env() instead, or remove it entirely if FastAPI's lifespan or your entrypoint already loads the dotenv.\\\"\\n      },\\n      {\\n        \\\"line\\\": 130,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"Hardcoded default Supabase pooler IP '13.114.6.6' is a stable internal infrastructure address that should not be baked into source.\\\",\\n        \\\"suggestion\\\": \\\"Make the default an empty string and require SUPABASE_POOLER_HOST to be set explicitly, so missing the env var produces a clear failure rather than silently connecting to a hardcoded IP.\\\"\\n      },\\n      {\\n        \\\"line\\\": 148,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"Async engine pool config {'pool_pre_ping': True, 'pool_size': 5} lacks max_overflow, unlike the sync engine which also lacks it \u2014 both should be consistent.\\\",\\n        \\\"suggestion\\\": \\\"Add max_overflow=10 (or explicit 0) to both engine pool configs so pool exhaustion behaviour is predictable under concurrent load.\\\"\\n      },\\n      {\\n        \\\"line\\\": 0,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"Missing test coverage for create_async_engine_from_env: the test suite only covers the sync path (test_create_engine_requires_url), leaving the async path untested.\\\",\\n        \\\"suggestion\\\": \\\"Add a test_create_async_engine_requires_url similar to test_create_engine_requires_url, patching _async_engine and _async_session_factory to None and os.environ to {}.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Engine module is well-structured with correct double-checked locking, Supabase pooler URL parsing, and session scope handling, but module-level load_dotenv() hurts testability and a hardcoded pooler IP should be made explicit.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"src/internal/db/__init__.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 69,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"session_scope() is a pure pass-through wrapper over async_session_scope() with no additional logic \u2014 it adds a second name for the same thing with no benefit.\\\",\\n        \\\"suggestion\\\": \\\"Remove session_scope() wrapper and export async_session_scope directly, or keep it only if a distinct sync session_scope is planned.\\\"\\n      },\\n      {\\n        \\\"line\\\": 103,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"__all__ omits 'async_session_scope' while exporting it implicitly via session_scope; this is inconsistent with the public API intent.\\\",\\n        \\\"suggestion\\\": \\\"Add 'async_session_scope' to __all__ explicitly since it is the actual implementation that SessionDep / get_db uses.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"The __init__.py re-exports are clean and idiomatic; the only notable issue is that session_scope() is a redundant wrapper and __all__ is missing async_session_scope.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"tests/unit/test_db_engine.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 21,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"Test directly mutates module-level global state (_sync_engine = None) to isolate itself, which can silently leak state if an exception occurs before the finally block runs.\\\",\\n        \\\"suggestion\\\": \\\"Use pytest's monkeypatch fixture instead: monkeypatch.setenv('DATABASE_URL', ''); this avoids manual save/restore and is exception-safe by design.\\\"\\n      },\\n      {\\n        \\\"line\\\": 12,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"sys.path.insert(0, ...) to locate src is a fragile pattern; it bypasses the PYTHONPATH convention described in CLAUDE.md.\\\",\\n        \\\"suggestion\\\": \\\"Ensure the test runner sets PYTHONPATH=src (e.g., via pytest.ini or the shell profile) and remove the sys.path.insert, so the import path matches how the app is actually run.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Tests are minimal but correct; the main improvement is switching from manual global patching to pytest's monkeypatch fixture for cleaner exception safety.\\\"\\n  }\\n]\\n```\",\"stop_reason\":\"end_turn\",\"session_id\":\"1ea4693f-5e7f-4b58-8fb9-20e6aa2fa64d\",\"total_cost_usd\":0.16502640000000002,\"usage\":{\"input_tokens\":40476,\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":19328,\"output_tokens\":2520,\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":0,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"\",\"iterations\":[],\"speed\":\"standard\"},\"modelUsage\":{\"claude-sonnet-4-6\":{\"inputTokens\":40476,\"outputTokens\":2520,\"cacheReadInputTokens\":19328,\"cacheCreationInputTokens\":0,\"webSearchRequests\":0,\"costUSD\":0.16502640000000002,\"contextWindow\":200000,\"maxOutputTokens\":32000}},\"permission_denials\":[],\"terminal_reason\":\"completed\",\"fast_mode_state\":\"off\",\"uuid\":\"e3fccb38-1f83-405b-905a-84cc94af0247\"}\n",
         "parsed": {
           "filename": "src/internal/db/engine.py",
           "issues": [
             {
-              "line": 118,
-              "severity": "critical",
-              "message": "SUPABASE_POOLER_HOST is read from the environment at module init time, making the connection endpoint user-controllable \u2014 an attacker with filesystem or environment control could redirect database traffic",
-              "suggestion": "Require SUPABASE_POOLER_HOST to be set only via a trusted config file or secret management, not os.environ.get at module load time; or remove the override entirely and require the host to be embedded in the URL"
-            },
-            {
-              "line": 111,
-              "severity": "critical",
-              "message": "If the Supabase pooler URL has no path component (e.g. no '/' after the port), port_and_path.split('/', 1) produces port = '5432/mydb' \u2014 the port includes the database name and connect_args['database'] is set to an empty string",
-              "suggestion": "Add a guard: if '/' not in port_and_path: port = port_and_path; path = '' before the split, then handle path only when present"
-            },
-            {
-              "line": 18,
+              "line": 23,
               "severity": "warning",
-              "message": "AsyncEngine is imported at runtime but only used in TYPE_CHECKING blocks (function return annotations); it should be moved inside TYPE_CHECKING to avoid unnecessary module load cost and signal intent clearly",
-              "suggestion": "Move 'AsyncEngine' inside the TYPE_CHECKING block alongside any other type-only imports"
+              "message": "load_dotenv() is called at module import time, which runs before any test can mock environment variables.",
+              "suggestion": "Call load_dotenv() inside create_engine_from_env() / create_async_engine_from_env() instead, or remove it entirely if FastAPI's lifespan or your entrypoint already loads the dotenv."
+            },
+            {
+              "line": 130,
+              "severity": "warning",
+              "message": "Hardcoded default Supabase pooler IP '13.114.6.6' is a stable internal infrastructure address that should not be baked into source.",
+              "suggestion": "Make the default an empty string and require SUPABASE_POOLER_HOST to be set explicitly, so missing the env var produces a clear failure rather than silently connecting to a hardcoded IP."
+            },
+            {
+              "line": 148,
+              "severity": "info",
+              "message": "Async engine pool config {'pool_pre_ping': True, 'pool_size': 5} lacks max_overflow, unlike the sync engine which also lacks it \u2014 both should be consistent.",
+              "suggestion": "Add max_overflow=10 (or explicit 0) to both engine pool configs so pool exhaustion behaviour is predictable under concurrent load."
+            },
+            {
+              "line": 0,
+              "severity": "info",
+              "message": "Missing test coverage for create_async_engine_from_env: the test suite only covers the sync path (test_create_engine_requires_url), leaving the async path untested.",
+              "suggestion": "Add a test_create_async_engine_requires_url similar to test_create_engine_requires_url, patching _async_engine and _async_session_factory to None and os.environ to {}."
             }
           ],
-          "summary": "Core engine infrastructure is solid; two critical bugs (URL parsing edge case, env-driven host injection) and one quality issue (unused runtime import)."
+          "summary": "Engine module is well-structured with correct double-checked locking, Supabase pooler URL parsing, and session scope handling, but module-level load_dotenv() hurts testability and a hardcoded pooler IP should be made explicit."
         }
       },
       {
         "file": "tests/unit/test_db_engine.py",
         "returncode": 0,
-        "output": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"api_error_status\":null,\"duration_ms\":41050,\"duration_api_ms\":41003,\"num_turns\":4,\"result\":\"\\n\\n```json\\n[\\n  {\\n    \\\"filename\\\": \\\"src/internal/db/__init__.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 54,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"SessionLocal() return type is implied by the docstring but not annotated \u2014 type-checkers cannot verify it matches get_async_session_factory()\\\",\\n        \\\"suggestion\\\": \\\"Add return type annotation: def SessionLocal() -> async_sessionmaker[AsyncSession]:\\\"\\n      },\\n      {\\n        \\\"line\\\": 0,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"The __init__.py re-exports sync-layer symbols (create_engine_from_env, get_engine) alongside async ones \u2014 callers may accidentally use the sync engine in async contexts\\\",\\n        \\\"suggestion\\\": \\\"Consider a clear split or deprecation notice for sync vs async public API, or document which layer each symbol belongs to\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Thin, well-documented re-export layer; a missing return type annotation on SessionLocal() is the only issue.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"src/internal/db/engine.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 118,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"SUPABASE_POOLER_HOST is read from the environment at module init time, making the connection endpoint user-controllable \u2014 an attacker with filesystem or environment control could redirect database traffic\\\",\\n        \\\"suggestion\\\": \\\"Require SUPABASE_POOLER_HOST to be set only via a trusted config file or secret management, not os.environ.get at module load time; or remove the override entirely and require the host to be embedded in the URL\\\"\\n      },\\n      {\\n        \\\"line\\\": 111,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"If the Supabase pooler URL has no path component (e.g. no '/' after the port), port_and_path.split('/', 1) produces port = '5432/mydb' \u2014 the port includes the database name and connect_args['database'] is set to an empty string\\\",\\n        \\\"suggestion\\\": \\\"Add a guard: if '/' not in port_and_path: port = port_and_path; path = '' before the split, then handle path only when present\\\"\\n      },\\n      {\\n        \\\"line\\\": 18,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"AsyncEngine is imported at runtime but only used in TYPE_CHECKING blocks (function return annotations); it should be moved inside TYPE_CHECKING to avoid unnecessary module load cost and signal intent clearly\\\",\\n        \\\"suggestion\\\": \\\"Move 'AsyncEngine' inside the TYPE_CHECKING block alongside any other type-only imports\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Core engine infrastructure is solid; two critical bugs (URL parsing edge case, env-driven host injection) and one quality issue (unused runtime import).\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"tests/unit/test_db_engine.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 21,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"Test restores _sync_engine via direct module-level reassignment, which does not clean up if create_engine_from_env() raises before the assignment executes \u2014 a crash on line 27 leaves _sync_engine permanently None for the process\\\",\\n        \\\"suggestion\\\": \\\"Use a try/finally with a flag or mock.patch to handle restoration safely regardless of where pytest.raises intercepts the exception\\\"\\n      },\\n      {\\n        \\\"line\\\": 0,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"load_dotenv() is called at module import time in engine.py; test_db_engine.py does not isolate or mock this side effect, so tests may be ordering-dependent and fail when dotenv state is unexpected\\\",\\n        \\\"suggestion\\\": \\\"Add a test fixture or autouse fixture that patches dotenv or resets the relevant engine module globals before each test\\\"\\n      },\\n      {\\n        \\\"line\\\": 0,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"Only two of the many engine functions are tested \u2014 create_engine_from_env, get_async_engine, get_async_session_factory, _build_async_engine, and the Supabase pooler path have no unit test coverage\\\",\\n        \\\"suggestion\\\": \\\"Add unit tests for _build_async_engine (Supabase URL, standard URL, path-with-database edge case) and for get_async_session_factory\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Two tests with correct intent but fragile global-state teardown; comprehensive coverage of engine creation paths and side effects is missing.\\\"\\n  }\\n]\\n```\",\"stop_reason\":\"end_turn\",\"session_id\":\"ced58142-2e75-4de8-bf47-2fa2c7782eb1\",\"total_cost_usd\":0.128547,\"usage\":{\"input_tokens\":29931,\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":31680,\"output_tokens\":1950,\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":0,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"\",\"iterations\":[],\"speed\":\"standard\"},\"modelUsage\":{\"claude-sonnet-4-6\":{\"inputTokens\":29931,\"outputTokens\":1950,\"cacheReadInputTokens\":31680,\"cacheCreationInputTokens\":0,\"webSearchRequests\":0,\"costUSD\":0.128547,\"contextWindow\":200000,\"maxOutputTokens\":32000}},\"permission_denials\":[],\"terminal_reason\":\"completed\",\"fast_mode_state\":\"off\",\"uuid\":\"761f3441-b5a9-455a-b837-d52e7e21fc33\"}\n",
+        "output": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"api_error_status\":null,\"duration_ms\":102155,\"duration_api_ms\":102084,\"num_turns\":4,\"result\":\"\\n\\n```json\\n[\\n  {\\n    \\\"filename\\\": \\\"src/internal/db/engine.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 23,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"load_dotenv() is called at module import time, which runs before any test can mock environment variables.\\\",\\n        \\\"suggestion\\\": \\\"Call load_dotenv() inside create_engine_from_env() / create_async_engine_from_env() instead, or remove it entirely if FastAPI's lifespan or your entrypoint already loads the dotenv.\\\"\\n      },\\n      {\\n        \\\"line\\\": 130,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"Hardcoded default Supabase pooler IP '13.114.6.6' is a stable internal infrastructure address that should not be baked into source.\\\",\\n        \\\"suggestion\\\": \\\"Make the default an empty string and require SUPABASE_POOLER_HOST to be set explicitly, so missing the env var produces a clear failure rather than silently connecting to a hardcoded IP.\\\"\\n      },\\n      {\\n        \\\"line\\\": 148,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"Async engine pool config {'pool_pre_ping': True, 'pool_size': 5} lacks max_overflow, unlike the sync engine which also lacks it \u2014 both should be consistent.\\\",\\n        \\\"suggestion\\\": \\\"Add max_overflow=10 (or explicit 0) to both engine pool configs so pool exhaustion behaviour is predictable under concurrent load.\\\"\\n      },\\n      {\\n        \\\"line\\\": 0,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"Missing test coverage for create_async_engine_from_env: the test suite only covers the sync path (test_create_engine_requires_url), leaving the async path untested.\\\",\\n        \\\"suggestion\\\": \\\"Add a test_create_async_engine_requires_url similar to test_create_engine_requires_url, patching _async_engine and _async_session_factory to None and os.environ to {}.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Engine module is well-structured with correct double-checked locking, Supabase pooler URL parsing, and session scope handling, but module-level load_dotenv() hurts testability and a hardcoded pooler IP should be made explicit.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"src/internal/db/__init__.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 69,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"session_scope() is a pure pass-through wrapper over async_session_scope() with no additional logic \u2014 it adds a second name for the same thing with no benefit.\\\",\\n        \\\"suggestion\\\": \\\"Remove session_scope() wrapper and export async_session_scope directly, or keep it only if a distinct sync session_scope is planned.\\\"\\n      },\\n      {\\n        \\\"line\\\": 103,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"__all__ omits 'async_session_scope' while exporting it implicitly via session_scope; this is inconsistent with the public API intent.\\\",\\n        \\\"suggestion\\\": \\\"Add 'async_session_scope' to __all__ explicitly since it is the actual implementation that SessionDep / get_db uses.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"The __init__.py re-exports are clean and idiomatic; the only notable issue is that session_scope() is a redundant wrapper and __all__ is missing async_session_scope.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"tests/unit/test_db_engine.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 21,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"Test directly mutates module-level global state (_sync_engine = None) to isolate itself, which can silently leak state if an exception occurs before the finally block runs.\\\",\\n        \\\"suggestion\\\": \\\"Use pytest's monkeypatch fixture instead: monkeypatch.setenv('DATABASE_URL', ''); this avoids manual save/restore and is exception-safe by design.\\\"\\n      },\\n      {\\n        \\\"line\\\": 12,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"sys.path.insert(0, ...) to locate src is a fragile pattern; it bypasses the PYTHONPATH convention described in CLAUDE.md.\\\",\\n        \\\"suggestion\\\": \\\"Ensure the test runner sets PYTHONPATH=src (e.g., via pytest.ini or the shell profile) and remove the sys.path.insert, so the import path matches how the app is actually run.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Tests are minimal but correct; the main improvement is switching from manual global patching to pytest's monkeypatch fixture for cleaner exception safety.\\\"\\n  }\\n]\\n```\",\"stop_reason\":\"end_turn\",\"session_id\":\"1ea4693f-5e7f-4b58-8fb9-20e6aa2fa64d\",\"total_cost_usd\":0.16502640000000002,\"usage\":{\"input_tokens\":40476,\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":19328,\"output_tokens\":2520,\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":0,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"\",\"iterations\":[],\"speed\":\"standard\"},\"modelUsage\":{\"claude-sonnet-4-6\":{\"inputTokens\":40476,\"outputTokens\":2520,\"cacheReadInputTokens\":19328,\"cacheCreationInputTokens\":0,\"webSearchRequests\":0,\"costUSD\":0.16502640000000002,\"contextWindow\":200000,\"maxOutputTokens\":32000}},\"permission_denials\":[],\"terminal_reason\":\"completed\",\"fast_mode_state\":\"off\",\"uuid\":\"e3fccb38-1f83-405b-905a-84cc94af0247\"}\n",
         "parsed": {
           "filename": "tests/unit/test_db_engine.py",
           "issues": [
             {
               "line": 21,
               "severity": "warning",
-              "message": "Test restores _sync_engine via direct module-level reassignment, which does not clean up if create_engine_from_env() raises before the assignment executes \u2014 a crash on line 27 leaves _sync_engine permanently None for the process",
-              "suggestion": "Use a try/finally with a flag or mock.patch to handle restoration safely regardless of where pytest.raises intercepts the exception"
+              "message": "Test directly mutates module-level global state (_sync_engine = None) to isolate itself, which can silently leak state if an exception occurs before the finally block runs.",
+              "suggestion": "Use pytest's monkeypatch fixture instead: monkeypatch.setenv('DATABASE_URL', ''); this avoids manual save/restore and is exception-safe by design."
             },
             {
-              "line": 0,
+              "line": 12,
               "severity": "info",
-              "message": "load_dotenv() is called at module import time in engine.py; test_db_engine.py does not isolate or mock this side effect, so tests may be ordering-dependent and fail when dotenv state is unexpected",
-              "suggestion": "Add a test fixture or autouse fixture that patches dotenv or resets the relevant engine module globals before each test"
-            },
-            {
-              "line": 0,
-              "severity": "info",
-              "message": "Only two of the many engine functions are tested \u2014 create_engine_from_env, get_async_engine, get_async_session_factory, _build_async_engine, and the Supabase pooler path have no unit test coverage",
-              "suggestion": "Add unit tests for _build_async_engine (Supabase URL, standard URL, path-with-database edge case) and for get_async_session_factory"
+              "message": "sys.path.insert(0, ...) to locate src is a fragile pattern; it bypasses the PYTHONPATH convention described in CLAUDE.md.",
+              "suggestion": "Ensure the test runner sets PYTHONPATH=src (e.g., via pytest.ini or the shell profile) and remove the sys.path.insert, so the import path matches how the app is actually run."
             }
           ],
-          "summary": "Two tests with correct intent but fragile global-state teardown; comprehensive coverage of engine creation paths and side effects is missing."
+          "summary": "Tests are minimal but correct; the main improvement is switching from manual global patching to pytest's monkeypatch fixture for cleaner exception safety."
         }
       }
     ]
