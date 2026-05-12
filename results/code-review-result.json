@@ -2,31 +2,20 @@
   "status": "fail",
   "verdict": "fail",
   "critical_issues": [
-    {
-      "file": "frontend/src/lib/store/auth-store.ts",
-      "severity": "security_regression",
-      "summary": "Auth store no longer encrypts tokens in localStorage \u2014 removed CryptoJS AES encryption and Zustand persist middleware, now storing token and user data in plaintext localStorage",
-      "detail": "The old implementation wrapped Zustand's persist storage with a custom `getItem`/`setItem` that encrypted auth state using `CryptoJS.AES` with `NEXT_PUBLIC_AUTH_SECRET`. The new implementation uses plain Zustand state without any encryption. Any malicious JavaScript on the page (e.g., via an XSS vector) can now directly read `token` and `user` from localStorage without decryption. The removed `crypto-js` and `@types/crypto-js` packages confirm this was intentional removal, not a side effect.",
-      "recommendation": "Either restore encrypted storage using a properly key-managed approach (not a client-side hardcoded secret), or use an HttpOnly cookie for the token. Client-side JS encryption with a hardcoded/embedded secret provides defense-in-depth only (not strong security), but plaintext storage removes even that layer."
-    }
+    "auth-store.ts: AES-encrypted localStorage storage was removed, auth tokens and user data are now stored in plaintext in localStorage. If localStorage is compromised (XSS, device theft, malware), tokens are directly readable. The removed encryption (CryptoJS AES) provided defense-in-depth against this scenario. No compensating control (HttpOnly cookies, server-side session, token rotation) was added in its place.",
+    "settings.py + auth.py: JWT secrets can still default to None at runtime (e.g. in test environments where pydantic loads defaults), and settings.py only raises RuntimeError outside dev/local/test \u2014 test environments with weak defaults could still issue tokens with None/empty secrets, weakening JWT verification."
   ],
   "suggestions": [
-    {
-      "file": "frontend/src/lib/store/auth-store.ts",
-      "line": "21",
-      "detail": "`isHydrated: true` is now always true (the persist hydration flow is gone), making it a no-op dead field. Either remove it from `AuthState` or add a comment explaining its purpose."
-    },
-    {
-      "file": "frontend/src/lib/store/auth-store.ts",
-      "line": "5",
-      "detail": "The import of `isHydrated` as a method signature `isHydrated: () => boolean` is retained in `AuthState`, but the old implementation used it as a state boolean. Verify all callers use the new method form consistently."
-    },
-    {
-      "file": "frontend/src/lib/store/auth-store.ts",
-      "detail": "The removed `ENCRYPT_KEY` env var `NEXT_PUBLIC_AUTH_SECRET` was prefixed with `NEXT_PUBLIC_`, making it publicly readable from the browser bundle anyway \u2014 so the old encryption was not strong security. However, it still raised the bar against casual localStorage inspection. A better long-term fix is moving the token to an HttpOnly cookie."
-    }
+    "sales_service.py change_stage correctly now validates stage against the opportunity's pipeline and filters by tenant_id \u2014 both are good multi-tenancy fixes, though the tenant_id addition should be audited against any callers that pass tenant_id=0.",
+    "task_service.py: all task operations now filter by tenant_id. The old list_tasks removed a COUNT query (removing extra DB round-trip is fine), but verify the page/total pagination metadata isn't needed by callers.",
+    "user_service.py get_user_by_username/get_user_by_email now scope to tenant_id \u2014 ensure callers always pass the correct tenant, as cross-tenant lookups are now silently blocked.",
+    "report_service.py _safe_export_filename uses os.path.commonpath for path-traversal prevention \u2014 correct. The stub PDF/Excel generation (returning placeholder content) should be documented or gated behind a feature flag until real generation is implemented.",
+    "engine.py: lazily initializing the engine via get_engine() and get_session() instead of module-level SessionLocal is correct for multi-worker environments but could break synchronous code that relied on SessionLocal being pre-bound \u2014 scan for direct SessionLocal usage.",
+    "trigger_service.py TriggerType casting now handles int/str/Enum input and raises ValidationException on bad values \u2014 better than silent failures, though the TRIGGERS dict lookup could still raise KeyError for valid Enum values if trigger_enum is not in the dict.",
+    "frontend: crypto-js removal is correct and consistent with auth-store changes, but verify no other frontend code still imports it (grep for 'crypto-js' imports).",
+    "auth middleware (auth.py): still uses bare except Exception pass \u2014 should be narrowed to the specific exceptions that occur at import time to avoid masking unrelated errors."
   ],
-  "summary": "One critical security regression: removing AES encryption from the auth store leaves tokens and user data in plaintext localStorage; all other changes are net-positive (tenant isolation, type safety, path traversal hardening, bug fixes).",
+  "summary": "The diff includes solid multi-tenancy hardening (tenant_id filters across services), improved error handling, and a new CI doc-sync pipeline, but introduces a significant security regression by removing AES encryption from localStorage auth tokens without a compensating control.",
   "details": {
     "llm_parsed": {
       "verdict": "fail",
@@ -34,26 +23,25 @@
         {
           "dim": "critical",
           "line": "",
-          "msg": "{'file': 'frontend/src/lib/store/auth-store.ts', 'severity': 'security_regression', 'summary': 'Auth store no longer encrypts tokens in localStorage \u2014 removed CryptoJS AES encryption and Zustand persist middleware, now storing token and user data in plaintext localStorage', 'detail': \"The old implementation wrapped Zustand's persist storage with a custom `getItem`/`setItem` that encrypted auth state using `CryptoJS.AES` with `NEXT_PUBLIC_AUTH_SECRET`. The new implementation uses plain Zustand state without any encryption. Any malicious JavaScript on the page (e.g., via an XSS vector) can now directly read `token` and `user` from localStorage without decryption. The removed `crypto-js` and `@types/crypto-js` packages confirm this was intentional removal, not a side effect.\", 'recommendation': 'Either restore encrypted storage using a properly key-managed approach (not a client-side hardcoded secret), or use an HttpOnly cookie for the token. Client-side JS encryption with a hardcoded/embedded secret provides defense-in-depth only (not strong security), but plaintext storage removes even that layer.'}"
+          "msg": "auth-store.ts: AES-encrypted localStorage storage was removed, auth tokens and user data are now stored in plaintext in localStorage. If localStorage is compromised (XSS, device theft, malware), tokens are directly readable. The removed encryption (CryptoJS AES) provided defense-in-depth against this scenario. No compensating control (HttpOnly cookies, server-side session, token rotation) was added in its place."
+        },
+        {
+          "dim": "critical",
+          "line": "",
+          "msg": "settings.py + auth.py: JWT secrets can still default to None at runtime (e.g. in test environments where pydantic loads defaults), and settings.py only raises RuntimeError outside dev/local/test \u2014 test environments with weak defaults could still issue tokens with None/empty secrets, weakening JWT verification."
         }
       ],
       "warnings": [
-        {
-          "file": "frontend/src/lib/store/auth-store.ts",
-          "line": "21",
-          "detail": "`isHydrated: true` is now always true (the persist hydration flow is gone), making it a no-op dead field. Either remove it from `AuthState` or add a comment explaining its purpose."
-        },
-        {
-          "file": "frontend/src/lib/store/auth-store.ts",
-          "line": "5",
-          "detail": "The import of `isHydrated` as a method signature `isHydrated: () => boolean` is retained in `AuthState`, but the old implementation used it as a state boolean. Verify all callers use the new method form consistently."
-        },
-        {
-          "file": "frontend/src/lib/store/auth-store.ts",
-          "detail": "The removed `ENCRYPT_KEY` env var `NEXT_PUBLIC_AUTH_SECRET` was prefixed with `NEXT_PUBLIC_`, making it publicly readable from the browser bundle anyway \u2014 so the old encryption was not strong security. However, it still raised the bar against casual localStorage inspection. A better long-term fix is moving the token to an HttpOnly cookie."
-        }
+        "sales_service.py change_stage correctly now validates stage against the opportunity's pipeline and filters by tenant_id \u2014 both are good multi-tenancy fixes, though the tenant_id addition should be audited against any callers that pass tenant_id=0.",
+        "task_service.py: all task operations now filter by tenant_id. The old list_tasks removed a COUNT query (removing extra DB round-trip is fine), but verify the page/total pagination metadata isn't needed by callers.",
+        "user_service.py get_user_by_username/get_user_by_email now scope to tenant_id \u2014 ensure callers always pass the correct tenant, as cross-tenant lookups are now silently blocked.",
+        "report_service.py _safe_export_filename uses os.path.commonpath for path-traversal prevention \u2014 correct. The stub PDF/Excel generation (returning placeholder content) should be documented or gated behind a feature flag until real generation is implemented.",
+        "engine.py: lazily initializing the engine via get_engine() and get_session() instead of module-level SessionLocal is correct for multi-worker environments but could break synchronous code that relied on SessionLocal being pre-bound \u2014 scan for direct SessionLocal usage.",
+        "trigger_service.py TriggerType casting now handles int/str/Enum input and raises ValidationException on bad values \u2014 better than silent failures, though the TRIGGERS dict lookup could still raise KeyError for valid Enum values if trigger_enum is not in the dict.",
+        "frontend: crypto-js removal is correct and consistent with auth-store changes, but verify no other frontend code still imports it (grep for 'crypto-js' imports).",
+        "auth middleware (auth.py): still uses bare except Exception pass \u2014 should be narrowed to the specific exceptions that occur at import time to avoid masking unrelated errors."
       ],
-      "summary": "One critical security regression: removing AES encryption from the auth store leaves tokens and user data in plaintext localStorage; all other changes are net-positive (tenant isolation, type safety, path traversal hardening, bug fixes)."
+      "summary": "The diff includes solid multi-tenancy hardening (tenant_id filters across services), improved error handling, and a new CI doc-sync pipeline, but introduces a significant security regression by removing AES encryption from localStorage auth tokens without a compensating control."
     }
   }
 }
