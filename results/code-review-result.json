@@ -4,17 +4,10 @@
   "critical_issues": [
     {
       "file": "src/services/customer_service.py",
-      "line": 118,
+      "line": 137,
       "severity": "critical",
-      "msg": "`update_customer` sets attributes via `setattr` without a `tenant_id` guard on the UPDATE itself \u2014 after the `get_customer` lookup the subsequent ops are not tenant-scoped.",
-      "suggestion": "Add `customer.tenant_id == tenant_id` as a safety assertion after the lookup: `assert customer.tenant_id == tenant_id, 'Tenant mismatch'` or re-fetch with a filtered query inside a transaction."
-    },
-    {
-      "file": "tests/unit/test_customer_service.py",
-      "line": 20,
-      "severity": "critical",
-      "msg": "`mock_session` fixture does not mock `execute`, yet every service method calls `session.execute()` \u2014 tests pass only because assertions never touch the result of `execute`.",
-      "suggestion": "Add `execute = AsyncMock()` to the fixture body so that any test that inspects the result of `execute` will work correctly."
+      "msg": "count_by_status calls result.fetchall() on an asyncpg/cursor result \u2014 this is a synchronous call that will block the event loop or raise AttributeError, not an awaitable",
+      "suggestion": "Replace result.fetchall() with (await result.fetchall()) since execute() returns a Result object whose fetchall is also async"
     }
   ],
   "suggestions": [
@@ -22,91 +15,91 @@
       "file": "src/models/customer.py",
       "line": 71,
       "severity": "warning",
-      "msg": "`field(default_factory=datetime.utcnow)` uses deprecated `datetime.utcnow`; deprecated since Python 3.12.",
-      "suggestion": "Use `field(default_factory=lambda: datetime.now(UTC))` and import `UTC` from `datetime`."
+      "msg": "datetime.utcnow is deprecated in Python 3.12+; used in field default_factory",
+      "suggestion": "Replace with field(default_factory=lambda: datetime.now(UTC)) using the UTC import already in the service"
     },
     {
       "file": "src/models/customer.py",
-      "line": 87,
+      "line": 72,
       "severity": "warning",
-      "msg": "`datetime.utcnow()` call is deprecated in Python 3.12+.",
-      "suggestion": "Replace with `datetime.now(UTC)`."
+      "msg": "datetime.utcnow is deprecated in Python 3.12+; used in field default_factory",
+      "suggestion": "Replace with field(default_factory=lambda: datetime.now(UTC))"
     },
     {
       "file": "src/models/customer.py",
-      "line": 89,
-      "severity": "warning",
-      "msg": "`datetime.utcnow()` call is deprecated in Python 3.12+.",
-      "suggestion": "Replace with `datetime.now(UTC)`."
-    },
-    {
-      "file": "src/models/customer.py",
-      "line": 74,
+      "line": 76,
       "severity": "info",
-      "msg": "`__post_init__` re-assigns values already established by dataclass field defaults (`id=None`, `phone=None`, `company=None`, `tags=[]`), making `if self.id is None: self.id = None` a pure no-op.",
-      "suggestion": "Remove the redundant assignments. Keep only the `status` and datetime checks if they guard against None coming from `from_dict`."
+      "msg": "__post_init__ no-ops for fields already defaulted to None/empty in the dataclass declaration",
+      "suggestion": "Remove the redundant self.id=None, self.phone=None, self.company=None, self.tags=[] checks \u2014 they are already set by the field defaults"
+    },
+    {
+      "file": "src/models/customer.py",
+      "line": 137,
+      "severity": "info",
+      "msg": "Customer.from_dict accesses data[\"name\"], data[\"email\"], data[\"owner_id\"] directly without .get(), so missing keys raise KeyError instead of ValidationException",
+      "suggestion": "Use data.get(\"name\", \"\"), data.get(\"email\", \"\"), data.get(\"owner_id\", 0) for consistent validation"
     },
     {
       "file": "src/services/customer_service.py",
-      "line": 107,
+      "line": 6,
+      "severity": "info",
+      "msg": "or_ is imported but never used in the module",
+      "suggestion": "Remove the unused or_ import: from sqlalchemy import and_, delete, func, or_, select"
+    },
+    {
+      "file": "src/services/customer_service.py",
+      "line": 106,
       "severity": "warning",
-      "msg": "`tags` is in `CustomerModel` but absent from the `allowed` set, so tag updates via `update_customer` are silently dropped.",
-      "suggestion": "Add `\"tags\"` to the `allowed` set: `allowed = {\"name\", \"email\", \"phone\", \"company\", \"status\", \"owner_id\", \"tags\"}`."
+      "msg": "update_customer does not include 'tags' in allowed fields, so tags cannot be updated via this method despite add_tag/remove_tag existing",
+      "suggestion": "Add 'tags' to allowed: {\"name\", \"email\", \"phone\", \"company\", \"status\", \"owner_id\", \"tags\"}"
     },
     {
       "file": "src/services/customer_service.py",
       "line": 17,
       "severity": "warning",
-      "msg": "`VALID_STATUSES` is missing `\"opportunity\"` which is defined in `CustomerStatus` enum (line 13 of models/customer.py); passing `\"opportunity\"` to `update_customer` or `change_status` raises `ValidationException`.",
-      "suggestion": "Add `\"opportunity\"` to `VALID_STATUSES`: `{\"lead\", \"customer\", \"opportunity\", \"partner\", \"prospect\", \"active\", \"inactive\", \"blocked\"}`."
-    },
-    {
-      "file": "src/services/customer_service.py",
-      "line": 53,
-      "severity": "info",
-      "msg": "`create_customer` calls `session.commit()` directly; callers cannot roll back on failure.",
-      "suggestion": "Remove the commit from the service; let the router/transaction manager call commit after all services in a unit-of-work complete."
+      "msg": "VALID_STATUSES includes statuses ('partner', 'prospect', 'active', 'blocked') not defined in CustomerStatus enum, allowing invalid strings to be persisted",
+      "suggestion": "Align VALID_STATUSES with the actual CustomerStatus enum values, or remove the validation discrepancy"
     },
     {
       "file": "tests/unit/test_customer_service.py",
-      "line": 121,
-      "severity": "info",
-      "msg": "Variable `result` is assigned but never used; the test only asserts on mock call counts, not on the actual returned `CustomerModel`.",
-      "suggestion": "Assert on the returned object: `assert result.name == 'Test'`."
+      "line": 22,
+      "severity": "warning",
+      "msg": "mock_session spec does not include 'scalar' or 'fetchall' which are called by list_customers and count_by_status, so these methods fall through to MagicMock and may mask bugs",
+      "suggestion": "Add 'scalar', 'fetchall' to the mock_session spec: spec=[..., 'execute', 'scalar_one_or_none', 'scalars', 'scalar', 'fetchall']"
     },
     {
       "file": "tests/unit/test_customer_service.py",
-      "line": 31,
+      "line": 131,
       "severity": "info",
-      "msg": "No test covers the error path when `update_customer` or `change_status` receives an invalid status value (the `ValidationException` code path).",
-      "suggestion": "Add `pytest.mark.asyncio async def test_update_customer_invalid_status(mock_session): ...` that passes an unknown status and asserts `pytest.raises(ValidationException)`."
+      "msg": "test_create_customer_accepts_dict asserts add/commit were called but never checks the returned result object",
+      "suggestion": "Assert result.name == 'Test' and result.email == 'test@example.com' to verify the returned model is correct"
     },
     {
       "file": "tests/unit/test_customer_service.py",
-      "line": 117,
+      "line": 157,
       "severity": "info",
-      "msg": "`delete_customer`, `update_customer`, `count_by_status`, `add_tag`, `remove_tag`, `assign_owner`, `search_customers`, `bulk_import` have zero test coverage.",
-      "suggestion": "Add tests for at least `update_customer` and `delete_customer` paths including the not-found and validation cases."
+      "msg": "test_create_customer_accepts_dto asserts add/commit were called but never checks the returned result object",
+      "suggestion": "Assert result.name == 'DTO Customer' to verify the returned model is correct"
+    },
+    {
+      "file": "tests/unit/test_customer_service.py",
+      "line": 182,
+      "severity": "info",
+      "msg": "test_create_customer_empty_dict_uses_defaults asserts call_args but never checks the returned result object",
+      "suggestion": "Assert result.name == 'Customer' to verify the returned model is correct"
     }
   ],
-  "summary": "Reviewed 3 file(s) between origin/master and origin/issue-272-sqlalchemy-db-engine.",
+  "summary": "Reviewed 3 file(s) between origin/master and origin/issue-271-customer-dto.",
   "details": {
     "llm_parsed": {
       "verdict": "fail",
       "critical": [
         {
           "file": "src/services/customer_service.py",
-          "line": 118,
+          "line": 137,
           "severity": "critical",
-          "msg": "`update_customer` sets attributes via `setattr` without a `tenant_id` guard on the UPDATE itself \u2014 after the `get_customer` lookup the subsequent ops are not tenant-scoped.",
-          "suggestion": "Add `customer.tenant_id == tenant_id` as a safety assertion after the lookup: `assert customer.tenant_id == tenant_id, 'Tenant mismatch'` or re-fetch with a filtered query inside a transaction."
-        },
-        {
-          "file": "tests/unit/test_customer_service.py",
-          "line": 20,
-          "severity": "critical",
-          "msg": "`mock_session` fixture does not mock `execute`, yet every service method calls `session.execute()` \u2014 tests pass only because assertions never touch the result of `execute`.",
-          "suggestion": "Add `execute = AsyncMock()` to the fixture body so that any test that inspects the result of `execute` will work correctly."
+          "msg": "count_by_status calls result.fetchall() on an asyncpg/cursor result \u2014 this is a synchronous call that will block the event loop or raise AttributeError, not an awaitable",
+          "suggestion": "Replace result.fetchall() with (await result.fetchall()) since execute() returns a Result object whose fetchall is also async"
         }
       ],
       "warnings": [
@@ -114,80 +107,87 @@
           "file": "src/models/customer.py",
           "line": 71,
           "severity": "warning",
-          "msg": "`field(default_factory=datetime.utcnow)` uses deprecated `datetime.utcnow`; deprecated since Python 3.12.",
-          "suggestion": "Use `field(default_factory=lambda: datetime.now(UTC))` and import `UTC` from `datetime`."
+          "msg": "datetime.utcnow is deprecated in Python 3.12+; used in field default_factory",
+          "suggestion": "Replace with field(default_factory=lambda: datetime.now(UTC)) using the UTC import already in the service"
         },
         {
           "file": "src/models/customer.py",
-          "line": 87,
+          "line": 72,
           "severity": "warning",
-          "msg": "`datetime.utcnow()` call is deprecated in Python 3.12+.",
-          "suggestion": "Replace with `datetime.now(UTC)`."
+          "msg": "datetime.utcnow is deprecated in Python 3.12+; used in field default_factory",
+          "suggestion": "Replace with field(default_factory=lambda: datetime.now(UTC))"
         },
         {
           "file": "src/models/customer.py",
-          "line": 89,
-          "severity": "warning",
-          "msg": "`datetime.utcnow()` call is deprecated in Python 3.12+.",
-          "suggestion": "Replace with `datetime.now(UTC)`."
-        },
-        {
-          "file": "src/models/customer.py",
-          "line": 74,
+          "line": 76,
           "severity": "info",
-          "msg": "`__post_init__` re-assigns values already established by dataclass field defaults (`id=None`, `phone=None`, `company=None`, `tags=[]`), making `if self.id is None: self.id = None` a pure no-op.",
-          "suggestion": "Remove the redundant assignments. Keep only the `status` and datetime checks if they guard against None coming from `from_dict`."
+          "msg": "__post_init__ no-ops for fields already defaulted to None/empty in the dataclass declaration",
+          "suggestion": "Remove the redundant self.id=None, self.phone=None, self.company=None, self.tags=[] checks \u2014 they are already set by the field defaults"
+        },
+        {
+          "file": "src/models/customer.py",
+          "line": 137,
+          "severity": "info",
+          "msg": "Customer.from_dict accesses data[\"name\"], data[\"email\"], data[\"owner_id\"] directly without .get(), so missing keys raise KeyError instead of ValidationException",
+          "suggestion": "Use data.get(\"name\", \"\"), data.get(\"email\", \"\"), data.get(\"owner_id\", 0) for consistent validation"
         },
         {
           "file": "src/services/customer_service.py",
-          "line": 107,
+          "line": 6,
+          "severity": "info",
+          "msg": "or_ is imported but never used in the module",
+          "suggestion": "Remove the unused or_ import: from sqlalchemy import and_, delete, func, or_, select"
+        },
+        {
+          "file": "src/services/customer_service.py",
+          "line": 106,
           "severity": "warning",
-          "msg": "`tags` is in `CustomerModel` but absent from the `allowed` set, so tag updates via `update_customer` are silently dropped.",
-          "suggestion": "Add `\"tags\"` to the `allowed` set: `allowed = {\"name\", \"email\", \"phone\", \"company\", \"status\", \"owner_id\", \"tags\"}`."
+          "msg": "update_customer does not include 'tags' in allowed fields, so tags cannot be updated via this method despite add_tag/remove_tag existing",
+          "suggestion": "Add 'tags' to allowed: {\"name\", \"email\", \"phone\", \"company\", \"status\", \"owner_id\", \"tags\"}"
         },
         {
           "file": "src/services/customer_service.py",
           "line": 17,
           "severity": "warning",
-          "msg": "`VALID_STATUSES` is missing `\"opportunity\"` which is defined in `CustomerStatus` enum (line 13 of models/customer.py); passing `\"opportunity\"` to `update_customer` or `change_status` raises `ValidationException`.",
-          "suggestion": "Add `\"opportunity\"` to `VALID_STATUSES`: `{\"lead\", \"customer\", \"opportunity\", \"partner\", \"prospect\", \"active\", \"inactive\", \"blocked\"}`."
-        },
-        {
-          "file": "src/services/customer_service.py",
-          "line": 53,
-          "severity": "info",
-          "msg": "`create_customer` calls `session.commit()` directly; callers cannot roll back on failure.",
-          "suggestion": "Remove the commit from the service; let the router/transaction manager call commit after all services in a unit-of-work complete."
+          "msg": "VALID_STATUSES includes statuses ('partner', 'prospect', 'active', 'blocked') not defined in CustomerStatus enum, allowing invalid strings to be persisted",
+          "suggestion": "Align VALID_STATUSES with the actual CustomerStatus enum values, or remove the validation discrepancy"
         },
         {
           "file": "tests/unit/test_customer_service.py",
-          "line": 121,
-          "severity": "info",
-          "msg": "Variable `result` is assigned but never used; the test only asserts on mock call counts, not on the actual returned `CustomerModel`.",
-          "suggestion": "Assert on the returned object: `assert result.name == 'Test'`."
+          "line": 22,
+          "severity": "warning",
+          "msg": "mock_session spec does not include 'scalar' or 'fetchall' which are called by list_customers and count_by_status, so these methods fall through to MagicMock and may mask bugs",
+          "suggestion": "Add 'scalar', 'fetchall' to the mock_session spec: spec=[..., 'execute', 'scalar_one_or_none', 'scalars', 'scalar', 'fetchall']"
         },
         {
           "file": "tests/unit/test_customer_service.py",
-          "line": 31,
+          "line": 131,
           "severity": "info",
-          "msg": "No test covers the error path when `update_customer` or `change_status` receives an invalid status value (the `ValidationException` code path).",
-          "suggestion": "Add `pytest.mark.asyncio async def test_update_customer_invalid_status(mock_session): ...` that passes an unknown status and asserts `pytest.raises(ValidationException)`."
+          "msg": "test_create_customer_accepts_dict asserts add/commit were called but never checks the returned result object",
+          "suggestion": "Assert result.name == 'Test' and result.email == 'test@example.com' to verify the returned model is correct"
         },
         {
           "file": "tests/unit/test_customer_service.py",
-          "line": 117,
+          "line": 157,
           "severity": "info",
-          "msg": "`delete_customer`, `update_customer`, `count_by_status`, `add_tag`, `remove_tag`, `assign_owner`, `search_customers`, `bulk_import` have zero test coverage.",
-          "suggestion": "Add tests for at least `update_customer` and `delete_customer` paths including the not-found and validation cases."
+          "msg": "test_create_customer_accepts_dto asserts add/commit were called but never checks the returned result object",
+          "suggestion": "Assert result.name == 'DTO Customer' to verify the returned model is correct"
+        },
+        {
+          "file": "tests/unit/test_customer_service.py",
+          "line": 182,
+          "severity": "info",
+          "msg": "test_create_customer_empty_dict_uses_defaults asserts call_args but never checks the returned result object",
+          "suggestion": "Assert result.name == 'Customer' to verify the returned model is correct"
         }
       ],
-      "summary": "Reviewed 3 file(s) between origin/master and origin/issue-272-sqlalchemy-db-engine."
+      "summary": "Reviewed 3 file(s) between origin/master and origin/issue-271-customer-dto."
     },
     "reviewed_refs": {
-      "base": "d3a0e288dc73d8fe9ddc73742a753a6033b6e159",
-      "head": "efd8c096ffef7b92436edbb98fcfe65c4231fc95",
+      "base": "65dd189d5c2d73fd22bb64291915545fce04a6e3",
+      "head": "d0465d7a59b2523ec3f0eadeb8fadd9975ac6240",
       "base_label": "origin/master",
-      "head_label": "origin/issue-272-sqlalchemy-db-engine"
+      "head_label": "origin/issue-271-customer-dto"
     },
     "reviewed_files": [
       "src/models/customer.py",
@@ -198,106 +198,106 @@
       {
         "file": "src/models/customer.py",
         "returncode": 0,
-        "output": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"api_error_status\":null,\"duration_ms\":106473,\"duration_api_ms\":106377,\"num_turns\":6,\"result\":\"[\\n  {\\n    \\\"filename\\\": \\\"src/models/customer.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 71,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"`field(default_factory=datetime.utcnow)` uses deprecated `datetime.utcnow`; deprecated since Python 3.12.\\\",\\n        \\\"suggestion\\\": \\\"Use `field(default_factory=lambda: datetime.now(UTC))` and import `UTC` from `datetime`.\\\"\\n      },\\n      {\\n        \\\"line\\\": 87,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"`datetime.utcnow()` call is deprecated in Python 3.12+.\\\",\\n        \\\"suggestion\\\": \\\"Replace with `datetime.now(UTC)`.\\\"\\n      },\\n      {\\n        \\\"line\\\": 89,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"`datetime.utcnow()` call is deprecated in Python 3.12+.\\\",\\n        \\\"suggestion\\\": \\\"Replace with `datetime.now(UTC)`.\\\"\\n      },\\n      {\\n        \\\"line\\\": 74,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"`__post_init__` re-assigns values already established by dataclass field defaults (`id=None`, `phone=None`, `company=None`, `tags=[]`), making `if self.id is None: self.id = None` a pure no-op.\\\",\\n        \\\"suggestion\\\": \\\"Remove the redundant assignments. Keep only the `status` and datetime checks if they guard against None coming from `from_dict`.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Deprecated `datetime.utcnow` used in two places; `__post_init__` contains no-op reassignments of dataclass defaults.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"src/services/customer_service.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 118,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"`update_customer` sets attributes via `setattr` without a `tenant_id` guard on the UPDATE itself \u2014 after the `get_customer` lookup the subsequent ops are not tenant-scoped.\\\",\\n        \\\"suggestion\\\": \\\"Add `customer.tenant_id == tenant_id` as a safety assertion after the lookup: `assert customer.tenant_id == tenant_id, 'Tenant mismatch'` or re-fetch with a filtered query inside a transaction.\\\"\\n      },\\n      {\\n        \\\"line\\\": 107,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"`tags` is in `CustomerModel` but absent from the `allowed` set, so tag updates via `update_customer` are silently dropped.\\\",\\n        \\\"suggestion\\\": \\\"Add `\\\\\\\"tags\\\\\\\"` to the `allowed` set: `allowed = {\\\\\\\"name\\\\\\\", \\\\\\\"email\\\\\\\", \\\\\\\"phone\\\\\\\", \\\\\\\"company\\\\\\\", \\\\\\\"status\\\\\\\", \\\\\\\"owner_id\\\\\\\", \\\\\\\"tags\\\\\\\"}`.\\\"\\n      },\\n      {\\n        \\\"line\\\": 17,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"`VALID_STATUSES` is missing `\\\\\\\"opportunity\\\\\\\"` which is defined in `CustomerStatus` enum (line 13 of models/customer.py); passing `\\\\\\\"opportunity\\\\\\\"` to `update_customer` or `change_status` raises `ValidationException`.\\\",\\n        \\\"suggestion\\\": \\\"Add `\\\\\\\"opportunity\\\\\\\"` to `VALID_STATUSES`: `{\\\\\\\"lead\\\\\\\", \\\\\\\"customer\\\\\\\", \\\\\\\"opportunity\\\\\\\", \\\\\\\"partner\\\\\\\", \\\\\\\"prospect\\\\\\\", \\\\\\\"active\\\\\\\", \\\\\\\"inactive\\\\\\\", \\\\\\\"blocked\\\\\\\"}`.\\\"\\n      },\\n      {\\n        \\\"line\\\": 53,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"`create_customer` calls `session.commit()` directly; callers cannot roll back on failure.\\\",\\n        \\\"suggestion\\\": \\\"Remove the commit from the service; let the router/transaction manager call commit after all services in a unit-of-work complete.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Missing `tenant_id` guard on UPDATE is a correctness bug; `tags` field cannot be updated; `VALID_STATUSES` is missing 'opportunity'; service commits directly bypassing caller rollback.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"tests/unit/test_customer_service.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 20,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"`mock_session` fixture does not mock `execute`, yet every service method calls `session.execute()` \u2014 tests pass only because assertions never touch the result of `execute`.\\\",\\n        \\\"suggestion\\\": \\\"Add `execute = AsyncMock()` to the fixture body so that any test that inspects the result of `execute` will work correctly.\\\"\\n      },\\n      {\\n        \\\"line\\\": 121,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"Variable `result` is assigned but never used; the test only asserts on mock call counts, not on the actual returned `CustomerModel`.\\\",\\n        \\\"suggestion\\\": \\\"Assert on the returned object: `assert result.name == 'Test'`.\\\"\\n      },\\n      {\\n        \\\"line\\\": 31,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"No test covers the error path when `update_customer` or `change_status` receives an invalid status value (the `ValidationException` code path).\\\",\\n        \\\"suggestion\\\": \\\"Add `pytest.mark.asyncio async def test_update_customer_invalid_status(mock_session): ...` that passes an unknown status and asserts `pytest.raises(ValidationException)`.\\\"\\n      },\\n      {\\n        \\\"line\\\": 117,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"`delete_customer`, `update_customer`, `count_by_status`, `add_tag`, `remove_tag`, `assign_owner`, `search_customers`, `bulk_import` have zero test coverage.\\\",\\n        \\\"suggestion\\\": \\\"Add tests for at least `update_customer` and `delete_customer` paths including the not-found and validation cases.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"`mock_session` lacks an `execute` mock making it incomplete; all service methods except `create_customer` are untested; `result` is captured but unused.\\\"\\n  }\\n]\",\"stop_reason\":\"end_turn\",\"session_id\":\"1eb4f683-475e-44ed-af71-0e694e0ac41a\",\"total_cost_usd\":0.2757693,\"usage\":{\"input_tokens\":31688,\"cache_creation_input_tokens\":29076,\"cache_read_input_tokens\":74301,\"output_tokens\":3292,\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":0,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"\",\"iterations\":[],\"speed\":\"standard\"},\"modelUsage\":{\"claude-sonnet-4-6\":{\"inputTokens\":31688,\"outputTokens\":3292,\"cacheReadInputTokens\":74301,\"cacheCreationInputTokens\":29076,\"webSearchRequests\":0,\"costUSD\":0.2757693,\"contextWindow\":200000,\"maxOutputTokens\":32000}},\"permission_denials\":[],\"terminal_reason\":\"completed\",\"fast_mode_state\":\"off\",\"uuid\":\"1b96f5b1-04a6-495f-82d8-81974c3e7865\"}\n",
+        "output": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"api_error_status\":null,\"duration_ms\":86088,\"duration_api_ms\":86046,\"num_turns\":4,\"result\":\"\\n\\n```\\n[\\n  {\\n    \\\"filename\\\": \\\"src/models/customer.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 71,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"datetime.utcnow is deprecated in Python 3.12+; used in field default_factory\\\",\\n        \\\"suggestion\\\": \\\"Replace with field(default_factory=lambda: datetime.now(UTC)) using the UTC import already in the service\\\"\\n      },\\n      {\\n        \\\"line\\\": 72,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"datetime.utcnow is deprecated in Python 3.12+; used in field default_factory\\\",\\n        \\\"suggestion\\\": \\\"Replace with field(default_factory=lambda: datetime.now(UTC))\\\"\\n      },\\n      {\\n        \\\"line\\\": 76,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"__post_init__ no-ops for fields already defaulted to None/empty in the dataclass declaration\\\",\\n        \\\"suggestion\\\": \\\"Remove the redundant self.id=None, self.phone=None, self.company=None, self.tags=[] checks \u2014 they are already set by the field defaults\\\"\\n      },\\n      {\\n        \\\"line\\\": 137,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"Customer.from_dict accesses data[\\\\\\\"name\\\\\\\"], data[\\\\\\\"email\\\\\\\"], data[\\\\\\\"owner_id\\\\\\\"] directly without .get(), so missing keys raise KeyError instead of ValidationException\\\",\\n        \\\"suggestion\\\": \\\"Use data.get(\\\\\\\"name\\\\\\\", \\\\\\\"\\\\\\\"), data.get(\\\\\\\"email\\\\\\\", \\\\\\\"\\\\\\\"), data.get(\\\\\\\"owner_id\\\\\\\", 0) for consistent validation\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Deprecated datetime.utcnow in field defaults, redundant __post_init__ checks, and inconsistent KeyError vs ValidationException handling in from_dict.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"src/services/customer_service.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 137,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"count_by_status calls result.fetchall() on an asyncpg/cursor result \u2014 this is a synchronous call that will block the event loop or raise AttributeError, not an awaitable\\\",\\n        \\\"suggestion\\\": \\\"Replace result.fetchall() with (await result.fetchall()) since execute() returns a Result object whose fetchall is also async\\\"\\n      },\\n      {\\n        \\\"line\\\": 6,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"or_ is imported but never used in the module\\\",\\n        \\\"suggestion\\\": \\\"Remove the unused or_ import: from sqlalchemy import and_, delete, func, or_, select\\\"\\n      },\\n      {\\n        \\\"line\\\": 106,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"update_customer does not include 'tags' in allowed fields, so tags cannot be updated via this method despite add_tag/remove_tag existing\\\",\\n        \\\"suggestion\\\": \\\"Add 'tags' to allowed: {\\\\\\\"name\\\\\\\", \\\\\\\"email\\\\\\\", \\\\\\\"phone\\\\\\\", \\\\\\\"company\\\\\\\", \\\\\\\"status\\\\\\\", \\\\\\\"owner_id\\\\\\\", \\\\\\\"tags\\\\\\\"}\\\"\\n      },\\n      {\\n        \\\"line\\\": 17,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"VALID_STATUSES includes statuses ('partner', 'prospect', 'active', 'blocked') not defined in CustomerStatus enum, allowing invalid strings to be persisted\\\",\\n        \\\"suggestion\\\": \\\"Align VALID_STATUSES with the actual CustomerStatus enum values, or remove the validation discrepancy\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"count_by_status has a critical async/sync bug with fetchall(); tags cannot be updated via update_customer; VALID_STATUSES mismatches the CustomerStatus enum.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"tests/unit/test_customer_service.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 22,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"mock_session spec does not include 'scalar' or 'fetchall' which are called by list_customers and count_by_status, so these methods fall through to MagicMock and may mask bugs\\\",\\n        \\\"suggestion\\\": \\\"Add 'scalar', 'fetchall' to the mock_session spec: spec=[..., 'execute', 'scalar_one_or_none', 'scalars', 'scalar', 'fetchall']\\\"\\n      },\\n      {\\n        \\\"line\\\": 131,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"test_create_customer_accepts_dict asserts add/commit were called but never checks the returned result object\\\",\\n        \\\"suggestion\\\": \\\"Assert result.name == 'Test' and result.email == 'test@example.com' to verify the returned model is correct\\\"\\n      },\\n      {\\n        \\\"line\\\": 157,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"test_create_customer_accepts_dto asserts add/commit were called but never checks the returned result object\\\",\\n        \\\"suggestion\\\": \\\"Assert result.name == 'DTO Customer' to verify the returned model is correct\\\"\\n      },\\n      {\\n        \\\"line\\\": 182,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"test_create_customer_empty_dict_uses_defaults asserts call_args but never checks the returned result object\\\",\\n        \\\"suggestion\\\": \\\"Assert result.name == 'Customer' to verify the returned model is correct\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"mock_session is missing 'scalar' and 'fetchall' in its spec, and all three create_customer tests never assert the returned result object.\\\"\\n  }\\n]\\n```\",\"stop_reason\":\"end_turn\",\"session_id\":\"1770a17d-b1f6-4c73-9b13-74bd482ce1c1\",\"total_cost_usd\":0.1386252,\"usage\":{\"input_tokens\":31896,\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":31424,\"output_tokens\":2234,\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":0,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"\",\"iterations\":[],\"speed\":\"standard\"},\"modelUsage\":{\"claude-sonnet-4-6\":{\"inputTokens\":31896,\"outputTokens\":2234,\"cacheReadInputTokens\":31424,\"cacheCreationInputTokens\":0,\"webSearchRequests\":0,\"costUSD\":0.1386252,\"contextWindow\":200000,\"maxOutputTokens\":32000}},\"permission_denials\":[],\"terminal_reason\":\"completed\",\"fast_mode_state\":\"off\",\"uuid\":\"6085fb09-dba8-4782-b2be-4b0c4b4bf132\"}\n",
         "parsed": {
           "filename": "src/models/customer.py",
           "issues": [
             {
               "line": 71,
               "severity": "warning",
-              "message": "`field(default_factory=datetime.utcnow)` uses deprecated `datetime.utcnow`; deprecated since Python 3.12.",
-              "suggestion": "Use `field(default_factory=lambda: datetime.now(UTC))` and import `UTC` from `datetime`."
+              "message": "datetime.utcnow is deprecated in Python 3.12+; used in field default_factory",
+              "suggestion": "Replace with field(default_factory=lambda: datetime.now(UTC)) using the UTC import already in the service"
             },
             {
-              "line": 87,
+              "line": 72,
               "severity": "warning",
-              "message": "`datetime.utcnow()` call is deprecated in Python 3.12+.",
-              "suggestion": "Replace with `datetime.now(UTC)`."
+              "message": "datetime.utcnow is deprecated in Python 3.12+; used in field default_factory",
+              "suggestion": "Replace with field(default_factory=lambda: datetime.now(UTC))"
             },
             {
-              "line": 89,
-              "severity": "warning",
-              "message": "`datetime.utcnow()` call is deprecated in Python 3.12+.",
-              "suggestion": "Replace with `datetime.now(UTC)`."
-            },
-            {
-              "line": 74,
+              "line": 76,
               "severity": "info",
-              "message": "`__post_init__` re-assigns values already established by dataclass field defaults (`id=None`, `phone=None`, `company=None`, `tags=[]`), making `if self.id is None: self.id = None` a pure no-op.",
-              "suggestion": "Remove the redundant assignments. Keep only the `status` and datetime checks if they guard against None coming from `from_dict`."
+              "message": "__post_init__ no-ops for fields already defaulted to None/empty in the dataclass declaration",
+              "suggestion": "Remove the redundant self.id=None, self.phone=None, self.company=None, self.tags=[] checks \u2014 they are already set by the field defaults"
+            },
+            {
+              "line": 137,
+              "severity": "info",
+              "message": "Customer.from_dict accesses data[\"name\"], data[\"email\"], data[\"owner_id\"] directly without .get(), so missing keys raise KeyError instead of ValidationException",
+              "suggestion": "Use data.get(\"name\", \"\"), data.get(\"email\", \"\"), data.get(\"owner_id\", 0) for consistent validation"
             }
           ],
-          "summary": "Deprecated `datetime.utcnow` used in two places; `__post_init__` contains no-op reassignments of dataclass defaults."
+          "summary": "Deprecated datetime.utcnow in field defaults, redundant __post_init__ checks, and inconsistent KeyError vs ValidationException handling in from_dict."
         }
       },
       {
         "file": "src/services/customer_service.py",
         "returncode": 0,
-        "output": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"api_error_status\":null,\"duration_ms\":106473,\"duration_api_ms\":106377,\"num_turns\":6,\"result\":\"[\\n  {\\n    \\\"filename\\\": \\\"src/models/customer.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 71,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"`field(default_factory=datetime.utcnow)` uses deprecated `datetime.utcnow`; deprecated since Python 3.12.\\\",\\n        \\\"suggestion\\\": \\\"Use `field(default_factory=lambda: datetime.now(UTC))` and import `UTC` from `datetime`.\\\"\\n      },\\n      {\\n        \\\"line\\\": 87,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"`datetime.utcnow()` call is deprecated in Python 3.12+.\\\",\\n        \\\"suggestion\\\": \\\"Replace with `datetime.now(UTC)`.\\\"\\n      },\\n      {\\n        \\\"line\\\": 89,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"`datetime.utcnow()` call is deprecated in Python 3.12+.\\\",\\n        \\\"suggestion\\\": \\\"Replace with `datetime.now(UTC)`.\\\"\\n      },\\n      {\\n        \\\"line\\\": 74,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"`__post_init__` re-assigns values already established by dataclass field defaults (`id=None`, `phone=None`, `company=None`, `tags=[]`), making `if self.id is None: self.id = None` a pure no-op.\\\",\\n        \\\"suggestion\\\": \\\"Remove the redundant assignments. Keep only the `status` and datetime checks if they guard against None coming from `from_dict`.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Deprecated `datetime.utcnow` used in two places; `__post_init__` contains no-op reassignments of dataclass defaults.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"src/services/customer_service.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 118,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"`update_customer` sets attributes via `setattr` without a `tenant_id` guard on the UPDATE itself \u2014 after the `get_customer` lookup the subsequent ops are not tenant-scoped.\\\",\\n        \\\"suggestion\\\": \\\"Add `customer.tenant_id == tenant_id` as a safety assertion after the lookup: `assert customer.tenant_id == tenant_id, 'Tenant mismatch'` or re-fetch with a filtered query inside a transaction.\\\"\\n      },\\n      {\\n        \\\"line\\\": 107,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"`tags` is in `CustomerModel` but absent from the `allowed` set, so tag updates via `update_customer` are silently dropped.\\\",\\n        \\\"suggestion\\\": \\\"Add `\\\\\\\"tags\\\\\\\"` to the `allowed` set: `allowed = {\\\\\\\"name\\\\\\\", \\\\\\\"email\\\\\\\", \\\\\\\"phone\\\\\\\", \\\\\\\"company\\\\\\\", \\\\\\\"status\\\\\\\", \\\\\\\"owner_id\\\\\\\", \\\\\\\"tags\\\\\\\"}`.\\\"\\n      },\\n      {\\n        \\\"line\\\": 17,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"`VALID_STATUSES` is missing `\\\\\\\"opportunity\\\\\\\"` which is defined in `CustomerStatus` enum (line 13 of models/customer.py); passing `\\\\\\\"opportunity\\\\\\\"` to `update_customer` or `change_status` raises `ValidationException`.\\\",\\n        \\\"suggestion\\\": \\\"Add `\\\\\\\"opportunity\\\\\\\"` to `VALID_STATUSES`: `{\\\\\\\"lead\\\\\\\", \\\\\\\"customer\\\\\\\", \\\\\\\"opportunity\\\\\\\", \\\\\\\"partner\\\\\\\", \\\\\\\"prospect\\\\\\\", \\\\\\\"active\\\\\\\", \\\\\\\"inactive\\\\\\\", \\\\\\\"blocked\\\\\\\"}`.\\\"\\n      },\\n      {\\n        \\\"line\\\": 53,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"`create_customer` calls `session.commit()` directly; callers cannot roll back on failure.\\\",\\n        \\\"suggestion\\\": \\\"Remove the commit from the service; let the router/transaction manager call commit after all services in a unit-of-work complete.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Missing `tenant_id` guard on UPDATE is a correctness bug; `tags` field cannot be updated; `VALID_STATUSES` is missing 'opportunity'; service commits directly bypassing caller rollback.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"tests/unit/test_customer_service.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 20,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"`mock_session` fixture does not mock `execute`, yet every service method calls `session.execute()` \u2014 tests pass only because assertions never touch the result of `execute`.\\\",\\n        \\\"suggestion\\\": \\\"Add `execute = AsyncMock()` to the fixture body so that any test that inspects the result of `execute` will work correctly.\\\"\\n      },\\n      {\\n        \\\"line\\\": 121,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"Variable `result` is assigned but never used; the test only asserts on mock call counts, not on the actual returned `CustomerModel`.\\\",\\n        \\\"suggestion\\\": \\\"Assert on the returned object: `assert result.name == 'Test'`.\\\"\\n      },\\n      {\\n        \\\"line\\\": 31,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"No test covers the error path when `update_customer` or `change_status` receives an invalid status value (the `ValidationException` code path).\\\",\\n        \\\"suggestion\\\": \\\"Add `pytest.mark.asyncio async def test_update_customer_invalid_status(mock_session): ...` that passes an unknown status and asserts `pytest.raises(ValidationException)`.\\\"\\n      },\\n      {\\n        \\\"line\\\": 117,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"`delete_customer`, `update_customer`, `count_by_status`, `add_tag`, `remove_tag`, `assign_owner`, `search_customers`, `bulk_import` have zero test coverage.\\\",\\n        \\\"suggestion\\\": \\\"Add tests for at least `update_customer` and `delete_customer` paths including the not-found and validation cases.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"`mock_session` lacks an `execute` mock making it incomplete; all service methods except `create_customer` are untested; `result` is captured but unused.\\\"\\n  }\\n]\",\"stop_reason\":\"end_turn\",\"session_id\":\"1eb4f683-475e-44ed-af71-0e694e0ac41a\",\"total_cost_usd\":0.2757693,\"usage\":{\"input_tokens\":31688,\"cache_creation_input_tokens\":29076,\"cache_read_input_tokens\":74301,\"output_tokens\":3292,\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":0,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"\",\"iterations\":[],\"speed\":\"standard\"},\"modelUsage\":{\"claude-sonnet-4-6\":{\"inputTokens\":31688,\"outputTokens\":3292,\"cacheReadInputTokens\":74301,\"cacheCreationInputTokens\":29076,\"webSearchRequests\":0,\"costUSD\":0.2757693,\"contextWindow\":200000,\"maxOutputTokens\":32000}},\"permission_denials\":[],\"terminal_reason\":\"completed\",\"fast_mode_state\":\"off\",\"uuid\":\"1b96f5b1-04a6-495f-82d8-81974c3e7865\"}\n",
+        "output": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"api_error_status\":null,\"duration_ms\":86088,\"duration_api_ms\":86046,\"num_turns\":4,\"result\":\"\\n\\n```\\n[\\n  {\\n    \\\"filename\\\": \\\"src/models/customer.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 71,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"datetime.utcnow is deprecated in Python 3.12+; used in field default_factory\\\",\\n        \\\"suggestion\\\": \\\"Replace with field(default_factory=lambda: datetime.now(UTC)) using the UTC import already in the service\\\"\\n      },\\n      {\\n        \\\"line\\\": 72,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"datetime.utcnow is deprecated in Python 3.12+; used in field default_factory\\\",\\n        \\\"suggestion\\\": \\\"Replace with field(default_factory=lambda: datetime.now(UTC))\\\"\\n      },\\n      {\\n        \\\"line\\\": 76,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"__post_init__ no-ops for fields already defaulted to None/empty in the dataclass declaration\\\",\\n        \\\"suggestion\\\": \\\"Remove the redundant self.id=None, self.phone=None, self.company=None, self.tags=[] checks \u2014 they are already set by the field defaults\\\"\\n      },\\n      {\\n        \\\"line\\\": 137,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"Customer.from_dict accesses data[\\\\\\\"name\\\\\\\"], data[\\\\\\\"email\\\\\\\"], data[\\\\\\\"owner_id\\\\\\\"] directly without .get(), so missing keys raise KeyError instead of ValidationException\\\",\\n        \\\"suggestion\\\": \\\"Use data.get(\\\\\\\"name\\\\\\\", \\\\\\\"\\\\\\\"), data.get(\\\\\\\"email\\\\\\\", \\\\\\\"\\\\\\\"), data.get(\\\\\\\"owner_id\\\\\\\", 0) for consistent validation\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Deprecated datetime.utcnow in field defaults, redundant __post_init__ checks, and inconsistent KeyError vs ValidationException handling in from_dict.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"src/services/customer_service.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 137,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"count_by_status calls result.fetchall() on an asyncpg/cursor result \u2014 this is a synchronous call that will block the event loop or raise AttributeError, not an awaitable\\\",\\n        \\\"suggestion\\\": \\\"Replace result.fetchall() with (await result.fetchall()) since execute() returns a Result object whose fetchall is also async\\\"\\n      },\\n      {\\n        \\\"line\\\": 6,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"or_ is imported but never used in the module\\\",\\n        \\\"suggestion\\\": \\\"Remove the unused or_ import: from sqlalchemy import and_, delete, func, or_, select\\\"\\n      },\\n      {\\n        \\\"line\\\": 106,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"update_customer does not include 'tags' in allowed fields, so tags cannot be updated via this method despite add_tag/remove_tag existing\\\",\\n        \\\"suggestion\\\": \\\"Add 'tags' to allowed: {\\\\\\\"name\\\\\\\", \\\\\\\"email\\\\\\\", \\\\\\\"phone\\\\\\\", \\\\\\\"company\\\\\\\", \\\\\\\"status\\\\\\\", \\\\\\\"owner_id\\\\\\\", \\\\\\\"tags\\\\\\\"}\\\"\\n      },\\n      {\\n        \\\"line\\\": 17,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"VALID_STATUSES includes statuses ('partner', 'prospect', 'active', 'blocked') not defined in CustomerStatus enum, allowing invalid strings to be persisted\\\",\\n        \\\"suggestion\\\": \\\"Align VALID_STATUSES with the actual CustomerStatus enum values, or remove the validation discrepancy\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"count_by_status has a critical async/sync bug with fetchall(); tags cannot be updated via update_customer; VALID_STATUSES mismatches the CustomerStatus enum.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"tests/unit/test_customer_service.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 22,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"mock_session spec does not include 'scalar' or 'fetchall' which are called by list_customers and count_by_status, so these methods fall through to MagicMock and may mask bugs\\\",\\n        \\\"suggestion\\\": \\\"Add 'scalar', 'fetchall' to the mock_session spec: spec=[..., 'execute', 'scalar_one_or_none', 'scalars', 'scalar', 'fetchall']\\\"\\n      },\\n      {\\n        \\\"line\\\": 131,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"test_create_customer_accepts_dict asserts add/commit were called but never checks the returned result object\\\",\\n        \\\"suggestion\\\": \\\"Assert result.name == 'Test' and result.email == 'test@example.com' to verify the returned model is correct\\\"\\n      },\\n      {\\n        \\\"line\\\": 157,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"test_create_customer_accepts_dto asserts add/commit were called but never checks the returned result object\\\",\\n        \\\"suggestion\\\": \\\"Assert result.name == 'DTO Customer' to verify the returned model is correct\\\"\\n      },\\n      {\\n        \\\"line\\\": 182,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"test_create_customer_empty_dict_uses_defaults asserts call_args but never checks the returned result object\\\",\\n        \\\"suggestion\\\": \\\"Assert result.name == 'Customer' to verify the returned model is correct\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"mock_session is missing 'scalar' and 'fetchall' in its spec, and all three create_customer tests never assert the returned result object.\\\"\\n  }\\n]\\n```\",\"stop_reason\":\"end_turn\",\"session_id\":\"1770a17d-b1f6-4c73-9b13-74bd482ce1c1\",\"total_cost_usd\":0.1386252,\"usage\":{\"input_tokens\":31896,\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":31424,\"output_tokens\":2234,\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":0,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"\",\"iterations\":[],\"speed\":\"standard\"},\"modelUsage\":{\"claude-sonnet-4-6\":{\"inputTokens\":31896,\"outputTokens\":2234,\"cacheReadInputTokens\":31424,\"cacheCreationInputTokens\":0,\"webSearchRequests\":0,\"costUSD\":0.1386252,\"contextWindow\":200000,\"maxOutputTokens\":32000}},\"permission_denials\":[],\"terminal_reason\":\"completed\",\"fast_mode_state\":\"off\",\"uuid\":\"6085fb09-dba8-4782-b2be-4b0c4b4bf132\"}\n",
         "parsed": {
           "filename": "src/services/customer_service.py",
           "issues": [
             {
-              "line": 118,
+              "line": 137,
               "severity": "critical",
-              "message": "`update_customer` sets attributes via `setattr` without a `tenant_id` guard on the UPDATE itself \u2014 after the `get_customer` lookup the subsequent ops are not tenant-scoped.",
-              "suggestion": "Add `customer.tenant_id == tenant_id` as a safety assertion after the lookup: `assert customer.tenant_id == tenant_id, 'Tenant mismatch'` or re-fetch with a filtered query inside a transaction."
+              "message": "count_by_status calls result.fetchall() on an asyncpg/cursor result \u2014 this is a synchronous call that will block the event loop or raise AttributeError, not an awaitable",
+              "suggestion": "Replace result.fetchall() with (await result.fetchall()) since execute() returns a Result object whose fetchall is also async"
             },
             {
-              "line": 107,
+              "line": 6,
+              "severity": "info",
+              "message": "or_ is imported but never used in the module",
+              "suggestion": "Remove the unused or_ import: from sqlalchemy import and_, delete, func, or_, select"
+            },
+            {
+              "line": 106,
               "severity": "warning",
-              "message": "`tags` is in `CustomerModel` but absent from the `allowed` set, so tag updates via `update_customer` are silently dropped.",
-              "suggestion": "Add `\"tags\"` to the `allowed` set: `allowed = {\"name\", \"email\", \"phone\", \"company\", \"status\", \"owner_id\", \"tags\"}`."
+              "message": "update_customer does not include 'tags' in allowed fields, so tags cannot be updated via this method despite add_tag/remove_tag existing",
+              "suggestion": "Add 'tags' to allowed: {\"name\", \"email\", \"phone\", \"company\", \"status\", \"owner_id\", \"tags\"}"
             },
             {
               "line": 17,
               "severity": "warning",
-              "message": "`VALID_STATUSES` is missing `\"opportunity\"` which is defined in `CustomerStatus` enum (line 13 of models/customer.py); passing `\"opportunity\"` to `update_customer` or `change_status` raises `ValidationException`.",
-              "suggestion": "Add `\"opportunity\"` to `VALID_STATUSES`: `{\"lead\", \"customer\", \"opportunity\", \"partner\", \"prospect\", \"active\", \"inactive\", \"blocked\"}`."
-            },
-            {
-              "line": 53,
-              "severity": "info",
-              "message": "`create_customer` calls `session.commit()` directly; callers cannot roll back on failure.",
-              "suggestion": "Remove the commit from the service; let the router/transaction manager call commit after all services in a unit-of-work complete."
+              "message": "VALID_STATUSES includes statuses ('partner', 'prospect', 'active', 'blocked') not defined in CustomerStatus enum, allowing invalid strings to be persisted",
+              "suggestion": "Align VALID_STATUSES with the actual CustomerStatus enum values, or remove the validation discrepancy"
             }
           ],
-          "summary": "Missing `tenant_id` guard on UPDATE is a correctness bug; `tags` field cannot be updated; `VALID_STATUSES` is missing 'opportunity'; service commits directly bypassing caller rollback."
+          "summary": "count_by_status has a critical async/sync bug with fetchall(); tags cannot be updated via update_customer; VALID_STATUSES mismatches the CustomerStatus enum."
         }
       },
       {
         "file": "tests/unit/test_customer_service.py",
         "returncode": 0,
-        "output": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"api_error_status\":null,\"duration_ms\":106473,\"duration_api_ms\":106377,\"num_turns\":6,\"result\":\"[\\n  {\\n    \\\"filename\\\": \\\"src/models/customer.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 71,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"`field(default_factory=datetime.utcnow)` uses deprecated `datetime.utcnow`; deprecated since Python 3.12.\\\",\\n        \\\"suggestion\\\": \\\"Use `field(default_factory=lambda: datetime.now(UTC))` and import `UTC` from `datetime`.\\\"\\n      },\\n      {\\n        \\\"line\\\": 87,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"`datetime.utcnow()` call is deprecated in Python 3.12+.\\\",\\n        \\\"suggestion\\\": \\\"Replace with `datetime.now(UTC)`.\\\"\\n      },\\n      {\\n        \\\"line\\\": 89,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"`datetime.utcnow()` call is deprecated in Python 3.12+.\\\",\\n        \\\"suggestion\\\": \\\"Replace with `datetime.now(UTC)`.\\\"\\n      },\\n      {\\n        \\\"line\\\": 74,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"`__post_init__` re-assigns values already established by dataclass field defaults (`id=None`, `phone=None`, `company=None`, `tags=[]`), making `if self.id is None: self.id = None` a pure no-op.\\\",\\n        \\\"suggestion\\\": \\\"Remove the redundant assignments. Keep only the `status` and datetime checks if they guard against None coming from `from_dict`.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Deprecated `datetime.utcnow` used in two places; `__post_init__` contains no-op reassignments of dataclass defaults.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"src/services/customer_service.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 118,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"`update_customer` sets attributes via `setattr` without a `tenant_id` guard on the UPDATE itself \u2014 after the `get_customer` lookup the subsequent ops are not tenant-scoped.\\\",\\n        \\\"suggestion\\\": \\\"Add `customer.tenant_id == tenant_id` as a safety assertion after the lookup: `assert customer.tenant_id == tenant_id, 'Tenant mismatch'` or re-fetch with a filtered query inside a transaction.\\\"\\n      },\\n      {\\n        \\\"line\\\": 107,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"`tags` is in `CustomerModel` but absent from the `allowed` set, so tag updates via `update_customer` are silently dropped.\\\",\\n        \\\"suggestion\\\": \\\"Add `\\\\\\\"tags\\\\\\\"` to the `allowed` set: `allowed = {\\\\\\\"name\\\\\\\", \\\\\\\"email\\\\\\\", \\\\\\\"phone\\\\\\\", \\\\\\\"company\\\\\\\", \\\\\\\"status\\\\\\\", \\\\\\\"owner_id\\\\\\\", \\\\\\\"tags\\\\\\\"}`.\\\"\\n      },\\n      {\\n        \\\"line\\\": 17,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"`VALID_STATUSES` is missing `\\\\\\\"opportunity\\\\\\\"` which is defined in `CustomerStatus` enum (line 13 of models/customer.py); passing `\\\\\\\"opportunity\\\\\\\"` to `update_customer` or `change_status` raises `ValidationException`.\\\",\\n        \\\"suggestion\\\": \\\"Add `\\\\\\\"opportunity\\\\\\\"` to `VALID_STATUSES`: `{\\\\\\\"lead\\\\\\\", \\\\\\\"customer\\\\\\\", \\\\\\\"opportunity\\\\\\\", \\\\\\\"partner\\\\\\\", \\\\\\\"prospect\\\\\\\", \\\\\\\"active\\\\\\\", \\\\\\\"inactive\\\\\\\", \\\\\\\"blocked\\\\\\\"}`.\\\"\\n      },\\n      {\\n        \\\"line\\\": 53,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"`create_customer` calls `session.commit()` directly; callers cannot roll back on failure.\\\",\\n        \\\"suggestion\\\": \\\"Remove the commit from the service; let the router/transaction manager call commit after all services in a unit-of-work complete.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Missing `tenant_id` guard on UPDATE is a correctness bug; `tags` field cannot be updated; `VALID_STATUSES` is missing 'opportunity'; service commits directly bypassing caller rollback.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"tests/unit/test_customer_service.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 20,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"`mock_session` fixture does not mock `execute`, yet every service method calls `session.execute()` \u2014 tests pass only because assertions never touch the result of `execute`.\\\",\\n        \\\"suggestion\\\": \\\"Add `execute = AsyncMock()` to the fixture body so that any test that inspects the result of `execute` will work correctly.\\\"\\n      },\\n      {\\n        \\\"line\\\": 121,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"Variable `result` is assigned but never used; the test only asserts on mock call counts, not on the actual returned `CustomerModel`.\\\",\\n        \\\"suggestion\\\": \\\"Assert on the returned object: `assert result.name == 'Test'`.\\\"\\n      },\\n      {\\n        \\\"line\\\": 31,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"No test covers the error path when `update_customer` or `change_status` receives an invalid status value (the `ValidationException` code path).\\\",\\n        \\\"suggestion\\\": \\\"Add `pytest.mark.asyncio async def test_update_customer_invalid_status(mock_session): ...` that passes an unknown status and asserts `pytest.raises(ValidationException)`.\\\"\\n      },\\n      {\\n        \\\"line\\\": 117,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"`delete_customer`, `update_customer`, `count_by_status`, `add_tag`, `remove_tag`, `assign_owner`, `search_customers`, `bulk_import` have zero test coverage.\\\",\\n        \\\"suggestion\\\": \\\"Add tests for at least `update_customer` and `delete_customer` paths including the not-found and validation cases.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"`mock_session` lacks an `execute` mock making it incomplete; all service methods except `create_customer` are untested; `result` is captured but unused.\\\"\\n  }\\n]\",\"stop_reason\":\"end_turn\",\"session_id\":\"1eb4f683-475e-44ed-af71-0e694e0ac41a\",\"total_cost_usd\":0.2757693,\"usage\":{\"input_tokens\":31688,\"cache_creation_input_tokens\":29076,\"cache_read_input_tokens\":74301,\"output_tokens\":3292,\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":0,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"\",\"iterations\":[],\"speed\":\"standard\"},\"modelUsage\":{\"claude-sonnet-4-6\":{\"inputTokens\":31688,\"outputTokens\":3292,\"cacheReadInputTokens\":74301,\"cacheCreationInputTokens\":29076,\"webSearchRequests\":0,\"costUSD\":0.2757693,\"contextWindow\":200000,\"maxOutputTokens\":32000}},\"permission_denials\":[],\"terminal_reason\":\"completed\",\"fast_mode_state\":\"off\",\"uuid\":\"1b96f5b1-04a6-495f-82d8-81974c3e7865\"}\n",
+        "output": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"api_error_status\":null,\"duration_ms\":86088,\"duration_api_ms\":86046,\"num_turns\":4,\"result\":\"\\n\\n```\\n[\\n  {\\n    \\\"filename\\\": \\\"src/models/customer.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 71,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"datetime.utcnow is deprecated in Python 3.12+; used in field default_factory\\\",\\n        \\\"suggestion\\\": \\\"Replace with field(default_factory=lambda: datetime.now(UTC)) using the UTC import already in the service\\\"\\n      },\\n      {\\n        \\\"line\\\": 72,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"datetime.utcnow is deprecated in Python 3.12+; used in field default_factory\\\",\\n        \\\"suggestion\\\": \\\"Replace with field(default_factory=lambda: datetime.now(UTC))\\\"\\n      },\\n      {\\n        \\\"line\\\": 76,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"__post_init__ no-ops for fields already defaulted to None/empty in the dataclass declaration\\\",\\n        \\\"suggestion\\\": \\\"Remove the redundant self.id=None, self.phone=None, self.company=None, self.tags=[] checks \u2014 they are already set by the field defaults\\\"\\n      },\\n      {\\n        \\\"line\\\": 137,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"Customer.from_dict accesses data[\\\\\\\"name\\\\\\\"], data[\\\\\\\"email\\\\\\\"], data[\\\\\\\"owner_id\\\\\\\"] directly without .get(), so missing keys raise KeyError instead of ValidationException\\\",\\n        \\\"suggestion\\\": \\\"Use data.get(\\\\\\\"name\\\\\\\", \\\\\\\"\\\\\\\"), data.get(\\\\\\\"email\\\\\\\", \\\\\\\"\\\\\\\"), data.get(\\\\\\\"owner_id\\\\\\\", 0) for consistent validation\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Deprecated datetime.utcnow in field defaults, redundant __post_init__ checks, and inconsistent KeyError vs ValidationException handling in from_dict.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"src/services/customer_service.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 137,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"count_by_status calls result.fetchall() on an asyncpg/cursor result \u2014 this is a synchronous call that will block the event loop or raise AttributeError, not an awaitable\\\",\\n        \\\"suggestion\\\": \\\"Replace result.fetchall() with (await result.fetchall()) since execute() returns a Result object whose fetchall is also async\\\"\\n      },\\n      {\\n        \\\"line\\\": 6,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"or_ is imported but never used in the module\\\",\\n        \\\"suggestion\\\": \\\"Remove the unused or_ import: from sqlalchemy import and_, delete, func, or_, select\\\"\\n      },\\n      {\\n        \\\"line\\\": 106,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"update_customer does not include 'tags' in allowed fields, so tags cannot be updated via this method despite add_tag/remove_tag existing\\\",\\n        \\\"suggestion\\\": \\\"Add 'tags' to allowed: {\\\\\\\"name\\\\\\\", \\\\\\\"email\\\\\\\", \\\\\\\"phone\\\\\\\", \\\\\\\"company\\\\\\\", \\\\\\\"status\\\\\\\", \\\\\\\"owner_id\\\\\\\", \\\\\\\"tags\\\\\\\"}\\\"\\n      },\\n      {\\n        \\\"line\\\": 17,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"VALID_STATUSES includes statuses ('partner', 'prospect', 'active', 'blocked') not defined in CustomerStatus enum, allowing invalid strings to be persisted\\\",\\n        \\\"suggestion\\\": \\\"Align VALID_STATUSES with the actual CustomerStatus enum values, or remove the validation discrepancy\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"count_by_status has a critical async/sync bug with fetchall(); tags cannot be updated via update_customer; VALID_STATUSES mismatches the CustomerStatus enum.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"tests/unit/test_customer_service.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 22,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"mock_session spec does not include 'scalar' or 'fetchall' which are called by list_customers and count_by_status, so these methods fall through to MagicMock and may mask bugs\\\",\\n        \\\"suggestion\\\": \\\"Add 'scalar', 'fetchall' to the mock_session spec: spec=[..., 'execute', 'scalar_one_or_none', 'scalars', 'scalar', 'fetchall']\\\"\\n      },\\n      {\\n        \\\"line\\\": 131,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"test_create_customer_accepts_dict asserts add/commit were called but never checks the returned result object\\\",\\n        \\\"suggestion\\\": \\\"Assert result.name == 'Test' and result.email == 'test@example.com' to verify the returned model is correct\\\"\\n      },\\n      {\\n        \\\"line\\\": 157,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"test_create_customer_accepts_dto asserts add/commit were called but never checks the returned result object\\\",\\n        \\\"suggestion\\\": \\\"Assert result.name == 'DTO Customer' to verify the returned model is correct\\\"\\n      },\\n      {\\n        \\\"line\\\": 182,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"test_create_customer_empty_dict_uses_defaults asserts call_args but never checks the returned result object\\\",\\n        \\\"suggestion\\\": \\\"Assert result.name == 'Customer' to verify the returned model is correct\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"mock_session is missing 'scalar' and 'fetchall' in its spec, and all three create_customer tests never assert the returned result object.\\\"\\n  }\\n]\\n```\",\"stop_reason\":\"end_turn\",\"session_id\":\"1770a17d-b1f6-4c73-9b13-74bd482ce1c1\",\"total_cost_usd\":0.1386252,\"usage\":{\"input_tokens\":31896,\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":31424,\"output_tokens\":2234,\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":0,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"\",\"iterations\":[],\"speed\":\"standard\"},\"modelUsage\":{\"claude-sonnet-4-6\":{\"inputTokens\":31896,\"outputTokens\":2234,\"cacheReadInputTokens\":31424,\"cacheCreationInputTokens\":0,\"webSearchRequests\":0,\"costUSD\":0.1386252,\"contextWindow\":200000,\"maxOutputTokens\":32000}},\"permission_denials\":[],\"terminal_reason\":\"completed\",\"fast_mode_state\":\"off\",\"uuid\":\"6085fb09-dba8-4782-b2be-4b0c4b4bf132\"}\n",
         "parsed": {
           "filename": "tests/unit/test_customer_service.py",
           "issues": [
             {
-              "line": 20,
-              "severity": "critical",
-              "message": "`mock_session` fixture does not mock `execute`, yet every service method calls `session.execute()` \u2014 tests pass only because assertions never touch the result of `execute`.",
-              "suggestion": "Add `execute = AsyncMock()` to the fixture body so that any test that inspects the result of `execute` will work correctly."
+              "line": 22,
+              "severity": "warning",
+              "message": "mock_session spec does not include 'scalar' or 'fetchall' which are called by list_customers and count_by_status, so these methods fall through to MagicMock and may mask bugs",
+              "suggestion": "Add 'scalar', 'fetchall' to the mock_session spec: spec=[..., 'execute', 'scalar_one_or_none', 'scalars', 'scalar', 'fetchall']"
             },
             {
-              "line": 121,
+              "line": 131,
               "severity": "info",
-              "message": "Variable `result` is assigned but never used; the test only asserts on mock call counts, not on the actual returned `CustomerModel`.",
-              "suggestion": "Assert on the returned object: `assert result.name == 'Test'`."
+              "message": "test_create_customer_accepts_dict asserts add/commit were called but never checks the returned result object",
+              "suggestion": "Assert result.name == 'Test' and result.email == 'test@example.com' to verify the returned model is correct"
             },
             {
-              "line": 31,
+              "line": 157,
               "severity": "info",
-              "message": "No test covers the error path when `update_customer` or `change_status` receives an invalid status value (the `ValidationException` code path).",
-              "suggestion": "Add `pytest.mark.asyncio async def test_update_customer_invalid_status(mock_session): ...` that passes an unknown status and asserts `pytest.raises(ValidationException)`."
+              "message": "test_create_customer_accepts_dto asserts add/commit were called but never checks the returned result object",
+              "suggestion": "Assert result.name == 'DTO Customer' to verify the returned model is correct"
             },
             {
-              "line": 117,
+              "line": 182,
               "severity": "info",
-              "message": "`delete_customer`, `update_customer`, `count_by_status`, `add_tag`, `remove_tag`, `assign_owner`, `search_customers`, `bulk_import` have zero test coverage.",
-              "suggestion": "Add tests for at least `update_customer` and `delete_customer` paths including the not-found and validation cases."
+              "message": "test_create_customer_empty_dict_uses_defaults asserts call_args but never checks the returned result object",
+              "suggestion": "Assert result.name == 'Customer' to verify the returned model is correct"
             }
           ],
-          "summary": "`mock_session` lacks an `execute` mock making it incomplete; all service methods except `create_customer` are untested; `result` is captured but unused."
+          "summary": "mock_session is missing 'scalar' and 'fetchall' in its spec, and all three create_customer tests never assert the returned result object."
         }
       }
     ]
