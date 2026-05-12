@@ -3,65 +3,30 @@
   "verdict": "fail",
   "critical_issues": [
     {
-      "file": "frontend/src/app/(app)/tasks/list/page.tsx",
-      "summary": "SortIconStatic receives unexpected prop `k` \u2014 function signature takes no arguments. The call site passes `SortIconStatic k=\"due_date\"` but the local component definition accepts zero props. This will cause a runtime TypeError when sorting columns.",
-      "fix": "Update SortIconStatic signature to `function SortIconStatic({ k }: { k: string })` or align with the pattern used in tickets/page.tsx which uses `col/sortKey/sortDir` props."
-    },
-    {
-      "file": "src/services/task_service.py",
-      "lines": "19-20, 92-104",
-      "summary": "Methods `update_task`, `complete_task` return `{\"success\": True, \"data\": <TaskModel ORM object>, ...}` \u2014 the ORM model is placed in the dict without calling `.to_dict()`. Routers that rely on `data.to_dict()` will receive a Python object repr instead of a serializable dict, producing malformed JSON responses. This is a regression from the previous pattern where `task.to_dict()` was called.",
-      "fix": "Call `refreshed.to_dict()` in the `_ok` calls inside `update_task` and `complete_task`, or change return type to `TaskModel` to match `create_task`/`delete_task`."
-    },
-    {
-      "file": "src/services/task_service.py",
-      "lines": "116-134, 136-143",
-      "summary": "`list_tasks` and `get_my_tasks` return `list[TaskModel]` directly instead of wrapping in the service response envelope `{\"success\": True, \"data\": {...}, \"message\": \"\"}`. All other task service methods follow the envelope pattern. Callers expecting the envelope structure will break.",
-      "fix": "Either wrap results in the envelope dict (with pagination metadata for `list_tasks`), or update all callers to handle `list[TaskModel]` \u2014 the latter is cleaner and matches the convention in CLAUDE.md (services return domain objects, routers serialize)."
-    },
-    {
       "file": "frontend/src/lib/store/auth-store.ts",
-      "summary": "Removed CryptoJS AES encryption and zustand persist middleware. Auth tokens and user data are now stored in plain React state without persistence \u2014 users lose authentication on page refresh, and sensitive data is no longer encrypted at rest in localStorage. This is a significant security regression for what was previously an encrypted token store.",
-      "fix": "If the encryption was for compliance reasons, restore the encrypt/decrypt layer. If it was temporary simplification, document the reduced security posture and add a comment noting that JWT tokens should be HttpOnly cookies in production."
+      "severity": "security_regression",
+      "summary": "Auth store no longer encrypts tokens in localStorage \u2014 removed CryptoJS AES encryption and Zustand persist middleware, now storing token and user data in plaintext localStorage",
+      "detail": "The old implementation wrapped Zustand's persist storage with a custom `getItem`/`setItem` that encrypted auth state using `CryptoJS.AES` with `NEXT_PUBLIC_AUTH_SECRET`. The new implementation uses plain Zustand state without any encryption. Any malicious JavaScript on the page (e.g., via an XSS vector) can now directly read `token` and `user` from localStorage without decryption. The removed `crypto-js` and `@types/crypto-js` packages confirm this was intentional removal, not a side effect.",
+      "recommendation": "Either restore encrypted storage using a properly key-managed approach (not a client-side hardcoded secret), or use an HttpOnly cookie for the token. Client-side JS encryption with a hardcoded/embedded secret provides defense-in-depth only (not strong security), but plaintext storage removes even that layer."
     }
   ],
   "suggestions": [
     {
-      "file": "src/internal/middleware/fastapi_auth.py",
-      "lines": "30-33",
-      "summary": "Duplicate production gate \u2014 `get_jwt_secret()` already suppresses missing secrets via the `or \"dev-jwt-secret\"` fallback, but the module-level `FLASK_ENV` check raises a hard error. In production (non-dev/local/test envs), if `JWT_SECRET_KEY` is missing, the module-level check fires before `get_jwt_secret()` is ever called, causing an import-time crash. Meanwhile `settings.py` checks `JWT_SECRET` (not `JWT_SECRET_KEY`). Both guards are inconsistent and incomplete.",
-      "fix": "Unify to a single source of truth: use `settings.secret_key` / `settings.jwt_secret` everywhere, and remove the module-level FLASK_ENV guard (or keep it but make it consistent with the env var name used by settings)."
+      "file": "frontend/src/lib/store/auth-store.ts",
+      "line": "21",
+      "detail": "`isHydrated: true` is now always true (the persist hydration flow is gone), making it a no-op dead field. Either remove it from `AuthState` or add a comment explaining its purpose."
     },
     {
-      "file": "src/internal/db/engine.py",
-      "lines": "40-43",
-      "summary": "`get_session()` creates a new `sessionmaker` on every call. While the engine is cached, the session factory is rebuilt repeatedly. Consider caching the sessionmaker alongside the engine for minor performance improvement.",
-      "fix": "Move `sessionmaker` creation into `get_engine()` or cache a module-level `_session_factory` alongside `_engine`."
+      "file": "frontend/src/lib/store/auth-store.ts",
+      "line": "5",
+      "detail": "The import of `isHydrated` as a method signature `isHydrated: () => boolean` is retained in `AuthState`, but the old implementation used it as a state boolean. Verify all callers use the new method form consistently."
     },
     {
-      "file": "src/api/routers/tickets.py",
-      "line": "172",
-      "summary": "`get_user_by_id(body.assignee_id, tenant_id=ctx.tenant_id or 0)` \u2014 when `ctx.tenant_id` is None, the fallback to `0` looks up the user across all tenants. Pre-existing in original code (same `or 0` pattern), but still a correctness concern: a user could exist in tenant B and be assigned to a ticket in tenant A if the same ID exists in both.",
-      "fix": "If the ticket must belong to a tenant (which it should since tickets have tenant_id), require a valid tenant_id and raise 401 if absent rather than falling back to 0."
-    },
-    {
-      "file": "scripts/ci/run_claude_doc_sync_check.py",
-      "lines": "127-133",
-      "summary": "The script writes raw output to stdout via `sys.stdout.write(raw_output)` AFTER writing the normalized JSON artifact. Combined with the explicit `return 1` on `status == \"fail\"`, this means stdout will be polluted with non-JSON raw text on failures, making it harder to parse programmatically. The artifact file already contains the correct structured output.",
-      "fix": "Remove `sys.stdout.write(raw_output)` or redirect it to stderr, or remove it entirely since the artifact already captures full output."
-    },
-    {
-      "file": "src/services/churn_prediction.py + src/services/sales_recommendation.py",
-      "summary": "Both services migrated from dict-based return types to dataclass types (`ChurnPrediction`, `SalesActionRecommendation`, etc.) \u2014 this is good direction. However, the docstrings still say `list[dict]` in some places and the type annotations were added without updating the docstrings. Verify all caller sites (routers) use `.to_dict()` or equivalent serialization, since dataclasses don't have a built-in `to_dict()` method.",
-      "fix": "Add a `to_dict()` method to each dataclass (e.g., `ChurnPrediction.to_dict()`), or use `dataclasses.asdict()`, so routers can serialize consistently."
-    },
-    {
-      "file": "Makefile",
-      "line": "51",
-      "summary": "`db-shell` command changed from `docker exec` to `docker compose exec`. This is correct for newer compose, but note: the old command used the container name `configs-test-db-1` (created by compose) and the new uses the service name `test-db`. Both reference the same container if the compose project is named `configs`. No issue if the compose file defines the service as `test-db`, but verify the compose file service name matches."
+      "file": "frontend/src/lib/store/auth-store.ts",
+      "detail": "The removed `ENCRYPT_KEY` env var `NEXT_PUBLIC_AUTH_SECRET` was prefixed with `NEXT_PUBLIC_`, making it publicly readable from the browser bundle anyway \u2014 so the old encryption was not strong security. However, it still raised the bar against casual localStorage inspection. A better long-term fix is moving the token to an HttpOnly cookie."
     }
   ],
-  "summary": "The commit is large with four critical issues: a TypeScript runtime error in SortIconStatic on the tasks page, two service-layer regressions where TaskService methods return ORM objects in dict envelopes or skip the envelope entirely, and a security regression removing token encryption from the auth store. Several inconsistencies between fastapi_auth, auth.py, and settings.py also create fragile, conflicting production guards that could cause import-time crashes or silent security failures.",
+  "summary": "One critical security regression: removing AES encryption from the auth store leaves tokens and user data in plaintext localStorage; all other changes are net-positive (tenant isolation, type safety, path traversal hardening, bug fixes).",
   "details": {
     "llm_parsed": {
       "verdict": "fail",
@@ -69,61 +34,26 @@
         {
           "dim": "critical",
           "line": "",
-          "msg": "{'file': 'frontend/src/app/(app)/tasks/list/page.tsx', 'summary': 'SortIconStatic receives unexpected prop `k` \u2014 function signature takes no arguments. The call site passes `SortIconStatic k=\"due_date\"` but the local component definition accepts zero props. This will cause a runtime TypeError when sorting columns.', 'fix': 'Update SortIconStatic signature to `function SortIconStatic({ k }: { k: string })` or align with the pattern used in tickets/page.tsx which uses `col/sortKey/sortDir` props.'}"
-        },
-        {
-          "dim": "critical",
-          "line": "",
-          "msg": "{'file': 'src/services/task_service.py', 'lines': '19-20, 92-104', 'summary': 'Methods `update_task`, `complete_task` return `{\"success\": True, \"data\": <TaskModel ORM object>, ...}` \u2014 the ORM model is placed in the dict without calling `.to_dict()`. Routers that rely on `data.to_dict()` will receive a Python object repr instead of a serializable dict, producing malformed JSON responses. This is a regression from the previous pattern where `task.to_dict()` was called.', 'fix': 'Call `refreshed.to_dict()` in the `_ok` calls inside `update_task` and `complete_task`, or change return type to `TaskModel` to match `create_task`/`delete_task`.'}"
-        },
-        {
-          "dim": "critical",
-          "line": "",
-          "msg": "{'file': 'src/services/task_service.py', 'lines': '116-134, 136-143', 'summary': '`list_tasks` and `get_my_tasks` return `list[TaskModel]` directly instead of wrapping in the service response envelope `{\"success\": True, \"data\": {...}, \"message\": \"\"}`. All other task service methods follow the envelope pattern. Callers expecting the envelope structure will break.', 'fix': 'Either wrap results in the envelope dict (with pagination metadata for `list_tasks`), or update all callers to handle `list[TaskModel]` \u2014 the latter is cleaner and matches the convention in CLAUDE.md (services return domain objects, routers serialize).'}"
-        },
-        {
-          "dim": "critical",
-          "line": "",
-          "msg": "{'file': 'frontend/src/lib/store/auth-store.ts', 'summary': 'Removed CryptoJS AES encryption and zustand persist middleware. Auth tokens and user data are now stored in plain React state without persistence \u2014 users lose authentication on page refresh, and sensitive data is no longer encrypted at rest in localStorage. This is a significant security regression for what was previously an encrypted token store.', 'fix': 'If the encryption was for compliance reasons, restore the encrypt/decrypt layer. If it was temporary simplification, document the reduced security posture and add a comment noting that JWT tokens should be HttpOnly cookies in production.'}"
+          "msg": "{'file': 'frontend/src/lib/store/auth-store.ts', 'severity': 'security_regression', 'summary': 'Auth store no longer encrypts tokens in localStorage \u2014 removed CryptoJS AES encryption and Zustand persist middleware, now storing token and user data in plaintext localStorage', 'detail': \"The old implementation wrapped Zustand's persist storage with a custom `getItem`/`setItem` that encrypted auth state using `CryptoJS.AES` with `NEXT_PUBLIC_AUTH_SECRET`. The new implementation uses plain Zustand state without any encryption. Any malicious JavaScript on the page (e.g., via an XSS vector) can now directly read `token` and `user` from localStorage without decryption. The removed `crypto-js` and `@types/crypto-js` packages confirm this was intentional removal, not a side effect.\", 'recommendation': 'Either restore encrypted storage using a properly key-managed approach (not a client-side hardcoded secret), or use an HttpOnly cookie for the token. Client-side JS encryption with a hardcoded/embedded secret provides defense-in-depth only (not strong security), but plaintext storage removes even that layer.'}"
         }
       ],
       "warnings": [
         {
-          "file": "src/internal/middleware/fastapi_auth.py",
-          "lines": "30-33",
-          "summary": "Duplicate production gate \u2014 `get_jwt_secret()` already suppresses missing secrets via the `or \"dev-jwt-secret\"` fallback, but the module-level `FLASK_ENV` check raises a hard error. In production (non-dev/local/test envs), if `JWT_SECRET_KEY` is missing, the module-level check fires before `get_jwt_secret()` is ever called, causing an import-time crash. Meanwhile `settings.py` checks `JWT_SECRET` (not `JWT_SECRET_KEY`). Both guards are inconsistent and incomplete.",
-          "fix": "Unify to a single source of truth: use `settings.secret_key` / `settings.jwt_secret` everywhere, and remove the module-level FLASK_ENV guard (or keep it but make it consistent with the env var name used by settings)."
+          "file": "frontend/src/lib/store/auth-store.ts",
+          "line": "21",
+          "detail": "`isHydrated: true` is now always true (the persist hydration flow is gone), making it a no-op dead field. Either remove it from `AuthState` or add a comment explaining its purpose."
         },
         {
-          "file": "src/internal/db/engine.py",
-          "lines": "40-43",
-          "summary": "`get_session()` creates a new `sessionmaker` on every call. While the engine is cached, the session factory is rebuilt repeatedly. Consider caching the sessionmaker alongside the engine for minor performance improvement.",
-          "fix": "Move `sessionmaker` creation into `get_engine()` or cache a module-level `_session_factory` alongside `_engine`."
+          "file": "frontend/src/lib/store/auth-store.ts",
+          "line": "5",
+          "detail": "The import of `isHydrated` as a method signature `isHydrated: () => boolean` is retained in `AuthState`, but the old implementation used it as a state boolean. Verify all callers use the new method form consistently."
         },
         {
-          "file": "src/api/routers/tickets.py",
-          "line": "172",
-          "summary": "`get_user_by_id(body.assignee_id, tenant_id=ctx.tenant_id or 0)` \u2014 when `ctx.tenant_id` is None, the fallback to `0` looks up the user across all tenants. Pre-existing in original code (same `or 0` pattern), but still a correctness concern: a user could exist in tenant B and be assigned to a ticket in tenant A if the same ID exists in both.",
-          "fix": "If the ticket must belong to a tenant (which it should since tickets have tenant_id), require a valid tenant_id and raise 401 if absent rather than falling back to 0."
-        },
-        {
-          "file": "scripts/ci/run_claude_doc_sync_check.py",
-          "lines": "127-133",
-          "summary": "The script writes raw output to stdout via `sys.stdout.write(raw_output)` AFTER writing the normalized JSON artifact. Combined with the explicit `return 1` on `status == \"fail\"`, this means stdout will be polluted with non-JSON raw text on failures, making it harder to parse programmatically. The artifact file already contains the correct structured output.",
-          "fix": "Remove `sys.stdout.write(raw_output)` or redirect it to stderr, or remove it entirely since the artifact already captures full output."
-        },
-        {
-          "file": "src/services/churn_prediction.py + src/services/sales_recommendation.py",
-          "summary": "Both services migrated from dict-based return types to dataclass types (`ChurnPrediction`, `SalesActionRecommendation`, etc.) \u2014 this is good direction. However, the docstrings still say `list[dict]` in some places and the type annotations were added without updating the docstrings. Verify all caller sites (routers) use `.to_dict()` or equivalent serialization, since dataclasses don't have a built-in `to_dict()` method.",
-          "fix": "Add a `to_dict()` method to each dataclass (e.g., `ChurnPrediction.to_dict()`), or use `dataclasses.asdict()`, so routers can serialize consistently."
-        },
-        {
-          "file": "Makefile",
-          "line": "51",
-          "summary": "`db-shell` command changed from `docker exec` to `docker compose exec`. This is correct for newer compose, but note: the old command used the container name `configs-test-db-1` (created by compose) and the new uses the service name `test-db`. Both reference the same container if the compose project is named `configs`. No issue if the compose file defines the service as `test-db`, but verify the compose file service name matches."
+          "file": "frontend/src/lib/store/auth-store.ts",
+          "detail": "The removed `ENCRYPT_KEY` env var `NEXT_PUBLIC_AUTH_SECRET` was prefixed with `NEXT_PUBLIC_`, making it publicly readable from the browser bundle anyway \u2014 so the old encryption was not strong security. However, it still raised the bar against casual localStorage inspection. A better long-term fix is moving the token to an HttpOnly cookie."
         }
       ],
-      "summary": "The commit is large with four critical issues: a TypeScript runtime error in SortIconStatic on the tasks page, two service-layer regressions where TaskService methods return ORM objects in dict envelopes or skip the envelope entirely, and a security regression removing token encryption from the auth store. Several inconsistencies between fastapi_auth, auth.py, and settings.py also create fragile, conflicting production guards that could cause import-time crashes or silent security failures."
+      "summary": "One critical security regression: removing AES encryption from the auth store leaves tokens and user data in plaintext localStorage; all other changes are net-positive (tenant isolation, type safety, path traversal hardening, bug fixes)."
     }
   }
 }
