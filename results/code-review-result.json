@@ -3,192 +3,157 @@
   "verdict": "fail",
   "critical_issues": [
     {
-      "file": "scripts/ci/run_claude_code_review.py",
-      "line": 430,
+      "file": "src/services/customer_service.py",
+      "line": 99,
       "severity": "critical",
-      "msg": "subprocess.run() has no timeout \u2014 a hung claude invocation blocks the entire workflow indefinitely.",
-      "suggestion": "Add timeout=600 (or read from env) to the subprocess.run() calls in run_file_review and run_batch_review."
+      "msg": "NotFoundException uses Chinese string '\u5ba2\u6237' instead of English; mixes languages in error messages",
+      "suggestion": "Use 'Customer' (consistent with class/file naming) instead of '\u5ba2\u6237'"
     },
     {
-      "file": "scripts/ci/run_claude_code_review.py",
-      "line": 473,
+      "file": "src/services/customer_service.py",
+      "line": 134,
       "severity": "critical",
-      "msg": "run_batch_review's subprocess.run() also has no timeout \u2014 same hang risk as run_file_review.",
-      "suggestion": "Add timeout=600 to the subprocess.run() call in run_batch_review."
+      "msg": "NotFoundException uses Chinese string '\u5ba2\u6237' instead of English; mixes languages in error messages",
+      "suggestion": "Use 'Customer' instead of '\u5ba2\u6237'"
+    },
+    {
+      "file": "src/services/customer_service.py",
+      "line": 234,
+      "severity": "critical",
+      "msg": "bulk_import has no transaction rollback on failure; if commit partially fails the session is left inconsistent with no error raised (rule 47)",
+      "suggestion": "Wrap the loop + commit in try/except and rollback on failure, or use add_all with proper error handling"
     }
   ],
   "suggestions": [
     {
-      "file": ".github/workflows/monitor-issues.yml",
-      "line": 38,
+      "file": "src/services/customer_service.py",
+      "line": 52,
       "severity": "warning",
-      "msg": "The claude CLI is set up (checkout + setup-node + npm install) but never used \u2014 the workflow only runs validate_open_issues.py, making the entire setup dead code.",
-      "suggestion": "Remove the node/setup-python steps and the 'Set up claude' step if claude is not needed by this workflow, or rename the script if it was meant to call claude."
+      "msg": "create_customer dict path does not validate 'status' against VALID_STATUSES before inserting \u2014 invalid status can bypass validation (rule 48)",
+      "suggestion": "Add status validation after line 48: if d.get('status') and d['status'] not in self.VALID_STATUSES: raise ValidationException(...)"
     },
     {
-      "file": ".github/workflows/monitor-issues.yml",
-      "line": 44,
+      "file": "src/services/customer_service.py",
+      "line": 149,
       "severity": "warning",
-      "msg": "The 'Validate open issues' step has no timeout, so a hung Python process will run indefinitely and consume GitHub Actions minutes.",
-      "suggestion": "Add `timeout-minutes: 10` to the step or the job definition."
+      "msg": "search_customers has no input sanitization \u2014 empty/whitespace-only keyword produces a LIKE '% %' that matches unintended rows; also limit(100) is fixed with no offset pagination (rule 52, 95)",
+      "suggestion": "Strip keyword and raise ValidationException if empty; consider adding offset pagination"
     },
     {
-      "file": "codereview.md",
-      "line": "",
-      "severity": "info",
-      "msg": "Pure documentation file \u2014 no code issues."
-    },
-    {
-      "file": "scripts/ci/run_claude_code_review.py",
-      "line": 177,
-      "severity": "info",
-      "msg": "JSONDecoder() is instantiated unconditionally before the fallback loop that uses it, wasting allocation on the fast-path where the main json.loads() succeeds.",
-      "suggestion": "Move `decoder = json.JSONDecoder()` inside the `for idx, char in enumerate(text):` loop, just before the try block."
-    },
-    {
-      "file": "scripts/ci/run_claude_code_review.py",
-      "line": 616,
-      "severity": "info",
-      "msg": "urlopen timeout=20 is set but there is no retry logic \u2014 transient network errors cause an immediate failure with no graceful degradation.",
-      "suggestion": "Add a bounded retry loop (e.g. 2 retries with exponential backoff) around the urlopen call in github_api, or document that callers handle HTTPError/URLError explicitly."
+      "file": "src/services/customer_service.py",
+      "line": 227,
+      "severity": "warning",
+      "msg": "bulk_import dict path does not validate 'status' against VALID_STATUSES \u2014 invalid status silently persists (rule 48)",
+      "suggestion": "Validate status inside the loop: if c.get('status') and c['status'] not in self.VALID_STATUSES: raise ValidationException(...)"
     }
   ],
-  "summary": "Reviewed 3 file(s) between origin/master and origin/develop.",
+  "summary": "Reviewed 1 file(s) between origin/master and origin/issue-271-customer-dto.",
   "details": {
     "llm_parsed": {
       "verdict": "fail",
       "critical": [
         {
-          "file": "scripts/ci/run_claude_code_review.py",
-          "line": 430,
+          "file": "src/services/customer_service.py",
+          "line": 99,
           "severity": "critical",
-          "msg": "subprocess.run() has no timeout \u2014 a hung claude invocation blocks the entire workflow indefinitely.",
-          "suggestion": "Add timeout=600 (or read from env) to the subprocess.run() calls in run_file_review and run_batch_review."
+          "msg": "NotFoundException uses Chinese string '\u5ba2\u6237' instead of English; mixes languages in error messages",
+          "suggestion": "Use 'Customer' (consistent with class/file naming) instead of '\u5ba2\u6237'"
         },
         {
-          "file": "scripts/ci/run_claude_code_review.py",
-          "line": 473,
+          "file": "src/services/customer_service.py",
+          "line": 134,
           "severity": "critical",
-          "msg": "run_batch_review's subprocess.run() also has no timeout \u2014 same hang risk as run_file_review.",
-          "suggestion": "Add timeout=600 to the subprocess.run() call in run_batch_review."
+          "msg": "NotFoundException uses Chinese string '\u5ba2\u6237' instead of English; mixes languages in error messages",
+          "suggestion": "Use 'Customer' instead of '\u5ba2\u6237'"
+        },
+        {
+          "file": "src/services/customer_service.py",
+          "line": 234,
+          "severity": "critical",
+          "msg": "bulk_import has no transaction rollback on failure; if commit partially fails the session is left inconsistent with no error raised (rule 47)",
+          "suggestion": "Wrap the loop + commit in try/except and rollback on failure, or use add_all with proper error handling"
         }
       ],
       "warnings": [
         {
-          "file": ".github/workflows/monitor-issues.yml",
-          "line": 38,
+          "file": "src/services/customer_service.py",
+          "line": 52,
           "severity": "warning",
-          "msg": "The claude CLI is set up (checkout + setup-node + npm install) but never used \u2014 the workflow only runs validate_open_issues.py, making the entire setup dead code.",
-          "suggestion": "Remove the node/setup-python steps and the 'Set up claude' step if claude is not needed by this workflow, or rename the script if it was meant to call claude."
+          "msg": "create_customer dict path does not validate 'status' against VALID_STATUSES before inserting \u2014 invalid status can bypass validation (rule 48)",
+          "suggestion": "Add status validation after line 48: if d.get('status') and d['status'] not in self.VALID_STATUSES: raise ValidationException(...)"
         },
         {
-          "file": ".github/workflows/monitor-issues.yml",
-          "line": 44,
+          "file": "src/services/customer_service.py",
+          "line": 149,
           "severity": "warning",
-          "msg": "The 'Validate open issues' step has no timeout, so a hung Python process will run indefinitely and consume GitHub Actions minutes.",
-          "suggestion": "Add `timeout-minutes: 10` to the step or the job definition."
+          "msg": "search_customers has no input sanitization \u2014 empty/whitespace-only keyword produces a LIKE '% %' that matches unintended rows; also limit(100) is fixed with no offset pagination (rule 52, 95)",
+          "suggestion": "Strip keyword and raise ValidationException if empty; consider adding offset pagination"
         },
         {
-          "file": "codereview.md",
-          "line": "",
-          "severity": "info",
-          "msg": "Pure documentation file \u2014 no code issues."
-        },
-        {
-          "file": "scripts/ci/run_claude_code_review.py",
-          "line": 177,
-          "severity": "info",
-          "msg": "JSONDecoder() is instantiated unconditionally before the fallback loop that uses it, wasting allocation on the fast-path where the main json.loads() succeeds.",
-          "suggestion": "Move `decoder = json.JSONDecoder()` inside the `for idx, char in enumerate(text):` loop, just before the try block."
-        },
-        {
-          "file": "scripts/ci/run_claude_code_review.py",
-          "line": 616,
-          "severity": "info",
-          "msg": "urlopen timeout=20 is set but there is no retry logic \u2014 transient network errors cause an immediate failure with no graceful degradation.",
-          "suggestion": "Add a bounded retry loop (e.g. 2 retries with exponential backoff) around the urlopen call in github_api, or document that callers handle HTTPError/URLError explicitly."
+          "file": "src/services/customer_service.py",
+          "line": 227,
+          "severity": "warning",
+          "msg": "bulk_import dict path does not validate 'status' against VALID_STATUSES \u2014 invalid status silently persists (rule 48)",
+          "suggestion": "Validate status inside the loop: if c.get('status') and c['status'] not in self.VALID_STATUSES: raise ValidationException(...)"
         }
       ],
-      "summary": "Reviewed 3 file(s) between origin/master and origin/develop."
+      "summary": "Reviewed 1 file(s) between origin/master and origin/issue-271-customer-dto."
     },
     "reviewed_refs": {
-      "base": "a3338277865fb78d70f1b9234efb4d2802c4fb9f",
-      "head": "a44fd57215854e37294c7ab9ca260c01116d6b0c",
+      "base": "c76982cb0d9ba4f7e6caebef0ffb0947272069cd",
+      "head": "a5cf59eff4ed716126277619d064f3c0a32db3c9",
       "base_label": "origin/master",
-      "head_label": "origin/develop"
+      "head_label": "origin/issue-271-customer-dto"
     },
     "reviewed_files": [
-      ".github/workflows/monitor-issues.yml",
-      "codereview.md",
-      "scripts/ci/run_claude_code_review.py"
+      "src/services/customer_service.py"
     ],
     "per_file_reviews": [
       {
-        "file": ".github/workflows/monitor-issues.yml",
+        "file": "src/services/customer_service.py",
         "returncode": 0,
-        "output": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"api_error_status\":null,\"duration_ms\":196918,\"duration_api_ms\":196421,\"num_turns\":6,\"result\":\"\\n\\n[\\n  {\\n    \\\"filename\\\": \\\".github/workflows/monitor-issues.yml\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 38,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"The claude CLI is set up (checkout + setup-node + npm install) but never used \u2014 the workflow only runs validate_open_issues.py, making the entire setup dead code.\\\",\\n        \\\"suggestion\\\": \\\"Remove the node/setup-python steps and the 'Set up claude' step if claude is not needed by this workflow, or rename the script if it was meant to call claude.\\\"\\n      },\\n      {\\n        \\\"line\\\": 44,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"The 'Validate open issues' step has no timeout, so a hung Python process will run indefinitely and consume GitHub Actions minutes.\\\",\\n        \\\"suggestion\\\": \\\"Add `timeout-minutes: 10` to the step or the job definition.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Workflow sets up claude and Node.js but never uses them; step lacks a timeout.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"codereview.md\\\",\\n    \\\"issues\\\": [],\\n    \\\"summary\\\": \\\"Pure documentation file \u2014 no code issues.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"scripts/ci/run_claude_code_review.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 430,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"subprocess.run() has no timeout \u2014 a hung claude invocation blocks the entire workflow indefinitely.\\\",\\n        \\\"suggestion\\\": \\\"Add timeout=600 (or read from env) to the subprocess.run() calls in run_file_review and run_batch_review.\\\"\\n      },\\n      {\\n        \\\"line\\\": 177,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"JSONDecoder() is instantiated unconditionally before the fallback loop that uses it, wasting allocation on the fast-path where the main json.loads() succeeds.\\\",\\n        \\\"suggestion\\\": \\\"Move `decoder = json.JSONDecoder()` inside the `for idx, char in enumerate(text):` loop, just before the try block.\\\"\\n      },\\n      {\\n        \\\"line\\\": 473,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"run_batch_review's subprocess.run() also has no timeout \u2014 same hang risk as run_file_review.\\\",\\n        \\\"suggestion\\\": \\\"Add timeout=600 to the subprocess.run() call in run_batch_review.\\\"\\n      },\\n      {\\n        \\\"line\\\": 616,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"urlopen timeout=20 is set but there is no retry logic \u2014 transient network errors cause an immediate failure with no graceful degradation.\\\",\\n        \\\"suggestion\\\": \\\"Add a bounded retry loop (e.g. 2 retries with exponential backoff) around the urlopen call in github_api, or document that callers handle HTTPError/URLError explicitly.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"No subprocess timeouts (critical hang risk); minor JSONDecoder allocation inefficiency.\\\"\\n  }\\n]\",\"stop_reason\":\"end_turn\",\"session_id\":\"8c0df391-531d-4410-bb2a-1c063d4ba5d6\",\"total_cost_usd\":0.37644045,\"usage\":{\"input_tokens\":57403,\"cache_creation_input_tokens\":30179,\"cache_read_input_tokens\":66784,\"output_tokens\":4735,\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":0,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"\",\"iterations\":[],\"speed\":\"standard\"},\"modelUsage\":{\"claude-sonnet-4-6\":{\"inputTokens\":57403,\"outputTokens\":4735,\"cacheReadInputTokens\":66784,\"cacheCreationInputTokens\":30179,\"webSearchRequests\":0,\"costUSD\":0.37644045,\"contextWindow\":200000,\"maxOutputTokens\":32000}},\"permission_denials\":[],\"terminal_reason\":\"completed\",\"fast_mode_state\":\"off\",\"uuid\":\"21b75600-44ed-416a-a004-e6b81f273728\"}\n",
+        "output": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"api_error_status\":null,\"duration_ms\":154837,\"duration_api_ms\":154738,\"num_turns\":4,\"result\":\"\\n\\n```json\\n[\\n  {\\n    \\\"filename\\\": \\\"src/services/customer_service.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 99,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"NotFoundException uses Chinese string '\u5ba2\u6237' instead of English; mixes languages in error messages\\\",\\n        \\\"suggestion\\\": \\\"Use 'Customer' (consistent with class/file naming) instead of '\u5ba2\u6237'\\\"\\n      },\\n      {\\n        \\\"line\\\": 134,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"NotFoundException uses Chinese string '\u5ba2\u6237' instead of English; mixes languages in error messages\\\",\\n        \\\"suggestion\\\": \\\"Use 'Customer' instead of '\u5ba2\u6237'\\\"\\n      },\\n      {\\n        \\\"line\\\": 234,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"bulk_import has no transaction rollback on failure; if commit partially fails the session is left inconsistent with no error raised (rule 47)\\\",\\n        \\\"suggestion\\\": \\\"Wrap the loop + commit in try/except and rollback on failure, or use add_all with proper error handling\\\"\\n      },\\n      {\\n        \\\"line\\\": 52,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"create_customer dict path does not validate 'status' against VALID_STATUSES before inserting \u2014 invalid status can bypass validation (rule 48)\\\",\\n        \\\"suggestion\\\": \\\"Add status validation after line 48: if d.get('status') and d['status'] not in self.VALID_STATUSES: raise ValidationException(...)\\\"\\n      },\\n      {\\n        \\\"line\\\": 149,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"search_customers has no input sanitization \u2014 empty/whitespace-only keyword produces a LIKE '% %' that matches unintended rows; also limit(100) is fixed with no offset pagination (rule 52, 95)\\\",\\n        \\\"suggestion\\\": \\\"Strip keyword and raise ValidationException if empty; consider adding offset pagination\\\"\\n      },\\n      {\\n        \\\"line\\\": 227,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"bulk_import dict path does not validate 'status' against VALID_STATUSES \u2014 invalid status silently persists (rule 48)\\\",\\n        \\\"suggestion\\\": \\\"Validate status inside the loop: if c.get('status') and c['status'] not in self.VALID_STATUSES: raise ValidationException(...)\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Two copy-paste bugs with Chinese error messages, a bulk-import with no transaction rollback, and missing status validation in dict paths for create and bulk import.\\\"\\n  }\\n]\\n```\",\"stop_reason\":\"end_turn\",\"session_id\":\"173a1c58-a971-497b-9bb3-1d2f5b1d7cd5\",\"total_cost_usd\":0.1839864,\"usage\":{\"input_tokens\":33723,\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":95808,\"output_tokens\":3605,\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":0,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"\",\"iterations\":[],\"speed\":\"standard\"},\"modelUsage\":{\"claude-sonnet-4-6\":{\"inputTokens\":33723,\"outputTokens\":3605,\"cacheReadInputTokens\":95808,\"cacheCreationInputTokens\":0,\"webSearchRequests\":0,\"costUSD\":0.1839864,\"contextWindow\":200000,\"maxOutputTokens\":32000}},\"permission_denials\":[],\"terminal_reason\":\"completed\",\"fast_mode_state\":\"off\",\"uuid\":\"c1bdbb42-64f8-4dde-a5d5-9b4432adba32\"}\n",
         "parsed": {
-          "filename": ".github/workflows/monitor-issues.yml",
+          "filename": "src/services/customer_service.py",
           "issues": [
             {
-              "line": 38,
-              "severity": "warning",
-              "message": "The claude CLI is set up (checkout + setup-node + npm install) but never used \u2014 the workflow only runs validate_open_issues.py, making the entire setup dead code.",
-              "suggestion": "Remove the node/setup-python steps and the 'Set up claude' step if claude is not needed by this workflow, or rename the script if it was meant to call claude."
+              "line": 99,
+              "severity": "critical",
+              "message": "NotFoundException uses Chinese string '\u5ba2\u6237' instead of English; mixes languages in error messages",
+              "suggestion": "Use 'Customer' (consistent with class/file naming) instead of '\u5ba2\u6237'"
             },
             {
-              "line": 44,
+              "line": 134,
+              "severity": "critical",
+              "message": "NotFoundException uses Chinese string '\u5ba2\u6237' instead of English; mixes languages in error messages",
+              "suggestion": "Use 'Customer' instead of '\u5ba2\u6237'"
+            },
+            {
+              "line": 234,
+              "severity": "critical",
+              "message": "bulk_import has no transaction rollback on failure; if commit partially fails the session is left inconsistent with no error raised (rule 47)",
+              "suggestion": "Wrap the loop + commit in try/except and rollback on failure, or use add_all with proper error handling"
+            },
+            {
+              "line": 52,
               "severity": "warning",
-              "message": "The 'Validate open issues' step has no timeout, so a hung Python process will run indefinitely and consume GitHub Actions minutes.",
-              "suggestion": "Add `timeout-minutes: 10` to the step or the job definition."
+              "message": "create_customer dict path does not validate 'status' against VALID_STATUSES before inserting \u2014 invalid status can bypass validation (rule 48)",
+              "suggestion": "Add status validation after line 48: if d.get('status') and d['status'] not in self.VALID_STATUSES: raise ValidationException(...)"
+            },
+            {
+              "line": 149,
+              "severity": "warning",
+              "message": "search_customers has no input sanitization \u2014 empty/whitespace-only keyword produces a LIKE '% %' that matches unintended rows; also limit(100) is fixed with no offset pagination (rule 52, 95)",
+              "suggestion": "Strip keyword and raise ValidationException if empty; consider adding offset pagination"
+            },
+            {
+              "line": 227,
+              "severity": "warning",
+              "message": "bulk_import dict path does not validate 'status' against VALID_STATUSES \u2014 invalid status silently persists (rule 48)",
+              "suggestion": "Validate status inside the loop: if c.get('status') and c['status'] not in self.VALID_STATUSES: raise ValidationException(...)"
             }
           ],
-          "summary": "Workflow sets up claude and Node.js but never uses them; step lacks a timeout."
-        }
-      },
-      {
-        "file": "codereview.md",
-        "returncode": 0,
-        "output": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"api_error_status\":null,\"duration_ms\":196918,\"duration_api_ms\":196421,\"num_turns\":6,\"result\":\"\\n\\n[\\n  {\\n    \\\"filename\\\": \\\".github/workflows/monitor-issues.yml\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 38,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"The claude CLI is set up (checkout + setup-node + npm install) but never used \u2014 the workflow only runs validate_open_issues.py, making the entire setup dead code.\\\",\\n        \\\"suggestion\\\": \\\"Remove the node/setup-python steps and the 'Set up claude' step if claude is not needed by this workflow, or rename the script if it was meant to call claude.\\\"\\n      },\\n      {\\n        \\\"line\\\": 44,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"The 'Validate open issues' step has no timeout, so a hung Python process will run indefinitely and consume GitHub Actions minutes.\\\",\\n        \\\"suggestion\\\": \\\"Add `timeout-minutes: 10` to the step or the job definition.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Workflow sets up claude and Node.js but never uses them; step lacks a timeout.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"codereview.md\\\",\\n    \\\"issues\\\": [],\\n    \\\"summary\\\": \\\"Pure documentation file \u2014 no code issues.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"scripts/ci/run_claude_code_review.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 430,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"subprocess.run() has no timeout \u2014 a hung claude invocation blocks the entire workflow indefinitely.\\\",\\n        \\\"suggestion\\\": \\\"Add timeout=600 (or read from env) to the subprocess.run() calls in run_file_review and run_batch_review.\\\"\\n      },\\n      {\\n        \\\"line\\\": 177,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"JSONDecoder() is instantiated unconditionally before the fallback loop that uses it, wasting allocation on the fast-path where the main json.loads() succeeds.\\\",\\n        \\\"suggestion\\\": \\\"Move `decoder = json.JSONDecoder()` inside the `for idx, char in enumerate(text):` loop, just before the try block.\\\"\\n      },\\n      {\\n        \\\"line\\\": 473,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"run_batch_review's subprocess.run() also has no timeout \u2014 same hang risk as run_file_review.\\\",\\n        \\\"suggestion\\\": \\\"Add timeout=600 to the subprocess.run() call in run_batch_review.\\\"\\n      },\\n      {\\n        \\\"line\\\": 616,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"urlopen timeout=20 is set but there is no retry logic \u2014 transient network errors cause an immediate failure with no graceful degradation.\\\",\\n        \\\"suggestion\\\": \\\"Add a bounded retry loop (e.g. 2 retries with exponential backoff) around the urlopen call in github_api, or document that callers handle HTTPError/URLError explicitly.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"No subprocess timeouts (critical hang risk); minor JSONDecoder allocation inefficiency.\\\"\\n  }\\n]\",\"stop_reason\":\"end_turn\",\"session_id\":\"8c0df391-531d-4410-bb2a-1c063d4ba5d6\",\"total_cost_usd\":0.37644045,\"usage\":{\"input_tokens\":57403,\"cache_creation_input_tokens\":30179,\"cache_read_input_tokens\":66784,\"output_tokens\":4735,\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":0,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"\",\"iterations\":[],\"speed\":\"standard\"},\"modelUsage\":{\"claude-sonnet-4-6\":{\"inputTokens\":57403,\"outputTokens\":4735,\"cacheReadInputTokens\":66784,\"cacheCreationInputTokens\":30179,\"webSearchRequests\":0,\"costUSD\":0.37644045,\"contextWindow\":200000,\"maxOutputTokens\":32000}},\"permission_denials\":[],\"terminal_reason\":\"completed\",\"fast_mode_state\":\"off\",\"uuid\":\"21b75600-44ed-416a-a004-e6b81f273728\"}\n",
-        "parsed": {
-          "filename": "codereview.md",
-          "issues": [],
-          "summary": "Pure documentation file \u2014 no code issues."
-        }
-      },
-      {
-        "file": "scripts/ci/run_claude_code_review.py",
-        "returncode": 0,
-        "output": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"api_error_status\":null,\"duration_ms\":196918,\"duration_api_ms\":196421,\"num_turns\":6,\"result\":\"\\n\\n[\\n  {\\n    \\\"filename\\\": \\\".github/workflows/monitor-issues.yml\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 38,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"The claude CLI is set up (checkout + setup-node + npm install) but never used \u2014 the workflow only runs validate_open_issues.py, making the entire setup dead code.\\\",\\n        \\\"suggestion\\\": \\\"Remove the node/setup-python steps and the 'Set up claude' step if claude is not needed by this workflow, or rename the script if it was meant to call claude.\\\"\\n      },\\n      {\\n        \\\"line\\\": 44,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"The 'Validate open issues' step has no timeout, so a hung Python process will run indefinitely and consume GitHub Actions minutes.\\\",\\n        \\\"suggestion\\\": \\\"Add `timeout-minutes: 10` to the step or the job definition.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Workflow sets up claude and Node.js but never uses them; step lacks a timeout.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"codereview.md\\\",\\n    \\\"issues\\\": [],\\n    \\\"summary\\\": \\\"Pure documentation file \u2014 no code issues.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"scripts/ci/run_claude_code_review.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 430,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"subprocess.run() has no timeout \u2014 a hung claude invocation blocks the entire workflow indefinitely.\\\",\\n        \\\"suggestion\\\": \\\"Add timeout=600 (or read from env) to the subprocess.run() calls in run_file_review and run_batch_review.\\\"\\n      },\\n      {\\n        \\\"line\\\": 177,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"JSONDecoder() is instantiated unconditionally before the fallback loop that uses it, wasting allocation on the fast-path where the main json.loads() succeeds.\\\",\\n        \\\"suggestion\\\": \\\"Move `decoder = json.JSONDecoder()` inside the `for idx, char in enumerate(text):` loop, just before the try block.\\\"\\n      },\\n      {\\n        \\\"line\\\": 473,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"run_batch_review's subprocess.run() also has no timeout \u2014 same hang risk as run_file_review.\\\",\\n        \\\"suggestion\\\": \\\"Add timeout=600 to the subprocess.run() call in run_batch_review.\\\"\\n      },\\n      {\\n        \\\"line\\\": 616,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"urlopen timeout=20 is set but there is no retry logic \u2014 transient network errors cause an immediate failure with no graceful degradation.\\\",\\n        \\\"suggestion\\\": \\\"Add a bounded retry loop (e.g. 2 retries with exponential backoff) around the urlopen call in github_api, or document that callers handle HTTPError/URLError explicitly.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"No subprocess timeouts (critical hang risk); minor JSONDecoder allocation inefficiency.\\\"\\n  }\\n]\",\"stop_reason\":\"end_turn\",\"session_id\":\"8c0df391-531d-4410-bb2a-1c063d4ba5d6\",\"total_cost_usd\":0.37644045,\"usage\":{\"input_tokens\":57403,\"cache_creation_input_tokens\":30179,\"cache_read_input_tokens\":66784,\"output_tokens\":4735,\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":0,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"\",\"iterations\":[],\"speed\":\"standard\"},\"modelUsage\":{\"claude-sonnet-4-6\":{\"inputTokens\":57403,\"outputTokens\":4735,\"cacheReadInputTokens\":66784,\"cacheCreationInputTokens\":30179,\"webSearchRequests\":0,\"costUSD\":0.37644045,\"contextWindow\":200000,\"maxOutputTokens\":32000}},\"permission_denials\":[],\"terminal_reason\":\"completed\",\"fast_mode_state\":\"off\",\"uuid\":\"21b75600-44ed-416a-a004-e6b81f273728\"}\n",
-        "parsed": {
-          "filename": "scripts/ci/run_claude_code_review.py",
-          "issues": [
-            {
-              "line": 430,
-              "severity": "critical",
-              "message": "subprocess.run() has no timeout \u2014 a hung claude invocation blocks the entire workflow indefinitely.",
-              "suggestion": "Add timeout=600 (or read from env) to the subprocess.run() calls in run_file_review and run_batch_review."
-            },
-            {
-              "line": 177,
-              "severity": "info",
-              "message": "JSONDecoder() is instantiated unconditionally before the fallback loop that uses it, wasting allocation on the fast-path where the main json.loads() succeeds.",
-              "suggestion": "Move `decoder = json.JSONDecoder()` inside the `for idx, char in enumerate(text):` loop, just before the try block."
-            },
-            {
-              "line": 473,
-              "severity": "critical",
-              "message": "run_batch_review's subprocess.run() also has no timeout \u2014 same hang risk as run_file_review.",
-              "suggestion": "Add timeout=600 to the subprocess.run() call in run_batch_review."
-            },
-            {
-              "line": 616,
-              "severity": "info",
-              "message": "urlopen timeout=20 is set but there is no retry logic \u2014 transient network errors cause an immediate failure with no graceful degradation.",
-              "suggestion": "Add a bounded retry loop (e.g. 2 retries with exponential backoff) around the urlopen call in github_api, or document that callers handle HTTPError/URLError explicitly."
-            }
-          ],
-          "summary": "No subprocess timeouts (critical hang risk); minor JSONDecoder allocation inefficiency."
+          "summary": "Two copy-paste bugs with Chinese error messages, a bulk-import with no transaction rollback, and missing status validation in dict paths for create and bulk import."
         }
       }
     ]
