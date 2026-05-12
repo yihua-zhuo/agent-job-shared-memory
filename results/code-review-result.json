@@ -1,160 +1,194 @@
 {
-  "status": "pass",
-  "verdict": "pass",
-  "critical_issues": [],
+  "status": "fail",
+  "verdict": "fail",
+  "critical_issues": [
+    {
+      "file": "scripts/ci/run_claude_code_review.py",
+      "line": 430,
+      "severity": "critical",
+      "msg": "subprocess.run() has no timeout \u2014 a hung claude invocation blocks the entire workflow indefinitely.",
+      "suggestion": "Add timeout=600 (or read from env) to the subprocess.run() calls in run_file_review and run_batch_review."
+    },
+    {
+      "file": "scripts/ci/run_claude_code_review.py",
+      "line": 473,
+      "severity": "critical",
+      "msg": "run_batch_review's subprocess.run() also has no timeout \u2014 same hang risk as run_file_review.",
+      "suggestion": "Add timeout=600 to the subprocess.run() call in run_batch_review."
+    }
+  ],
   "suggestions": [
+    {
+      "file": ".github/workflows/monitor-issues.yml",
+      "line": 38,
+      "severity": "warning",
+      "msg": "The claude CLI is set up (checkout + setup-node + npm install) but never used \u2014 the workflow only runs validate_open_issues.py, making the entire setup dead code.",
+      "suggestion": "Remove the node/setup-python steps and the 'Set up claude' step if claude is not needed by this workflow, or rename the script if it was meant to call claude."
+    },
+    {
+      "file": ".github/workflows/monitor-issues.yml",
+      "line": 44,
+      "severity": "warning",
+      "msg": "The 'Validate open issues' step has no timeout, so a hung Python process will run indefinitely and consume GitHub Actions minutes.",
+      "suggestion": "Add `timeout-minutes: 10` to the step or the job definition."
+    },
     {
       "file": "codereview.md",
       "line": "",
       "severity": "info",
-      "msg": "Pure documentation file listing 120 review guidelines organized into 12 categories; no executable code to evaluate."
+      "msg": "Pure documentation file \u2014 no code issues."
     },
     {
       "file": "scripts/ci/run_claude_code_review.py",
-      "line": 178,
-      "severity": "warning",
-      "msg": "json.JSONDecoder() is instantiated inside the for-loop fallback scan, creating a new object on every iteration instead of once before the loop.",
-      "suggestion": "Move `decoder = json.JSONDecoder()` to a line before the `for idx, char in enumerate(text)` loop."
-    },
-    {
-      "file": "scripts/ci/run_claude_code_review.py",
-      "line": 519,
-      "severity": "warning",
-      "msg": "All per-file results in run_batch_review store a reference to the same `output` str; this is safe for str (immutable) but misleading and risks turning into a shared-mutable aliasing bug if the code is later changed to collect output per-result.",
-      "suggestion": "Append per-file results with `output: output` as done now, but document explicitly or refactor so each result carries only its relevant slice (e.g., only `parsed`). Alternatively, drop `output` from per-file entries in batch mode since `parsed_by_file` already carries the parsed data."
+      "line": 177,
+      "severity": "info",
+      "msg": "JSONDecoder() is instantiated unconditionally before the fallback loop that uses it, wasting allocation on the fast-path where the main json.loads() succeeds.",
+      "suggestion": "Move `decoder = json.JSONDecoder()` inside the `for idx, char in enumerate(text):` loop, just before the try block."
     },
     {
       "file": "scripts/ci/run_claude_code_review.py",
       "line": 616,
       "severity": "info",
-      "msg": "github_api() returns `Any`, losing all type specificity from the GitHub API response shapes.",
-      "suggestion": "Replace `Any` return type with a TypedDict or a union of known response shapes (e.g., `CommentResponse | PRResponse | list[dict[str, Any]]`)."
-    },
-    {
-      "file": "scripts/ci/run_claude_code_review.py",
-      "line": 390,
-      "severity": "info",
-      "msg": "resolve_base_with_fallback() falls back to HEAD~1 but raises uncaught IndexError when HEAD has no parent (first commit on a branch), making that fallback unreachable.",
-      "suggestion": "Wrap the HEAD~1 fallback in a try/except IndexError, or add a comment documenting that callers must ensure HEAD has at least one parent."
-    },
-    {
-      "file": "scripts/ci/run_claude_code_review.py",
-      "line": 95,
-      "severity": "info",
-      "msg": "extract_json_list and extract_json_object share nearly identical fallback scanning logic (raw_decode loop over text chars); duplication violates DRY and makes maintenance error-prone.",
-      "suggestion": "Extract the fallback scan into a helper: `def _find_json_in_text(text: str, open_char: str) -> Any | None` and call it from both functions."
+      "msg": "urlopen timeout=20 is set but there is no retry logic \u2014 transient network errors cause an immediate failure with no graceful degradation.",
+      "suggestion": "Add a bounded retry loop (e.g. 2 retries with exponential backoff) around the urlopen call in github_api, or document that callers handle HTTPError/URLError explicitly."
     }
   ],
-  "summary": "Reviewed 2 file(s) between origin/master and origin/develop.",
+  "summary": "Reviewed 3 file(s) between origin/master and origin/develop.",
   "details": {
     "llm_parsed": {
-      "verdict": "pass",
-      "critical": [],
+      "verdict": "fail",
+      "critical": [
+        {
+          "file": "scripts/ci/run_claude_code_review.py",
+          "line": 430,
+          "severity": "critical",
+          "msg": "subprocess.run() has no timeout \u2014 a hung claude invocation blocks the entire workflow indefinitely.",
+          "suggestion": "Add timeout=600 (or read from env) to the subprocess.run() calls in run_file_review and run_batch_review."
+        },
+        {
+          "file": "scripts/ci/run_claude_code_review.py",
+          "line": 473,
+          "severity": "critical",
+          "msg": "run_batch_review's subprocess.run() also has no timeout \u2014 same hang risk as run_file_review.",
+          "suggestion": "Add timeout=600 to the subprocess.run() call in run_batch_review."
+        }
+      ],
       "warnings": [
+        {
+          "file": ".github/workflows/monitor-issues.yml",
+          "line": 38,
+          "severity": "warning",
+          "msg": "The claude CLI is set up (checkout + setup-node + npm install) but never used \u2014 the workflow only runs validate_open_issues.py, making the entire setup dead code.",
+          "suggestion": "Remove the node/setup-python steps and the 'Set up claude' step if claude is not needed by this workflow, or rename the script if it was meant to call claude."
+        },
+        {
+          "file": ".github/workflows/monitor-issues.yml",
+          "line": 44,
+          "severity": "warning",
+          "msg": "The 'Validate open issues' step has no timeout, so a hung Python process will run indefinitely and consume GitHub Actions minutes.",
+          "suggestion": "Add `timeout-minutes: 10` to the step or the job definition."
+        },
         {
           "file": "codereview.md",
           "line": "",
           "severity": "info",
-          "msg": "Pure documentation file listing 120 review guidelines organized into 12 categories; no executable code to evaluate."
+          "msg": "Pure documentation file \u2014 no code issues."
         },
         {
           "file": "scripts/ci/run_claude_code_review.py",
-          "line": 178,
-          "severity": "warning",
-          "msg": "json.JSONDecoder() is instantiated inside the for-loop fallback scan, creating a new object on every iteration instead of once before the loop.",
-          "suggestion": "Move `decoder = json.JSONDecoder()` to a line before the `for idx, char in enumerate(text)` loop."
-        },
-        {
-          "file": "scripts/ci/run_claude_code_review.py",
-          "line": 519,
-          "severity": "warning",
-          "msg": "All per-file results in run_batch_review store a reference to the same `output` str; this is safe for str (immutable) but misleading and risks turning into a shared-mutable aliasing bug if the code is later changed to collect output per-result.",
-          "suggestion": "Append per-file results with `output: output` as done now, but document explicitly or refactor so each result carries only its relevant slice (e.g., only `parsed`). Alternatively, drop `output` from per-file entries in batch mode since `parsed_by_file` already carries the parsed data."
+          "line": 177,
+          "severity": "info",
+          "msg": "JSONDecoder() is instantiated unconditionally before the fallback loop that uses it, wasting allocation on the fast-path where the main json.loads() succeeds.",
+          "suggestion": "Move `decoder = json.JSONDecoder()` inside the `for idx, char in enumerate(text):` loop, just before the try block."
         },
         {
           "file": "scripts/ci/run_claude_code_review.py",
           "line": 616,
           "severity": "info",
-          "msg": "github_api() returns `Any`, losing all type specificity from the GitHub API response shapes.",
-          "suggestion": "Replace `Any` return type with a TypedDict or a union of known response shapes (e.g., `CommentResponse | PRResponse | list[dict[str, Any]]`)."
-        },
-        {
-          "file": "scripts/ci/run_claude_code_review.py",
-          "line": 390,
-          "severity": "info",
-          "msg": "resolve_base_with_fallback() falls back to HEAD~1 but raises uncaught IndexError when HEAD has no parent (first commit on a branch), making that fallback unreachable.",
-          "suggestion": "Wrap the HEAD~1 fallback in a try/except IndexError, or add a comment documenting that callers must ensure HEAD has at least one parent."
-        },
-        {
-          "file": "scripts/ci/run_claude_code_review.py",
-          "line": 95,
-          "severity": "info",
-          "msg": "extract_json_list and extract_json_object share nearly identical fallback scanning logic (raw_decode loop over text chars); duplication violates DRY and makes maintenance error-prone.",
-          "suggestion": "Extract the fallback scan into a helper: `def _find_json_in_text(text: str, open_char: str) -> Any | None` and call it from both functions."
+          "msg": "urlopen timeout=20 is set but there is no retry logic \u2014 transient network errors cause an immediate failure with no graceful degradation.",
+          "suggestion": "Add a bounded retry loop (e.g. 2 retries with exponential backoff) around the urlopen call in github_api, or document that callers handle HTTPError/URLError explicitly."
         }
       ],
-      "summary": "Reviewed 2 file(s) between origin/master and origin/develop."
+      "summary": "Reviewed 3 file(s) between origin/master and origin/develop."
     },
     "reviewed_refs": {
       "base": "a3338277865fb78d70f1b9234efb4d2802c4fb9f",
-      "head": "1bb263e3780e3c7222fcf2e4be51df4b3e7c72f6",
+      "head": "a44fd57215854e37294c7ab9ca260c01116d6b0c",
       "base_label": "origin/master",
       "head_label": "origin/develop"
     },
     "reviewed_files": [
+      ".github/workflows/monitor-issues.yml",
       "codereview.md",
       "scripts/ci/run_claude_code_review.py"
     ],
     "per_file_reviews": [
       {
+        "file": ".github/workflows/monitor-issues.yml",
+        "returncode": 0,
+        "output": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"api_error_status\":null,\"duration_ms\":196918,\"duration_api_ms\":196421,\"num_turns\":6,\"result\":\"\\n\\n[\\n  {\\n    \\\"filename\\\": \\\".github/workflows/monitor-issues.yml\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 38,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"The claude CLI is set up (checkout + setup-node + npm install) but never used \u2014 the workflow only runs validate_open_issues.py, making the entire setup dead code.\\\",\\n        \\\"suggestion\\\": \\\"Remove the node/setup-python steps and the 'Set up claude' step if claude is not needed by this workflow, or rename the script if it was meant to call claude.\\\"\\n      },\\n      {\\n        \\\"line\\\": 44,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"The 'Validate open issues' step has no timeout, so a hung Python process will run indefinitely and consume GitHub Actions minutes.\\\",\\n        \\\"suggestion\\\": \\\"Add `timeout-minutes: 10` to the step or the job definition.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Workflow sets up claude and Node.js but never uses them; step lacks a timeout.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"codereview.md\\\",\\n    \\\"issues\\\": [],\\n    \\\"summary\\\": \\\"Pure documentation file \u2014 no code issues.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"scripts/ci/run_claude_code_review.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 430,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"subprocess.run() has no timeout \u2014 a hung claude invocation blocks the entire workflow indefinitely.\\\",\\n        \\\"suggestion\\\": \\\"Add timeout=600 (or read from env) to the subprocess.run() calls in run_file_review and run_batch_review.\\\"\\n      },\\n      {\\n        \\\"line\\\": 177,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"JSONDecoder() is instantiated unconditionally before the fallback loop that uses it, wasting allocation on the fast-path where the main json.loads() succeeds.\\\",\\n        \\\"suggestion\\\": \\\"Move `decoder = json.JSONDecoder()` inside the `for idx, char in enumerate(text):` loop, just before the try block.\\\"\\n      },\\n      {\\n        \\\"line\\\": 473,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"run_batch_review's subprocess.run() also has no timeout \u2014 same hang risk as run_file_review.\\\",\\n        \\\"suggestion\\\": \\\"Add timeout=600 to the subprocess.run() call in run_batch_review.\\\"\\n      },\\n      {\\n        \\\"line\\\": 616,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"urlopen timeout=20 is set but there is no retry logic \u2014 transient network errors cause an immediate failure with no graceful degradation.\\\",\\n        \\\"suggestion\\\": \\\"Add a bounded retry loop (e.g. 2 retries with exponential backoff) around the urlopen call in github_api, or document that callers handle HTTPError/URLError explicitly.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"No subprocess timeouts (critical hang risk); minor JSONDecoder allocation inefficiency.\\\"\\n  }\\n]\",\"stop_reason\":\"end_turn\",\"session_id\":\"8c0df391-531d-4410-bb2a-1c063d4ba5d6\",\"total_cost_usd\":0.37644045,\"usage\":{\"input_tokens\":57403,\"cache_creation_input_tokens\":30179,\"cache_read_input_tokens\":66784,\"output_tokens\":4735,\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":0,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"\",\"iterations\":[],\"speed\":\"standard\"},\"modelUsage\":{\"claude-sonnet-4-6\":{\"inputTokens\":57403,\"outputTokens\":4735,\"cacheReadInputTokens\":66784,\"cacheCreationInputTokens\":30179,\"webSearchRequests\":0,\"costUSD\":0.37644045,\"contextWindow\":200000,\"maxOutputTokens\":32000}},\"permission_denials\":[],\"terminal_reason\":\"completed\",\"fast_mode_state\":\"off\",\"uuid\":\"21b75600-44ed-416a-a004-e6b81f273728\"}\n",
+        "parsed": {
+          "filename": ".github/workflows/monitor-issues.yml",
+          "issues": [
+            {
+              "line": 38,
+              "severity": "warning",
+              "message": "The claude CLI is set up (checkout + setup-node + npm install) but never used \u2014 the workflow only runs validate_open_issues.py, making the entire setup dead code.",
+              "suggestion": "Remove the node/setup-python steps and the 'Set up claude' step if claude is not needed by this workflow, or rename the script if it was meant to call claude."
+            },
+            {
+              "line": 44,
+              "severity": "warning",
+              "message": "The 'Validate open issues' step has no timeout, so a hung Python process will run indefinitely and consume GitHub Actions minutes.",
+              "suggestion": "Add `timeout-minutes: 10` to the step or the job definition."
+            }
+          ],
+          "summary": "Workflow sets up claude and Node.js but never uses them; step lacks a timeout."
+        }
+      },
+      {
         "file": "codereview.md",
         "returncode": 0,
-        "output": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"api_error_status\":null,\"duration_ms\":74373,\"duration_api_ms\":73775,\"num_turns\":3,\"result\":\"```\\n[\\n  {\\n    \\\"filename\\\": \\\"codereview.md\\\",\\n    \\\"issues\\\": [],\\n    \\\"summary\\\": \\\"Pure documentation file listing 120 review guidelines organized into 12 categories; no executable code to evaluate.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"scripts/ci/run_claude_code_review.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 178,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"json.JSONDecoder() is instantiated inside the for-loop fallback scan, creating a new object on every iteration instead of once before the loop.\\\",\\n        \\\"suggestion\\\": \\\"Move `decoder = json.JSONDecoder()` to a line before the `for idx, char in enumerate(text)` loop.\\\"\\n      },\\n      {\\n        \\\"line\\\": 519,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"All per-file results in run_batch_review store a reference to the same `output` str; this is safe for str (immutable) but misleading and risks turning into a shared-mutable aliasing bug if the code is later changed to collect output per-result.\\\",\\n        \\\"suggestion\\\": \\\"Append per-file results with `output: output` as done now, but document explicitly or refactor so each result carries only its relevant slice (e.g., only `parsed`). Alternatively, drop `output` from per-file entries in batch mode since `parsed_by_file` already carries the parsed data.\\\"\\n      },\\n      {\\n        \\\"line\\\": 616,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"github_api() returns `Any`, losing all type specificity from the GitHub API response shapes.\\\",\\n        \\\"suggestion\\\": \\\"Replace `Any` return type with a TypedDict or a union of known response shapes (e.g., `CommentResponse | PRResponse | list[dict[str, Any]]`).\\\"\\n      },\\n      {\\n        \\\"line\\\": 390,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"resolve_base_with_fallback() falls back to HEAD~1 but raises uncaught IndexError when HEAD has no parent (first commit on a branch), making that fallback unreachable.\\\",\\n        \\\"suggestion\\\": \\\"Wrap the HEAD~1 fallback in a try/except IndexError, or add a comment documenting that callers must ensure HEAD has at least one parent.\\\"\\n      },\\n      {\\n        \\\"line\\\": 95,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"extract_json_list and extract_json_object share nearly identical fallback scanning logic (raw_decode loop over text chars); duplication violates DRY and makes maintenance error-prone.\\\",\\n        \\\"suggestion\\\": \\\"Extract the fallback scan into a helper: `def _find_json_in_text(text: str, open_char: str) -> Any | None` and call it from both functions.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Well-structured CI script for automated code review with solid error handling and GitHub API integration; a few correctness and maintainability issues remain around JSONDecoder instantiation, batch result aliasing, and type specificity.\\\"\\n  }\\n]\\n```\",\"stop_reason\":\"end_turn\",\"session_id\":\"1764a40f-523f-4f74-baf7-d038d576c95f\",\"total_cost_usd\":0.19561035,\"usage\":{\"input_tokens\":14639,\"cache_creation_input_tokens\":30165,\"cache_read_input_tokens\":24732,\"output_tokens\":2077,\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":0,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"\",\"iterations\":[],\"speed\":\"standard\"},\"modelUsage\":{\"claude-sonnet-4-6\":{\"inputTokens\":14639,\"outputTokens\":2077,\"cacheReadInputTokens\":24732,\"cacheCreationInputTokens\":30165,\"webSearchRequests\":0,\"costUSD\":0.19561035,\"contextWindow\":200000,\"maxOutputTokens\":32000}},\"permission_denials\":[],\"terminal_reason\":\"completed\",\"fast_mode_state\":\"off\",\"uuid\":\"f9a710a3-e31f-4349-9728-6c01096541ae\"}\n",
+        "output": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"api_error_status\":null,\"duration_ms\":196918,\"duration_api_ms\":196421,\"num_turns\":6,\"result\":\"\\n\\n[\\n  {\\n    \\\"filename\\\": \\\".github/workflows/monitor-issues.yml\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 38,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"The claude CLI is set up (checkout + setup-node + npm install) but never used \u2014 the workflow only runs validate_open_issues.py, making the entire setup dead code.\\\",\\n        \\\"suggestion\\\": \\\"Remove the node/setup-python steps and the 'Set up claude' step if claude is not needed by this workflow, or rename the script if it was meant to call claude.\\\"\\n      },\\n      {\\n        \\\"line\\\": 44,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"The 'Validate open issues' step has no timeout, so a hung Python process will run indefinitely and consume GitHub Actions minutes.\\\",\\n        \\\"suggestion\\\": \\\"Add `timeout-minutes: 10` to the step or the job definition.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Workflow sets up claude and Node.js but never uses them; step lacks a timeout.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"codereview.md\\\",\\n    \\\"issues\\\": [],\\n    \\\"summary\\\": \\\"Pure documentation file \u2014 no code issues.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"scripts/ci/run_claude_code_review.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 430,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"subprocess.run() has no timeout \u2014 a hung claude invocation blocks the entire workflow indefinitely.\\\",\\n        \\\"suggestion\\\": \\\"Add timeout=600 (or read from env) to the subprocess.run() calls in run_file_review and run_batch_review.\\\"\\n      },\\n      {\\n        \\\"line\\\": 177,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"JSONDecoder() is instantiated unconditionally before the fallback loop that uses it, wasting allocation on the fast-path where the main json.loads() succeeds.\\\",\\n        \\\"suggestion\\\": \\\"Move `decoder = json.JSONDecoder()` inside the `for idx, char in enumerate(text):` loop, just before the try block.\\\"\\n      },\\n      {\\n        \\\"line\\\": 473,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"run_batch_review's subprocess.run() also has no timeout \u2014 same hang risk as run_file_review.\\\",\\n        \\\"suggestion\\\": \\\"Add timeout=600 to the subprocess.run() call in run_batch_review.\\\"\\n      },\\n      {\\n        \\\"line\\\": 616,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"urlopen timeout=20 is set but there is no retry logic \u2014 transient network errors cause an immediate failure with no graceful degradation.\\\",\\n        \\\"suggestion\\\": \\\"Add a bounded retry loop (e.g. 2 retries with exponential backoff) around the urlopen call in github_api, or document that callers handle HTTPError/URLError explicitly.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"No subprocess timeouts (critical hang risk); minor JSONDecoder allocation inefficiency.\\\"\\n  }\\n]\",\"stop_reason\":\"end_turn\",\"session_id\":\"8c0df391-531d-4410-bb2a-1c063d4ba5d6\",\"total_cost_usd\":0.37644045,\"usage\":{\"input_tokens\":57403,\"cache_creation_input_tokens\":30179,\"cache_read_input_tokens\":66784,\"output_tokens\":4735,\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":0,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"\",\"iterations\":[],\"speed\":\"standard\"},\"modelUsage\":{\"claude-sonnet-4-6\":{\"inputTokens\":57403,\"outputTokens\":4735,\"cacheReadInputTokens\":66784,\"cacheCreationInputTokens\":30179,\"webSearchRequests\":0,\"costUSD\":0.37644045,\"contextWindow\":200000,\"maxOutputTokens\":32000}},\"permission_denials\":[],\"terminal_reason\":\"completed\",\"fast_mode_state\":\"off\",\"uuid\":\"21b75600-44ed-416a-a004-e6b81f273728\"}\n",
         "parsed": {
           "filename": "codereview.md",
           "issues": [],
-          "summary": "Pure documentation file listing 120 review guidelines organized into 12 categories; no executable code to evaluate."
+          "summary": "Pure documentation file \u2014 no code issues."
         }
       },
       {
         "file": "scripts/ci/run_claude_code_review.py",
         "returncode": 0,
-        "output": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"api_error_status\":null,\"duration_ms\":74373,\"duration_api_ms\":73775,\"num_turns\":3,\"result\":\"```\\n[\\n  {\\n    \\\"filename\\\": \\\"codereview.md\\\",\\n    \\\"issues\\\": [],\\n    \\\"summary\\\": \\\"Pure documentation file listing 120 review guidelines organized into 12 categories; no executable code to evaluate.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"scripts/ci/run_claude_code_review.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 178,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"json.JSONDecoder() is instantiated inside the for-loop fallback scan, creating a new object on every iteration instead of once before the loop.\\\",\\n        \\\"suggestion\\\": \\\"Move `decoder = json.JSONDecoder()` to a line before the `for idx, char in enumerate(text)` loop.\\\"\\n      },\\n      {\\n        \\\"line\\\": 519,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"All per-file results in run_batch_review store a reference to the same `output` str; this is safe for str (immutable) but misleading and risks turning into a shared-mutable aliasing bug if the code is later changed to collect output per-result.\\\",\\n        \\\"suggestion\\\": \\\"Append per-file results with `output: output` as done now, but document explicitly or refactor so each result carries only its relevant slice (e.g., only `parsed`). Alternatively, drop `output` from per-file entries in batch mode since `parsed_by_file` already carries the parsed data.\\\"\\n      },\\n      {\\n        \\\"line\\\": 616,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"github_api() returns `Any`, losing all type specificity from the GitHub API response shapes.\\\",\\n        \\\"suggestion\\\": \\\"Replace `Any` return type with a TypedDict or a union of known response shapes (e.g., `CommentResponse | PRResponse | list[dict[str, Any]]`).\\\"\\n      },\\n      {\\n        \\\"line\\\": 390,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"resolve_base_with_fallback() falls back to HEAD~1 but raises uncaught IndexError when HEAD has no parent (first commit on a branch), making that fallback unreachable.\\\",\\n        \\\"suggestion\\\": \\\"Wrap the HEAD~1 fallback in a try/except IndexError, or add a comment documenting that callers must ensure HEAD has at least one parent.\\\"\\n      },\\n      {\\n        \\\"line\\\": 95,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"extract_json_list and extract_json_object share nearly identical fallback scanning logic (raw_decode loop over text chars); duplication violates DRY and makes maintenance error-prone.\\\",\\n        \\\"suggestion\\\": \\\"Extract the fallback scan into a helper: `def _find_json_in_text(text: str, open_char: str) -> Any | None` and call it from both functions.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Well-structured CI script for automated code review with solid error handling and GitHub API integration; a few correctness and maintainability issues remain around JSONDecoder instantiation, batch result aliasing, and type specificity.\\\"\\n  }\\n]\\n```\",\"stop_reason\":\"end_turn\",\"session_id\":\"1764a40f-523f-4f74-baf7-d038d576c95f\",\"total_cost_usd\":0.19561035,\"usage\":{\"input_tokens\":14639,\"cache_creation_input_tokens\":30165,\"cache_read_input_tokens\":24732,\"output_tokens\":2077,\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":0,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"\",\"iterations\":[],\"speed\":\"standard\"},\"modelUsage\":{\"claude-sonnet-4-6\":{\"inputTokens\":14639,\"outputTokens\":2077,\"cacheReadInputTokens\":24732,\"cacheCreationInputTokens\":30165,\"webSearchRequests\":0,\"costUSD\":0.19561035,\"contextWindow\":200000,\"maxOutputTokens\":32000}},\"permission_denials\":[],\"terminal_reason\":\"completed\",\"fast_mode_state\":\"off\",\"uuid\":\"f9a710a3-e31f-4349-9728-6c01096541ae\"}\n",
+        "output": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"api_error_status\":null,\"duration_ms\":196918,\"duration_api_ms\":196421,\"num_turns\":6,\"result\":\"\\n\\n[\\n  {\\n    \\\"filename\\\": \\\".github/workflows/monitor-issues.yml\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 38,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"The claude CLI is set up (checkout + setup-node + npm install) but never used \u2014 the workflow only runs validate_open_issues.py, making the entire setup dead code.\\\",\\n        \\\"suggestion\\\": \\\"Remove the node/setup-python steps and the 'Set up claude' step if claude is not needed by this workflow, or rename the script if it was meant to call claude.\\\"\\n      },\\n      {\\n        \\\"line\\\": 44,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"The 'Validate open issues' step has no timeout, so a hung Python process will run indefinitely and consume GitHub Actions minutes.\\\",\\n        \\\"suggestion\\\": \\\"Add `timeout-minutes: 10` to the step or the job definition.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Workflow sets up claude and Node.js but never uses them; step lacks a timeout.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"codereview.md\\\",\\n    \\\"issues\\\": [],\\n    \\\"summary\\\": \\\"Pure documentation file \u2014 no code issues.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"scripts/ci/run_claude_code_review.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 430,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"subprocess.run() has no timeout \u2014 a hung claude invocation blocks the entire workflow indefinitely.\\\",\\n        \\\"suggestion\\\": \\\"Add timeout=600 (or read from env) to the subprocess.run() calls in run_file_review and run_batch_review.\\\"\\n      },\\n      {\\n        \\\"line\\\": 177,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"JSONDecoder() is instantiated unconditionally before the fallback loop that uses it, wasting allocation on the fast-path where the main json.loads() succeeds.\\\",\\n        \\\"suggestion\\\": \\\"Move `decoder = json.JSONDecoder()` inside the `for idx, char in enumerate(text):` loop, just before the try block.\\\"\\n      },\\n      {\\n        \\\"line\\\": 473,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"run_batch_review's subprocess.run() also has no timeout \u2014 same hang risk as run_file_review.\\\",\\n        \\\"suggestion\\\": \\\"Add timeout=600 to the subprocess.run() call in run_batch_review.\\\"\\n      },\\n      {\\n        \\\"line\\\": 616,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"urlopen timeout=20 is set but there is no retry logic \u2014 transient network errors cause an immediate failure with no graceful degradation.\\\",\\n        \\\"suggestion\\\": \\\"Add a bounded retry loop (e.g. 2 retries with exponential backoff) around the urlopen call in github_api, or document that callers handle HTTPError/URLError explicitly.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"No subprocess timeouts (critical hang risk); minor JSONDecoder allocation inefficiency.\\\"\\n  }\\n]\",\"stop_reason\":\"end_turn\",\"session_id\":\"8c0df391-531d-4410-bb2a-1c063d4ba5d6\",\"total_cost_usd\":0.37644045,\"usage\":{\"input_tokens\":57403,\"cache_creation_input_tokens\":30179,\"cache_read_input_tokens\":66784,\"output_tokens\":4735,\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":0,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"\",\"iterations\":[],\"speed\":\"standard\"},\"modelUsage\":{\"claude-sonnet-4-6\":{\"inputTokens\":57403,\"outputTokens\":4735,\"cacheReadInputTokens\":66784,\"cacheCreationInputTokens\":30179,\"webSearchRequests\":0,\"costUSD\":0.37644045,\"contextWindow\":200000,\"maxOutputTokens\":32000}},\"permission_denials\":[],\"terminal_reason\":\"completed\",\"fast_mode_state\":\"off\",\"uuid\":\"21b75600-44ed-416a-a004-e6b81f273728\"}\n",
         "parsed": {
           "filename": "scripts/ci/run_claude_code_review.py",
           "issues": [
             {
-              "line": 178,
-              "severity": "warning",
-              "message": "json.JSONDecoder() is instantiated inside the for-loop fallback scan, creating a new object on every iteration instead of once before the loop.",
-              "suggestion": "Move `decoder = json.JSONDecoder()` to a line before the `for idx, char in enumerate(text)` loop."
+              "line": 430,
+              "severity": "critical",
+              "message": "subprocess.run() has no timeout \u2014 a hung claude invocation blocks the entire workflow indefinitely.",
+              "suggestion": "Add timeout=600 (or read from env) to the subprocess.run() calls in run_file_review and run_batch_review."
             },
             {
-              "line": 519,
-              "severity": "warning",
-              "message": "All per-file results in run_batch_review store a reference to the same `output` str; this is safe for str (immutable) but misleading and risks turning into a shared-mutable aliasing bug if the code is later changed to collect output per-result.",
-              "suggestion": "Append per-file results with `output: output` as done now, but document explicitly or refactor so each result carries only its relevant slice (e.g., only `parsed`). Alternatively, drop `output` from per-file entries in batch mode since `parsed_by_file` already carries the parsed data."
+              "line": 177,
+              "severity": "info",
+              "message": "JSONDecoder() is instantiated unconditionally before the fallback loop that uses it, wasting allocation on the fast-path where the main json.loads() succeeds.",
+              "suggestion": "Move `decoder = json.JSONDecoder()` inside the `for idx, char in enumerate(text):` loop, just before the try block."
+            },
+            {
+              "line": 473,
+              "severity": "critical",
+              "message": "run_batch_review's subprocess.run() also has no timeout \u2014 same hang risk as run_file_review.",
+              "suggestion": "Add timeout=600 to the subprocess.run() call in run_batch_review."
             },
             {
               "line": 616,
               "severity": "info",
-              "message": "github_api() returns `Any`, losing all type specificity from the GitHub API response shapes.",
-              "suggestion": "Replace `Any` return type with a TypedDict or a union of known response shapes (e.g., `CommentResponse | PRResponse | list[dict[str, Any]]`)."
-            },
-            {
-              "line": 390,
-              "severity": "info",
-              "message": "resolve_base_with_fallback() falls back to HEAD~1 but raises uncaught IndexError when HEAD has no parent (first commit on a branch), making that fallback unreachable.",
-              "suggestion": "Wrap the HEAD~1 fallback in a try/except IndexError, or add a comment documenting that callers must ensure HEAD has at least one parent."
-            },
-            {
-              "line": 95,
-              "severity": "info",
-              "message": "extract_json_list and extract_json_object share nearly identical fallback scanning logic (raw_decode loop over text chars); duplication violates DRY and makes maintenance error-prone.",
-              "suggestion": "Extract the fallback scan into a helper: `def _find_json_in_text(text: str, open_char: str) -> Any | None` and call it from both functions."
+              "message": "urlopen timeout=20 is set but there is no retry logic \u2014 transient network errors cause an immediate failure with no graceful degradation.",
+              "suggestion": "Add a bounded retry loop (e.g. 2 retries with exponential backoff) around the urlopen call in github_api, or document that callers handle HTTPError/URLError explicitly."
             }
           ],
-          "summary": "Well-structured CI script for automated code review with solid error handling and GitHub API integration; a few correctness and maintainability issues remain around JSONDecoder instantiation, batch result aliasing, and type specificity."
+          "summary": "No subprocess timeouts (critical hang risk); minor JSONDecoder allocation inefficiency."
         }
       }
     ]
