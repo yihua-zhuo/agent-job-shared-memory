@@ -1,23 +1,233 @@
 {
-  "status": "pass",
-  "verdict": "pass",
-  "critical_issues": [],
-  "suggestions": [],
-  "summary": "Reviewed 0 file(s) between origin/master and origin/develop.",
+  "status": "fail",
+  "verdict": "fail",
+  "critical_issues": [
+    {
+      "file": "src/internal/db/engine.py",
+      "line": 51,
+      "severity": "critical",
+      "msg": "declarative_base is called but never imported \u2014 will raise NameError at import time",
+      "suggestion": "Add declarative_base to the sqlalchemy import: from sqlalchemy import create_engine, declarative_base"
+    },
+    {
+      "file": "src/internal/db/engine.py",
+      "line": 58,
+      "severity": "critical",
+      "msg": "sessionmaker is used in get_session() but never imported \u2014 will raise NameError at runtime",
+      "suggestion": "Add from sqlalchemy.orm import sessionmaker, or add it to the existing sqlalchemy import line"
+    },
+    {
+      "file": "src/internal/db/engine.py",
+      "line": 84,
+      "severity": "critical",
+      "msg": "AsyncEngine is used in a type annotation (return type of get_async_engine) but is not imported from sqlalchemy.ext.asyncio \u2014 will raise NameError when the function is called",
+      "suggestion": "Add AsyncEngine to the sqlalchemy.ext.asyncio import: from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker, create_async_engine"
+    }
+  ],
+  "suggestions": [
+    {
+      "file": "src/internal/db/__init__.py",
+      "line": 45,
+      "severity": "info",
+      "msg": "SessionLocal() is missing a return type annotation; it should return async_sessionmaker[AsyncSession]",
+      "suggestion": "Add: -> async_sessionmaker[AsyncSession]"
+    },
+    {
+      "file": "src/internal/db/__init__.py",
+      "line": 60,
+      "severity": "info",
+      "msg": "session_scope() is missing a return type annotation; it is an async generator yielding AsyncSession",
+      "suggestion": "Add: -> AsyncGenerator[AsyncSession, None]"
+    },
+    {
+      "file": "src/internal/db/__init__.py",
+      "line": 21,
+      "severity": "warning",
+      "msg": "Docstring claim 'All services use session_scope() for DB access' is misleading \u2014 FastAPI routes use SessionDep (Depends(get_db)) per the router pattern, not session_scope() directly",
+      "suggestion": "Remove or reword line 21 to accurately describe that routes use SessionDep and services consume the injected session"
+    },
+    {
+      "file": "src/internal/db/engine.py",
+      "line": 109,
+      "severity": "warning",
+      "msg": "Supabase pooler host IP '13.114.6.6' is hardcoded; if the Supabase project region changes this IP will become stale with no way to update it via environment",
+      "suggestion": "Consider sourcing the pooler host from an env var (e.g., SUPABASE_POOLER_HOST) so it can be updated without code changes"
+    },
+    {
+      "file": "src/internal/db/engine.py",
+      "line": 137,
+      "severity": "info",
+      "msg": "get_async_engine() is missing a return type annotation",
+      "suggestion": "Add -> AsyncEngine"
+    },
+    {
+      "file": "src/internal/db/engine.py",
+      "line": 147,
+      "severity": "info",
+      "msg": "get_async_session_factory() is missing a return type annotation",
+      "suggestion": "Add -> async_sessionmaker[AsyncSession]"
+    }
+  ],
+  "summary": "Reviewed 2 file(s) between origin/master and origin/issue-272-sqlalchemy-db-engine.",
   "details": {
     "llm_parsed": {
-      "verdict": "pass",
-      "critical": [],
-      "warnings": [],
-      "summary": "Reviewed 0 file(s) between origin/master and origin/develop."
+      "verdict": "fail",
+      "critical": [
+        {
+          "file": "src/internal/db/engine.py",
+          "line": 51,
+          "severity": "critical",
+          "msg": "declarative_base is called but never imported \u2014 will raise NameError at import time",
+          "suggestion": "Add declarative_base to the sqlalchemy import: from sqlalchemy import create_engine, declarative_base"
+        },
+        {
+          "file": "src/internal/db/engine.py",
+          "line": 58,
+          "severity": "critical",
+          "msg": "sessionmaker is used in get_session() but never imported \u2014 will raise NameError at runtime",
+          "suggestion": "Add from sqlalchemy.orm import sessionmaker, or add it to the existing sqlalchemy import line"
+        },
+        {
+          "file": "src/internal/db/engine.py",
+          "line": 84,
+          "severity": "critical",
+          "msg": "AsyncEngine is used in a type annotation (return type of get_async_engine) but is not imported from sqlalchemy.ext.asyncio \u2014 will raise NameError when the function is called",
+          "suggestion": "Add AsyncEngine to the sqlalchemy.ext.asyncio import: from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker, create_async_engine"
+        }
+      ],
+      "warnings": [
+        {
+          "file": "src/internal/db/__init__.py",
+          "line": 45,
+          "severity": "info",
+          "msg": "SessionLocal() is missing a return type annotation; it should return async_sessionmaker[AsyncSession]",
+          "suggestion": "Add: -> async_sessionmaker[AsyncSession]"
+        },
+        {
+          "file": "src/internal/db/__init__.py",
+          "line": 60,
+          "severity": "info",
+          "msg": "session_scope() is missing a return type annotation; it is an async generator yielding AsyncSession",
+          "suggestion": "Add: -> AsyncGenerator[AsyncSession, None]"
+        },
+        {
+          "file": "src/internal/db/__init__.py",
+          "line": 21,
+          "severity": "warning",
+          "msg": "Docstring claim 'All services use session_scope() for DB access' is misleading \u2014 FastAPI routes use SessionDep (Depends(get_db)) per the router pattern, not session_scope() directly",
+          "suggestion": "Remove or reword line 21 to accurately describe that routes use SessionDep and services consume the injected session"
+        },
+        {
+          "file": "src/internal/db/engine.py",
+          "line": 109,
+          "severity": "warning",
+          "msg": "Supabase pooler host IP '13.114.6.6' is hardcoded; if the Supabase project region changes this IP will become stale with no way to update it via environment",
+          "suggestion": "Consider sourcing the pooler host from an env var (e.g., SUPABASE_POOLER_HOST) so it can be updated without code changes"
+        },
+        {
+          "file": "src/internal/db/engine.py",
+          "line": 137,
+          "severity": "info",
+          "msg": "get_async_engine() is missing a return type annotation",
+          "suggestion": "Add -> AsyncEngine"
+        },
+        {
+          "file": "src/internal/db/engine.py",
+          "line": 147,
+          "severity": "info",
+          "msg": "get_async_session_factory() is missing a return type annotation",
+          "suggestion": "Add -> async_sessionmaker[AsyncSession]"
+        }
+      ],
+      "summary": "Reviewed 2 file(s) between origin/master and origin/issue-272-sqlalchemy-db-engine."
     },
     "reviewed_refs": {
       "base": "2f0a5df310d4318699955a7abadabce77ef92ff1",
-      "head": "814620757169b2964bd3a03eacdb95fa5cd5fa2d",
+      "head": "34a56b4a242baf9c9247ae95046ab8e6f4e0899e",
       "base_label": "origin/master",
-      "head_label": "origin/develop"
+      "head_label": "origin/issue-272-sqlalchemy-db-engine"
     },
-    "reviewed_files": [],
-    "per_file_reviews": []
+    "reviewed_files": [
+      "src/internal/db/__init__.py",
+      "src/internal/db/engine.py"
+    ],
+    "per_file_reviews": [
+      {
+        "file": "src/internal/db/__init__.py",
+        "returncode": 0,
+        "output": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"api_error_status\":null,\"duration_ms\":75997,\"duration_api_ms\":75942,\"num_turns\":3,\"result\":\"[\\n  {\\n    \\\"filename\\\": \\\"src/internal/db/__init__.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 45,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"SessionLocal() is missing a return type annotation; it should return async_sessionmaker[AsyncSession]\\\",\\n        \\\"suggestion\\\": \\\"Add: -> async_sessionmaker[AsyncSession]\\\"\\n      },\\n      {\\n        \\\"line\\\": 60,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"session_scope() is missing a return type annotation; it is an async generator yielding AsyncSession\\\",\\n        \\\"suggestion\\\": \\\"Add: -> AsyncGenerator[AsyncSession, None]\\\"\\n      },\\n      {\\n        \\\"line\\\": 21,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"Docstring claim 'All services use session_scope() for DB access' is misleading \u2014 FastAPI routes use SessionDep (Depends(get_db)) per the router pattern, not session_scope() directly\\\",\\n        \\\"suggestion\\\": \\\"Remove or reword line 21 to accurately describe that routes use SessionDep and services consume the injected session\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Public async session facade with correct exports but missing return type annotations on two factory functions and an inaccurate docstring claim.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"src/internal/db/engine.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 51,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"declarative_base is called but never imported \u2014 will raise NameError at import time\\\",\\n        \\\"suggestion\\\": \\\"Add declarative_base to the sqlalchemy import: from sqlalchemy import create_engine, declarative_base\\\"\\n      },\\n      {\\n        \\\"line\\\": 58,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"sessionmaker is used in get_session() but never imported \u2014 will raise NameError at runtime\\\",\\n        \\\"suggestion\\\": \\\"Add from sqlalchemy.orm import sessionmaker, or add it to the existing sqlalchemy import line\\\"\\n      },\\n      {\\n        \\\"line\\\": 84,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"AsyncEngine is used in a type annotation (return type of get_async_engine) but is not imported from sqlalchemy.ext.asyncio \u2014 will raise NameError when the function is called\\\",\\n        \\\"suggestion\\\": \\\"Add AsyncEngine to the sqlalchemy.ext.asyncio import: from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker, create_async_engine\\\"\\n      },\\n      {\\n        \\\"line\\\": 109,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"Supabase pooler host IP '13.114.6.6' is hardcoded; if the Supabase project region changes this IP will become stale with no way to update it via environment\\\",\\n        \\\"suggestion\\\": \\\"Consider sourcing the pooler host from an env var (e.g., SUPABASE_POOLER_HOST) so it can be updated without code changes\\\"\\n      },\\n      {\\n        \\\"line\\\": 137,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"get_async_engine() is missing a return type annotation\\\",\\n        \\\"suggestion\\\": \\\"Add -> AsyncEngine\\\"\\n      },\\n      {\\n        \\\"line\\\": 147,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"get_async_session_factory() is missing a return type annotation\\\",\\n        \\\"suggestion\\\": \\\"Add -> async_sessionmaker[AsyncSession]\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Contains three critical NameError bugs from missing imports (declarative_base, sessionmaker, AsyncEngine) that will crash the module on load or use, plus a hardcoded Supabase IP and missing type annotations.\\\"\\n  }\\n]\",\"stop_reason\":\"end_turn\",\"session_id\":\"fe3597fc-5ca7-4ea1-a998-c5f05b9487b5\",\"total_cost_usd\":0.17656995,\"usage\":{\"input_tokens\":6973,\"cache_creation_input_tokens\":29051,\"cache_read_input_tokens\":24749,\"output_tokens\":2619,\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":0,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"\",\"iterations\":[],\"speed\":\"standard\"},\"modelUsage\":{\"claude-sonnet-4-6\":{\"inputTokens\":6973,\"outputTokens\":2619,\"cacheReadInputTokens\":24749,\"cacheCreationInputTokens\":29051,\"webSearchRequests\":0,\"costUSD\":0.17656995,\"contextWindow\":200000,\"maxOutputTokens\":32000}},\"permission_denials\":[],\"terminal_reason\":\"completed\",\"fast_mode_state\":\"off\",\"uuid\":\"348ee72c-e01b-4ef9-a243-0faa3d982f9b\"}\n",
+        "parsed": {
+          "filename": "src/internal/db/__init__.py",
+          "issues": [
+            {
+              "line": 45,
+              "severity": "info",
+              "message": "SessionLocal() is missing a return type annotation; it should return async_sessionmaker[AsyncSession]",
+              "suggestion": "Add: -> async_sessionmaker[AsyncSession]"
+            },
+            {
+              "line": 60,
+              "severity": "info",
+              "message": "session_scope() is missing a return type annotation; it is an async generator yielding AsyncSession",
+              "suggestion": "Add: -> AsyncGenerator[AsyncSession, None]"
+            },
+            {
+              "line": 21,
+              "severity": "warning",
+              "message": "Docstring claim 'All services use session_scope() for DB access' is misleading \u2014 FastAPI routes use SessionDep (Depends(get_db)) per the router pattern, not session_scope() directly",
+              "suggestion": "Remove or reword line 21 to accurately describe that routes use SessionDep and services consume the injected session"
+            }
+          ],
+          "summary": "Public async session facade with correct exports but missing return type annotations on two factory functions and an inaccurate docstring claim."
+        }
+      },
+      {
+        "file": "src/internal/db/engine.py",
+        "returncode": 0,
+        "output": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"api_error_status\":null,\"duration_ms\":75997,\"duration_api_ms\":75942,\"num_turns\":3,\"result\":\"[\\n  {\\n    \\\"filename\\\": \\\"src/internal/db/__init__.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 45,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"SessionLocal() is missing a return type annotation; it should return async_sessionmaker[AsyncSession]\\\",\\n        \\\"suggestion\\\": \\\"Add: -> async_sessionmaker[AsyncSession]\\\"\\n      },\\n      {\\n        \\\"line\\\": 60,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"session_scope() is missing a return type annotation; it is an async generator yielding AsyncSession\\\",\\n        \\\"suggestion\\\": \\\"Add: -> AsyncGenerator[AsyncSession, None]\\\"\\n      },\\n      {\\n        \\\"line\\\": 21,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"Docstring claim 'All services use session_scope() for DB access' is misleading \u2014 FastAPI routes use SessionDep (Depends(get_db)) per the router pattern, not session_scope() directly\\\",\\n        \\\"suggestion\\\": \\\"Remove or reword line 21 to accurately describe that routes use SessionDep and services consume the injected session\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Public async session facade with correct exports but missing return type annotations on two factory functions and an inaccurate docstring claim.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"src/internal/db/engine.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 51,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"declarative_base is called but never imported \u2014 will raise NameError at import time\\\",\\n        \\\"suggestion\\\": \\\"Add declarative_base to the sqlalchemy import: from sqlalchemy import create_engine, declarative_base\\\"\\n      },\\n      {\\n        \\\"line\\\": 58,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"sessionmaker is used in get_session() but never imported \u2014 will raise NameError at runtime\\\",\\n        \\\"suggestion\\\": \\\"Add from sqlalchemy.orm import sessionmaker, or add it to the existing sqlalchemy import line\\\"\\n      },\\n      {\\n        \\\"line\\\": 84,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"AsyncEngine is used in a type annotation (return type of get_async_engine) but is not imported from sqlalchemy.ext.asyncio \u2014 will raise NameError when the function is called\\\",\\n        \\\"suggestion\\\": \\\"Add AsyncEngine to the sqlalchemy.ext.asyncio import: from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker, create_async_engine\\\"\\n      },\\n      {\\n        \\\"line\\\": 109,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"Supabase pooler host IP '13.114.6.6' is hardcoded; if the Supabase project region changes this IP will become stale with no way to update it via environment\\\",\\n        \\\"suggestion\\\": \\\"Consider sourcing the pooler host from an env var (e.g., SUPABASE_POOLER_HOST) so it can be updated without code changes\\\"\\n      },\\n      {\\n        \\\"line\\\": 137,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"get_async_engine() is missing a return type annotation\\\",\\n        \\\"suggestion\\\": \\\"Add -> AsyncEngine\\\"\\n      },\\n      {\\n        \\\"line\\\": 147,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"get_async_session_factory() is missing a return type annotation\\\",\\n        \\\"suggestion\\\": \\\"Add -> async_sessionmaker[AsyncSession]\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Contains three critical NameError bugs from missing imports (declarative_base, sessionmaker, AsyncEngine) that will crash the module on load or use, plus a hardcoded Supabase IP and missing type annotations.\\\"\\n  }\\n]\",\"stop_reason\":\"end_turn\",\"session_id\":\"fe3597fc-5ca7-4ea1-a998-c5f05b9487b5\",\"total_cost_usd\":0.17656995,\"usage\":{\"input_tokens\":6973,\"cache_creation_input_tokens\":29051,\"cache_read_input_tokens\":24749,\"output_tokens\":2619,\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":0,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"\",\"iterations\":[],\"speed\":\"standard\"},\"modelUsage\":{\"claude-sonnet-4-6\":{\"inputTokens\":6973,\"outputTokens\":2619,\"cacheReadInputTokens\":24749,\"cacheCreationInputTokens\":29051,\"webSearchRequests\":0,\"costUSD\":0.17656995,\"contextWindow\":200000,\"maxOutputTokens\":32000}},\"permission_denials\":[],\"terminal_reason\":\"completed\",\"fast_mode_state\":\"off\",\"uuid\":\"348ee72c-e01b-4ef9-a243-0faa3d982f9b\"}\n",
+        "parsed": {
+          "filename": "src/internal/db/engine.py",
+          "issues": [
+            {
+              "line": 51,
+              "severity": "critical",
+              "message": "declarative_base is called but never imported \u2014 will raise NameError at import time",
+              "suggestion": "Add declarative_base to the sqlalchemy import: from sqlalchemy import create_engine, declarative_base"
+            },
+            {
+              "line": 58,
+              "severity": "critical",
+              "message": "sessionmaker is used in get_session() but never imported \u2014 will raise NameError at runtime",
+              "suggestion": "Add from sqlalchemy.orm import sessionmaker, or add it to the existing sqlalchemy import line"
+            },
+            {
+              "line": 84,
+              "severity": "critical",
+              "message": "AsyncEngine is used in a type annotation (return type of get_async_engine) but is not imported from sqlalchemy.ext.asyncio \u2014 will raise NameError when the function is called",
+              "suggestion": "Add AsyncEngine to the sqlalchemy.ext.asyncio import: from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker, create_async_engine"
+            },
+            {
+              "line": 109,
+              "severity": "warning",
+              "message": "Supabase pooler host IP '13.114.6.6' is hardcoded; if the Supabase project region changes this IP will become stale with no way to update it via environment",
+              "suggestion": "Consider sourcing the pooler host from an env var (e.g., SUPABASE_POOLER_HOST) so it can be updated without code changes"
+            },
+            {
+              "line": 137,
+              "severity": "info",
+              "message": "get_async_engine() is missing a return type annotation",
+              "suggestion": "Add -> AsyncEngine"
+            },
+            {
+              "line": 147,
+              "severity": "info",
+              "message": "get_async_session_factory() is missing a return type annotation",
+              "suggestion": "Add -> async_sessionmaker[AsyncSession]"
+            }
+          ],
+          "summary": "Contains three critical NameError bugs from missing imports (declarative_base, sessionmaker, AsyncEngine) that will crash the module on load or use, plus a hardcoded Supabase IP and missing type annotations."
+        }
+      }
+    ]
   }
 }
