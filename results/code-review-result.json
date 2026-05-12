@@ -4,39 +4,61 @@
   "critical_issues": [
     {
       "file": "src/internal/db/engine.py",
-      "line": 148,
+      "line": 118,
       "severity": "critical",
-      "msg": "Double-checked locking on _async_engine without making the first read atomic \u2014 concurrent callers can race past the outer `if _async_engine is None` check before the lock is acquired, creating multiple engine instances.",
-      "suggestion": "Move the entire read-check-write inside the locked section, or initialise the module-level `_async_engine` to the result of `create_async_engine_from_env()` directly so the lock is unnecessary."
+      "msg": "SUPABASE_POOLER_HOST is read from the environment at module init time, making the connection endpoint user-controllable \u2014 an attacker with filesystem or environment control could redirect database traffic",
+      "suggestion": "Require SUPABASE_POOLER_HOST to be set only via a trusted config file or secret management, not os.environ.get at module load time; or remove the override entirely and require the host to be embedded in the URL"
     },
     {
       "file": "src/internal/db/engine.py",
-      "line": 44,
+      "line": 111,
       "severity": "critical",
-      "msg": "Identical race condition to get_async_engine(): the outer `if _sync_engine is None` read is not protected by the lock, allowing concurrent threads to instantiate multiple sync engines.",
-      "suggestion": "Move the outer check inside the locked section, same fix as get_async_engine()."
-    },
-    {
-      "file": "tests/unit/test_db_engine.py",
-      "line": 38,
-      "severity": "critical",
-      "msg": "isinstance(Base.metadata, sqlalchemy.MetaData) references sqlalchemy without importing it \u2014 will raise NameError at runtime.",
-      "suggestion": "Add `import sqlalchemy` at the top of the file, or replace with `from sqlalchemy import MetaData; isinstance(Base.metadata, MetaData)`."
+      "msg": "If the Supabase pooler URL has no path component (e.g. no '/' after the port), port_and_path.split('/', 1) produces port = '5432/mydb' \u2014 the port includes the database name and connect_args['database'] is set to an empty string",
+      "suggestion": "Add a guard: if '/' not in port_and_path: port = port_and_path; path = '' before the split, then handle path only when present"
     }
   ],
   "suggestions": [
     {
       "file": "src/internal/db/__init__.py",
-      "line": "",
+      "line": 54,
       "severity": "info",
-      "msg": "The public surface is well-structured, correctly re-exporting Base, engines, and session utilities; no issues found."
+      "msg": "SessionLocal() return type is implied by the docstring but not annotated \u2014 type-checkers cannot verify it matches get_async_session_factory()",
+      "suggestion": "Add return type annotation: def SessionLocal() -> async_sessionmaker[AsyncSession]:"
+    },
+    {
+      "file": "src/internal/db/__init__.py",
+      "line": 0,
+      "severity": "info",
+      "msg": "The __init__.py re-exports sync-layer symbols (create_engine_from_env, get_engine) alongside async ones \u2014 callers may accidentally use the sync engine in async contexts",
+      "suggestion": "Consider a clear split or deprecation notice for sync vs async public API, or document which layer each symbol belongs to"
     },
     {
       "file": "src/internal/db/engine.py",
-      "line": 133,
+      "line": 18,
+      "severity": "warning",
+      "msg": "AsyncEngine is imported at runtime but only used in TYPE_CHECKING blocks (function return annotations); it should be moved inside TYPE_CHECKING to avoid unnecessary module load cost and signal intent clearly",
+      "suggestion": "Move 'AsyncEngine' inside the TYPE_CHECKING block alongside any other type-only imports"
+    },
+    {
+      "file": "tests/unit/test_db_engine.py",
+      "line": 21,
+      "severity": "warning",
+      "msg": "Test restores _sync_engine via direct module-level reassignment, which does not clean up if create_engine_from_env() raises before the assignment executes \u2014 a crash on line 27 leaves _sync_engine permanently None for the process",
+      "suggestion": "Use a try/finally with a flag or mock.patch to handle restoration safely regardless of where pytest.raises intercepts the exception"
+    },
+    {
+      "file": "tests/unit/test_db_engine.py",
+      "line": 0,
       "severity": "info",
-      "msg": "connect_args is explicitly set to None in the non-Supabase/non-postgresql path. Passing connect_args=None to create_async_engine overrides asyncpg's driver-level defaults (like command_timeout) with an empty dict, which may differ subtly from omitting the argument.",
-      "suggestion": "Use `connect_args=connect_args or None` unchanged \u2014 the `or None` is already implicit \u2014 but pass nothing when there are no args: `**({} if connect_args else {})` or simply omit the key when falsy."
+      "msg": "load_dotenv() is called at module import time in engine.py; test_db_engine.py does not isolate or mock this side effect, so tests may be ordering-dependent and fail when dotenv state is unexpected",
+      "suggestion": "Add a test fixture or autouse fixture that patches dotenv or resets the relevant engine module globals before each test"
+    },
+    {
+      "file": "tests/unit/test_db_engine.py",
+      "line": 0,
+      "severity": "info",
+      "msg": "Only two of the many engine functions are tested \u2014 create_engine_from_env, get_async_engine, get_async_session_factory, _build_async_engine, and the Supabase pooler path have no unit test coverage",
+      "suggestion": "Add unit tests for _build_async_engine (Supabase URL, standard URL, path-with-database edge case) and for get_async_session_factory"
     }
   ],
   "summary": "Reviewed 3 file(s) between origin/master and origin/issue-272-sqlalchemy-db-engine.",
@@ -46,46 +68,68 @@
       "critical": [
         {
           "file": "src/internal/db/engine.py",
-          "line": 148,
+          "line": 118,
           "severity": "critical",
-          "msg": "Double-checked locking on _async_engine without making the first read atomic \u2014 concurrent callers can race past the outer `if _async_engine is None` check before the lock is acquired, creating multiple engine instances.",
-          "suggestion": "Move the entire read-check-write inside the locked section, or initialise the module-level `_async_engine` to the result of `create_async_engine_from_env()` directly so the lock is unnecessary."
+          "msg": "SUPABASE_POOLER_HOST is read from the environment at module init time, making the connection endpoint user-controllable \u2014 an attacker with filesystem or environment control could redirect database traffic",
+          "suggestion": "Require SUPABASE_POOLER_HOST to be set only via a trusted config file or secret management, not os.environ.get at module load time; or remove the override entirely and require the host to be embedded in the URL"
         },
         {
           "file": "src/internal/db/engine.py",
-          "line": 44,
+          "line": 111,
           "severity": "critical",
-          "msg": "Identical race condition to get_async_engine(): the outer `if _sync_engine is None` read is not protected by the lock, allowing concurrent threads to instantiate multiple sync engines.",
-          "suggestion": "Move the outer check inside the locked section, same fix as get_async_engine()."
-        },
-        {
-          "file": "tests/unit/test_db_engine.py",
-          "line": 38,
-          "severity": "critical",
-          "msg": "isinstance(Base.metadata, sqlalchemy.MetaData) references sqlalchemy without importing it \u2014 will raise NameError at runtime.",
-          "suggestion": "Add `import sqlalchemy` at the top of the file, or replace with `from sqlalchemy import MetaData; isinstance(Base.metadata, MetaData)`."
+          "msg": "If the Supabase pooler URL has no path component (e.g. no '/' after the port), port_and_path.split('/', 1) produces port = '5432/mydb' \u2014 the port includes the database name and connect_args['database'] is set to an empty string",
+          "suggestion": "Add a guard: if '/' not in port_and_path: port = port_and_path; path = '' before the split, then handle path only when present"
         }
       ],
       "warnings": [
         {
           "file": "src/internal/db/__init__.py",
-          "line": "",
+          "line": 54,
           "severity": "info",
-          "msg": "The public surface is well-structured, correctly re-exporting Base, engines, and session utilities; no issues found."
+          "msg": "SessionLocal() return type is implied by the docstring but not annotated \u2014 type-checkers cannot verify it matches get_async_session_factory()",
+          "suggestion": "Add return type annotation: def SessionLocal() -> async_sessionmaker[AsyncSession]:"
+        },
+        {
+          "file": "src/internal/db/__init__.py",
+          "line": 0,
+          "severity": "info",
+          "msg": "The __init__.py re-exports sync-layer symbols (create_engine_from_env, get_engine) alongside async ones \u2014 callers may accidentally use the sync engine in async contexts",
+          "suggestion": "Consider a clear split or deprecation notice for sync vs async public API, or document which layer each symbol belongs to"
         },
         {
           "file": "src/internal/db/engine.py",
-          "line": 133,
+          "line": 18,
+          "severity": "warning",
+          "msg": "AsyncEngine is imported at runtime but only used in TYPE_CHECKING blocks (function return annotations); it should be moved inside TYPE_CHECKING to avoid unnecessary module load cost and signal intent clearly",
+          "suggestion": "Move 'AsyncEngine' inside the TYPE_CHECKING block alongside any other type-only imports"
+        },
+        {
+          "file": "tests/unit/test_db_engine.py",
+          "line": 21,
+          "severity": "warning",
+          "msg": "Test restores _sync_engine via direct module-level reassignment, which does not clean up if create_engine_from_env() raises before the assignment executes \u2014 a crash on line 27 leaves _sync_engine permanently None for the process",
+          "suggestion": "Use a try/finally with a flag or mock.patch to handle restoration safely regardless of where pytest.raises intercepts the exception"
+        },
+        {
+          "file": "tests/unit/test_db_engine.py",
+          "line": 0,
           "severity": "info",
-          "msg": "connect_args is explicitly set to None in the non-Supabase/non-postgresql path. Passing connect_args=None to create_async_engine overrides asyncpg's driver-level defaults (like command_timeout) with an empty dict, which may differ subtly from omitting the argument.",
-          "suggestion": "Use `connect_args=connect_args or None` unchanged \u2014 the `or None` is already implicit \u2014 but pass nothing when there are no args: `**({} if connect_args else {})` or simply omit the key when falsy."
+          "msg": "load_dotenv() is called at module import time in engine.py; test_db_engine.py does not isolate or mock this side effect, so tests may be ordering-dependent and fail when dotenv state is unexpected",
+          "suggestion": "Add a test fixture or autouse fixture that patches dotenv or resets the relevant engine module globals before each test"
+        },
+        {
+          "file": "tests/unit/test_db_engine.py",
+          "line": 0,
+          "severity": "info",
+          "msg": "Only two of the many engine functions are tested \u2014 create_engine_from_env, get_async_engine, get_async_session_factory, _build_async_engine, and the Supabase pooler path have no unit test coverage",
+          "suggestion": "Add unit tests for _build_async_engine (Supabase URL, standard URL, path-with-database edge case) and for get_async_session_factory"
         }
       ],
       "summary": "Reviewed 3 file(s) between origin/master and origin/issue-272-sqlalchemy-db-engine."
     },
     "reviewed_refs": {
       "base": "2f0a5df310d4318699955a7abadabce77ef92ff1",
-      "head": "80694991b2199ab52d3d67f73020aaea6eec74a0",
+      "head": "dc774de886cb06f52b35d7b7cf5145f118eb28f9",
       "base_label": "origin/master",
       "head_label": "origin/issue-272-sqlalchemy-db-engine"
     },
@@ -98,57 +142,82 @@
       {
         "file": "src/internal/db/__init__.py",
         "returncode": 0,
-        "output": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"api_error_status\":null,\"duration_ms\":101755,\"duration_api_ms\":101684,\"num_turns\":4,\"result\":\"[\\n  {\\n    \\\"filename\\\": \\\"src/internal/db/__init__.py\\\",\\n    \\\"issues\\\": [],\\n    \\\"summary\\\": \\\"The public surface is well-structured, correctly re-exporting Base, engines, and session utilities; no issues found.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"src/internal/db/engine.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 148,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"Double-checked locking on _async_engine without making the first read atomic \u2014 concurrent callers can race past the outer `if _async_engine is None` check before the lock is acquired, creating multiple engine instances.\\\",\\n        \\\"suggestion\\\": \\\"Move the entire read-check-write inside the locked section, or initialise the module-level `_async_engine` to the result of `create_async_engine_from_env()` directly so the lock is unnecessary.\\\"\\n      },\\n      {\\n        \\\"line\\\": 44,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"Identical race condition to get_async_engine(): the outer `if _sync_engine is None` read is not protected by the lock, allowing concurrent threads to instantiate multiple sync engines.\\\",\\n        \\\"suggestion\\\": \\\"Move the outer check inside the locked section, same fix as get_async_engine().\\\"\\n      },\\n      {\\n        \\\"line\\\": 133,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"connect_args is explicitly set to None in the non-Supabase/non-postgresql path. Passing connect_args=None to create_async_engine overrides asyncpg's driver-level defaults (like command_timeout) with an empty dict, which may differ subtly from omitting the argument.\\\",\\n        \\\"suggestion\\\": \\\"Use `connect_args=connect_args or None` unchanged \u2014 the `or None` is already implicit \u2014 but pass nothing when there are no args: `**({} if connect_args else {})` or simply omit the key when falsy.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Core async/sync engine and session factory infrastructure is sound, with correct Supabase pooler URL parsing and transactional scope semantics, but the singleton getters use unsafe double-checked locking.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"tests/unit/test_db_engine.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 38,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"isinstance(Base.metadata, sqlalchemy.MetaData) references sqlalchemy without importing it \u2014 will raise NameError at runtime.\\\",\\n        \\\"suggestion\\\": \\\"Add `import sqlalchemy` at the top of the file, or replace with `from sqlalchemy import MetaData; isinstance(Base.metadata, MetaData)`.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"test_create_engine_requires_url correctly validates the env-var guard, but test_base_is_declarative will fail with NameError because sqlalchemy is not imported.\\\"\\n  }\\n]\",\"stop_reason\":\"end_turn\",\"session_id\":\"7dccc480-08cb-4b54-89d6-39e9f9d38017\",\"total_cost_usd\":0.1984284,\"usage\":{\"input_tokens\":7502,\"cache_creation_input_tokens\":29068,\"cache_read_input_tokens\":24758,\"output_tokens\":3966,\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":0,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"\",\"iterations\":[],\"speed\":\"standard\"},\"modelUsage\":{\"claude-sonnet-4-6\":{\"inputTokens\":7502,\"outputTokens\":3966,\"cacheReadInputTokens\":24758,\"cacheCreationInputTokens\":29068,\"webSearchRequests\":0,\"costUSD\":0.1984284,\"contextWindow\":200000,\"maxOutputTokens\":32000}},\"permission_denials\":[],\"terminal_reason\":\"completed\",\"fast_mode_state\":\"off\",\"uuid\":\"8eb339e7-ce53-42da-b6e6-de7050e9b906\"}\n",
+        "output": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"api_error_status\":null,\"duration_ms\":41050,\"duration_api_ms\":41003,\"num_turns\":4,\"result\":\"\\n\\n```json\\n[\\n  {\\n    \\\"filename\\\": \\\"src/internal/db/__init__.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 54,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"SessionLocal() return type is implied by the docstring but not annotated \u2014 type-checkers cannot verify it matches get_async_session_factory()\\\",\\n        \\\"suggestion\\\": \\\"Add return type annotation: def SessionLocal() -> async_sessionmaker[AsyncSession]:\\\"\\n      },\\n      {\\n        \\\"line\\\": 0,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"The __init__.py re-exports sync-layer symbols (create_engine_from_env, get_engine) alongside async ones \u2014 callers may accidentally use the sync engine in async contexts\\\",\\n        \\\"suggestion\\\": \\\"Consider a clear split or deprecation notice for sync vs async public API, or document which layer each symbol belongs to\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Thin, well-documented re-export layer; a missing return type annotation on SessionLocal() is the only issue.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"src/internal/db/engine.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 118,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"SUPABASE_POOLER_HOST is read from the environment at module init time, making the connection endpoint user-controllable \u2014 an attacker with filesystem or environment control could redirect database traffic\\\",\\n        \\\"suggestion\\\": \\\"Require SUPABASE_POOLER_HOST to be set only via a trusted config file or secret management, not os.environ.get at module load time; or remove the override entirely and require the host to be embedded in the URL\\\"\\n      },\\n      {\\n        \\\"line\\\": 111,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"If the Supabase pooler URL has no path component (e.g. no '/' after the port), port_and_path.split('/', 1) produces port = '5432/mydb' \u2014 the port includes the database name and connect_args['database'] is set to an empty string\\\",\\n        \\\"suggestion\\\": \\\"Add a guard: if '/' not in port_and_path: port = port_and_path; path = '' before the split, then handle path only when present\\\"\\n      },\\n      {\\n        \\\"line\\\": 18,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"AsyncEngine is imported at runtime but only used in TYPE_CHECKING blocks (function return annotations); it should be moved inside TYPE_CHECKING to avoid unnecessary module load cost and signal intent clearly\\\",\\n        \\\"suggestion\\\": \\\"Move 'AsyncEngine' inside the TYPE_CHECKING block alongside any other type-only imports\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Core engine infrastructure is solid; two critical bugs (URL parsing edge case, env-driven host injection) and one quality issue (unused runtime import).\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"tests/unit/test_db_engine.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 21,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"Test restores _sync_engine via direct module-level reassignment, which does not clean up if create_engine_from_env() raises before the assignment executes \u2014 a crash on line 27 leaves _sync_engine permanently None for the process\\\",\\n        \\\"suggestion\\\": \\\"Use a try/finally with a flag or mock.patch to handle restoration safely regardless of where pytest.raises intercepts the exception\\\"\\n      },\\n      {\\n        \\\"line\\\": 0,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"load_dotenv() is called at module import time in engine.py; test_db_engine.py does not isolate or mock this side effect, so tests may be ordering-dependent and fail when dotenv state is unexpected\\\",\\n        \\\"suggestion\\\": \\\"Add a test fixture or autouse fixture that patches dotenv or resets the relevant engine module globals before each test\\\"\\n      },\\n      {\\n        \\\"line\\\": 0,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"Only two of the many engine functions are tested \u2014 create_engine_from_env, get_async_engine, get_async_session_factory, _build_async_engine, and the Supabase pooler path have no unit test coverage\\\",\\n        \\\"suggestion\\\": \\\"Add unit tests for _build_async_engine (Supabase URL, standard URL, path-with-database edge case) and for get_async_session_factory\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Two tests with correct intent but fragile global-state teardown; comprehensive coverage of engine creation paths and side effects is missing.\\\"\\n  }\\n]\\n```\",\"stop_reason\":\"end_turn\",\"session_id\":\"ced58142-2e75-4de8-bf47-2fa2c7782eb1\",\"total_cost_usd\":0.128547,\"usage\":{\"input_tokens\":29931,\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":31680,\"output_tokens\":1950,\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":0,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"\",\"iterations\":[],\"speed\":\"standard\"},\"modelUsage\":{\"claude-sonnet-4-6\":{\"inputTokens\":29931,\"outputTokens\":1950,\"cacheReadInputTokens\":31680,\"cacheCreationInputTokens\":0,\"webSearchRequests\":0,\"costUSD\":0.128547,\"contextWindow\":200000,\"maxOutputTokens\":32000}},\"permission_denials\":[],\"terminal_reason\":\"completed\",\"fast_mode_state\":\"off\",\"uuid\":\"761f3441-b5a9-455a-b837-d52e7e21fc33\"}\n",
         "parsed": {
           "filename": "src/internal/db/__init__.py",
-          "issues": [],
-          "summary": "The public surface is well-structured, correctly re-exporting Base, engines, and session utilities; no issues found."
+          "issues": [
+            {
+              "line": 54,
+              "severity": "info",
+              "message": "SessionLocal() return type is implied by the docstring but not annotated \u2014 type-checkers cannot verify it matches get_async_session_factory()",
+              "suggestion": "Add return type annotation: def SessionLocal() -> async_sessionmaker[AsyncSession]:"
+            },
+            {
+              "line": 0,
+              "severity": "info",
+              "message": "The __init__.py re-exports sync-layer symbols (create_engine_from_env, get_engine) alongside async ones \u2014 callers may accidentally use the sync engine in async contexts",
+              "suggestion": "Consider a clear split or deprecation notice for sync vs async public API, or document which layer each symbol belongs to"
+            }
+          ],
+          "summary": "Thin, well-documented re-export layer; a missing return type annotation on SessionLocal() is the only issue."
         }
       },
       {
         "file": "src/internal/db/engine.py",
         "returncode": 0,
-        "output": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"api_error_status\":null,\"duration_ms\":101755,\"duration_api_ms\":101684,\"num_turns\":4,\"result\":\"[\\n  {\\n    \\\"filename\\\": \\\"src/internal/db/__init__.py\\\",\\n    \\\"issues\\\": [],\\n    \\\"summary\\\": \\\"The public surface is well-structured, correctly re-exporting Base, engines, and session utilities; no issues found.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"src/internal/db/engine.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 148,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"Double-checked locking on _async_engine without making the first read atomic \u2014 concurrent callers can race past the outer `if _async_engine is None` check before the lock is acquired, creating multiple engine instances.\\\",\\n        \\\"suggestion\\\": \\\"Move the entire read-check-write inside the locked section, or initialise the module-level `_async_engine` to the result of `create_async_engine_from_env()` directly so the lock is unnecessary.\\\"\\n      },\\n      {\\n        \\\"line\\\": 44,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"Identical race condition to get_async_engine(): the outer `if _sync_engine is None` read is not protected by the lock, allowing concurrent threads to instantiate multiple sync engines.\\\",\\n        \\\"suggestion\\\": \\\"Move the outer check inside the locked section, same fix as get_async_engine().\\\"\\n      },\\n      {\\n        \\\"line\\\": 133,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"connect_args is explicitly set to None in the non-Supabase/non-postgresql path. Passing connect_args=None to create_async_engine overrides asyncpg's driver-level defaults (like command_timeout) with an empty dict, which may differ subtly from omitting the argument.\\\",\\n        \\\"suggestion\\\": \\\"Use `connect_args=connect_args or None` unchanged \u2014 the `or None` is already implicit \u2014 but pass nothing when there are no args: `**({} if connect_args else {})` or simply omit the key when falsy.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Core async/sync engine and session factory infrastructure is sound, with correct Supabase pooler URL parsing and transactional scope semantics, but the singleton getters use unsafe double-checked locking.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"tests/unit/test_db_engine.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 38,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"isinstance(Base.metadata, sqlalchemy.MetaData) references sqlalchemy without importing it \u2014 will raise NameError at runtime.\\\",\\n        \\\"suggestion\\\": \\\"Add `import sqlalchemy` at the top of the file, or replace with `from sqlalchemy import MetaData; isinstance(Base.metadata, MetaData)`.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"test_create_engine_requires_url correctly validates the env-var guard, but test_base_is_declarative will fail with NameError because sqlalchemy is not imported.\\\"\\n  }\\n]\",\"stop_reason\":\"end_turn\",\"session_id\":\"7dccc480-08cb-4b54-89d6-39e9f9d38017\",\"total_cost_usd\":0.1984284,\"usage\":{\"input_tokens\":7502,\"cache_creation_input_tokens\":29068,\"cache_read_input_tokens\":24758,\"output_tokens\":3966,\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":0,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"\",\"iterations\":[],\"speed\":\"standard\"},\"modelUsage\":{\"claude-sonnet-4-6\":{\"inputTokens\":7502,\"outputTokens\":3966,\"cacheReadInputTokens\":24758,\"cacheCreationInputTokens\":29068,\"webSearchRequests\":0,\"costUSD\":0.1984284,\"contextWindow\":200000,\"maxOutputTokens\":32000}},\"permission_denials\":[],\"terminal_reason\":\"completed\",\"fast_mode_state\":\"off\",\"uuid\":\"8eb339e7-ce53-42da-b6e6-de7050e9b906\"}\n",
+        "output": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"api_error_status\":null,\"duration_ms\":41050,\"duration_api_ms\":41003,\"num_turns\":4,\"result\":\"\\n\\n```json\\n[\\n  {\\n    \\\"filename\\\": \\\"src/internal/db/__init__.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 54,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"SessionLocal() return type is implied by the docstring but not annotated \u2014 type-checkers cannot verify it matches get_async_session_factory()\\\",\\n        \\\"suggestion\\\": \\\"Add return type annotation: def SessionLocal() -> async_sessionmaker[AsyncSession]:\\\"\\n      },\\n      {\\n        \\\"line\\\": 0,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"The __init__.py re-exports sync-layer symbols (create_engine_from_env, get_engine) alongside async ones \u2014 callers may accidentally use the sync engine in async contexts\\\",\\n        \\\"suggestion\\\": \\\"Consider a clear split or deprecation notice for sync vs async public API, or document which layer each symbol belongs to\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Thin, well-documented re-export layer; a missing return type annotation on SessionLocal() is the only issue.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"src/internal/db/engine.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 118,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"SUPABASE_POOLER_HOST is read from the environment at module init time, making the connection endpoint user-controllable \u2014 an attacker with filesystem or environment control could redirect database traffic\\\",\\n        \\\"suggestion\\\": \\\"Require SUPABASE_POOLER_HOST to be set only via a trusted config file or secret management, not os.environ.get at module load time; or remove the override entirely and require the host to be embedded in the URL\\\"\\n      },\\n      {\\n        \\\"line\\\": 111,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"If the Supabase pooler URL has no path component (e.g. no '/' after the port), port_and_path.split('/', 1) produces port = '5432/mydb' \u2014 the port includes the database name and connect_args['database'] is set to an empty string\\\",\\n        \\\"suggestion\\\": \\\"Add a guard: if '/' not in port_and_path: port = port_and_path; path = '' before the split, then handle path only when present\\\"\\n      },\\n      {\\n        \\\"line\\\": 18,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"AsyncEngine is imported at runtime but only used in TYPE_CHECKING blocks (function return annotations); it should be moved inside TYPE_CHECKING to avoid unnecessary module load cost and signal intent clearly\\\",\\n        \\\"suggestion\\\": \\\"Move 'AsyncEngine' inside the TYPE_CHECKING block alongside any other type-only imports\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Core engine infrastructure is solid; two critical bugs (URL parsing edge case, env-driven host injection) and one quality issue (unused runtime import).\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"tests/unit/test_db_engine.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 21,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"Test restores _sync_engine via direct module-level reassignment, which does not clean up if create_engine_from_env() raises before the assignment executes \u2014 a crash on line 27 leaves _sync_engine permanently None for the process\\\",\\n        \\\"suggestion\\\": \\\"Use a try/finally with a flag or mock.patch to handle restoration safely regardless of where pytest.raises intercepts the exception\\\"\\n      },\\n      {\\n        \\\"line\\\": 0,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"load_dotenv() is called at module import time in engine.py; test_db_engine.py does not isolate or mock this side effect, so tests may be ordering-dependent and fail when dotenv state is unexpected\\\",\\n        \\\"suggestion\\\": \\\"Add a test fixture or autouse fixture that patches dotenv or resets the relevant engine module globals before each test\\\"\\n      },\\n      {\\n        \\\"line\\\": 0,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"Only two of the many engine functions are tested \u2014 create_engine_from_env, get_async_engine, get_async_session_factory, _build_async_engine, and the Supabase pooler path have no unit test coverage\\\",\\n        \\\"suggestion\\\": \\\"Add unit tests for _build_async_engine (Supabase URL, standard URL, path-with-database edge case) and for get_async_session_factory\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Two tests with correct intent but fragile global-state teardown; comprehensive coverage of engine creation paths and side effects is missing.\\\"\\n  }\\n]\\n```\",\"stop_reason\":\"end_turn\",\"session_id\":\"ced58142-2e75-4de8-bf47-2fa2c7782eb1\",\"total_cost_usd\":0.128547,\"usage\":{\"input_tokens\":29931,\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":31680,\"output_tokens\":1950,\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":0,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"\",\"iterations\":[],\"speed\":\"standard\"},\"modelUsage\":{\"claude-sonnet-4-6\":{\"inputTokens\":29931,\"outputTokens\":1950,\"cacheReadInputTokens\":31680,\"cacheCreationInputTokens\":0,\"webSearchRequests\":0,\"costUSD\":0.128547,\"contextWindow\":200000,\"maxOutputTokens\":32000}},\"permission_denials\":[],\"terminal_reason\":\"completed\",\"fast_mode_state\":\"off\",\"uuid\":\"761f3441-b5a9-455a-b837-d52e7e21fc33\"}\n",
         "parsed": {
           "filename": "src/internal/db/engine.py",
           "issues": [
             {
-              "line": 148,
+              "line": 118,
               "severity": "critical",
-              "message": "Double-checked locking on _async_engine without making the first read atomic \u2014 concurrent callers can race past the outer `if _async_engine is None` check before the lock is acquired, creating multiple engine instances.",
-              "suggestion": "Move the entire read-check-write inside the locked section, or initialise the module-level `_async_engine` to the result of `create_async_engine_from_env()` directly so the lock is unnecessary."
+              "message": "SUPABASE_POOLER_HOST is read from the environment at module init time, making the connection endpoint user-controllable \u2014 an attacker with filesystem or environment control could redirect database traffic",
+              "suggestion": "Require SUPABASE_POOLER_HOST to be set only via a trusted config file or secret management, not os.environ.get at module load time; or remove the override entirely and require the host to be embedded in the URL"
             },
             {
-              "line": 44,
+              "line": 111,
               "severity": "critical",
-              "message": "Identical race condition to get_async_engine(): the outer `if _sync_engine is None` read is not protected by the lock, allowing concurrent threads to instantiate multiple sync engines.",
-              "suggestion": "Move the outer check inside the locked section, same fix as get_async_engine()."
+              "message": "If the Supabase pooler URL has no path component (e.g. no '/' after the port), port_and_path.split('/', 1) produces port = '5432/mydb' \u2014 the port includes the database name and connect_args['database'] is set to an empty string",
+              "suggestion": "Add a guard: if '/' not in port_and_path: port = port_and_path; path = '' before the split, then handle path only when present"
             },
             {
-              "line": 133,
-              "severity": "info",
-              "message": "connect_args is explicitly set to None in the non-Supabase/non-postgresql path. Passing connect_args=None to create_async_engine overrides asyncpg's driver-level defaults (like command_timeout) with an empty dict, which may differ subtly from omitting the argument.",
-              "suggestion": "Use `connect_args=connect_args or None` unchanged \u2014 the `or None` is already implicit \u2014 but pass nothing when there are no args: `**({} if connect_args else {})` or simply omit the key when falsy."
+              "line": 18,
+              "severity": "warning",
+              "message": "AsyncEngine is imported at runtime but only used in TYPE_CHECKING blocks (function return annotations); it should be moved inside TYPE_CHECKING to avoid unnecessary module load cost and signal intent clearly",
+              "suggestion": "Move 'AsyncEngine' inside the TYPE_CHECKING block alongside any other type-only imports"
             }
           ],
-          "summary": "Core async/sync engine and session factory infrastructure is sound, with correct Supabase pooler URL parsing and transactional scope semantics, but the singleton getters use unsafe double-checked locking."
+          "summary": "Core engine infrastructure is solid; two critical bugs (URL parsing edge case, env-driven host injection) and one quality issue (unused runtime import)."
         }
       },
       {
         "file": "tests/unit/test_db_engine.py",
         "returncode": 0,
-        "output": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"api_error_status\":null,\"duration_ms\":101755,\"duration_api_ms\":101684,\"num_turns\":4,\"result\":\"[\\n  {\\n    \\\"filename\\\": \\\"src/internal/db/__init__.py\\\",\\n    \\\"issues\\\": [],\\n    \\\"summary\\\": \\\"The public surface is well-structured, correctly re-exporting Base, engines, and session utilities; no issues found.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"src/internal/db/engine.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 148,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"Double-checked locking on _async_engine without making the first read atomic \u2014 concurrent callers can race past the outer `if _async_engine is None` check before the lock is acquired, creating multiple engine instances.\\\",\\n        \\\"suggestion\\\": \\\"Move the entire read-check-write inside the locked section, or initialise the module-level `_async_engine` to the result of `create_async_engine_from_env()` directly so the lock is unnecessary.\\\"\\n      },\\n      {\\n        \\\"line\\\": 44,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"Identical race condition to get_async_engine(): the outer `if _sync_engine is None` read is not protected by the lock, allowing concurrent threads to instantiate multiple sync engines.\\\",\\n        \\\"suggestion\\\": \\\"Move the outer check inside the locked section, same fix as get_async_engine().\\\"\\n      },\\n      {\\n        \\\"line\\\": 133,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"connect_args is explicitly set to None in the non-Supabase/non-postgresql path. Passing connect_args=None to create_async_engine overrides asyncpg's driver-level defaults (like command_timeout) with an empty dict, which may differ subtly from omitting the argument.\\\",\\n        \\\"suggestion\\\": \\\"Use `connect_args=connect_args or None` unchanged \u2014 the `or None` is already implicit \u2014 but pass nothing when there are no args: `**({} if connect_args else {})` or simply omit the key when falsy.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Core async/sync engine and session factory infrastructure is sound, with correct Supabase pooler URL parsing and transactional scope semantics, but the singleton getters use unsafe double-checked locking.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"tests/unit/test_db_engine.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 38,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"isinstance(Base.metadata, sqlalchemy.MetaData) references sqlalchemy without importing it \u2014 will raise NameError at runtime.\\\",\\n        \\\"suggestion\\\": \\\"Add `import sqlalchemy` at the top of the file, or replace with `from sqlalchemy import MetaData; isinstance(Base.metadata, MetaData)`.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"test_create_engine_requires_url correctly validates the env-var guard, but test_base_is_declarative will fail with NameError because sqlalchemy is not imported.\\\"\\n  }\\n]\",\"stop_reason\":\"end_turn\",\"session_id\":\"7dccc480-08cb-4b54-89d6-39e9f9d38017\",\"total_cost_usd\":0.1984284,\"usage\":{\"input_tokens\":7502,\"cache_creation_input_tokens\":29068,\"cache_read_input_tokens\":24758,\"output_tokens\":3966,\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":0,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"\",\"iterations\":[],\"speed\":\"standard\"},\"modelUsage\":{\"claude-sonnet-4-6\":{\"inputTokens\":7502,\"outputTokens\":3966,\"cacheReadInputTokens\":24758,\"cacheCreationInputTokens\":29068,\"webSearchRequests\":0,\"costUSD\":0.1984284,\"contextWindow\":200000,\"maxOutputTokens\":32000}},\"permission_denials\":[],\"terminal_reason\":\"completed\",\"fast_mode_state\":\"off\",\"uuid\":\"8eb339e7-ce53-42da-b6e6-de7050e9b906\"}\n",
+        "output": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"api_error_status\":null,\"duration_ms\":41050,\"duration_api_ms\":41003,\"num_turns\":4,\"result\":\"\\n\\n```json\\n[\\n  {\\n    \\\"filename\\\": \\\"src/internal/db/__init__.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 54,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"SessionLocal() return type is implied by the docstring but not annotated \u2014 type-checkers cannot verify it matches get_async_session_factory()\\\",\\n        \\\"suggestion\\\": \\\"Add return type annotation: def SessionLocal() -> async_sessionmaker[AsyncSession]:\\\"\\n      },\\n      {\\n        \\\"line\\\": 0,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"The __init__.py re-exports sync-layer symbols (create_engine_from_env, get_engine) alongside async ones \u2014 callers may accidentally use the sync engine in async contexts\\\",\\n        \\\"suggestion\\\": \\\"Consider a clear split or deprecation notice for sync vs async public API, or document which layer each symbol belongs to\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Thin, well-documented re-export layer; a missing return type annotation on SessionLocal() is the only issue.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"src/internal/db/engine.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 118,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"SUPABASE_POOLER_HOST is read from the environment at module init time, making the connection endpoint user-controllable \u2014 an attacker with filesystem or environment control could redirect database traffic\\\",\\n        \\\"suggestion\\\": \\\"Require SUPABASE_POOLER_HOST to be set only via a trusted config file or secret management, not os.environ.get at module load time; or remove the override entirely and require the host to be embedded in the URL\\\"\\n      },\\n      {\\n        \\\"line\\\": 111,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"If the Supabase pooler URL has no path component (e.g. no '/' after the port), port_and_path.split('/', 1) produces port = '5432/mydb' \u2014 the port includes the database name and connect_args['database'] is set to an empty string\\\",\\n        \\\"suggestion\\\": \\\"Add a guard: if '/' not in port_and_path: port = port_and_path; path = '' before the split, then handle path only when present\\\"\\n      },\\n      {\\n        \\\"line\\\": 18,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"AsyncEngine is imported at runtime but only used in TYPE_CHECKING blocks (function return annotations); it should be moved inside TYPE_CHECKING to avoid unnecessary module load cost and signal intent clearly\\\",\\n        \\\"suggestion\\\": \\\"Move 'AsyncEngine' inside the TYPE_CHECKING block alongside any other type-only imports\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Core engine infrastructure is solid; two critical bugs (URL parsing edge case, env-driven host injection) and one quality issue (unused runtime import).\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"tests/unit/test_db_engine.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 21,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"Test restores _sync_engine via direct module-level reassignment, which does not clean up if create_engine_from_env() raises before the assignment executes \u2014 a crash on line 27 leaves _sync_engine permanently None for the process\\\",\\n        \\\"suggestion\\\": \\\"Use a try/finally with a flag or mock.patch to handle restoration safely regardless of where pytest.raises intercepts the exception\\\"\\n      },\\n      {\\n        \\\"line\\\": 0,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"load_dotenv() is called at module import time in engine.py; test_db_engine.py does not isolate or mock this side effect, so tests may be ordering-dependent and fail when dotenv state is unexpected\\\",\\n        \\\"suggestion\\\": \\\"Add a test fixture or autouse fixture that patches dotenv or resets the relevant engine module globals before each test\\\"\\n      },\\n      {\\n        \\\"line\\\": 0,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"Only two of the many engine functions are tested \u2014 create_engine_from_env, get_async_engine, get_async_session_factory, _build_async_engine, and the Supabase pooler path have no unit test coverage\\\",\\n        \\\"suggestion\\\": \\\"Add unit tests for _build_async_engine (Supabase URL, standard URL, path-with-database edge case) and for get_async_session_factory\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Two tests with correct intent but fragile global-state teardown; comprehensive coverage of engine creation paths and side effects is missing.\\\"\\n  }\\n]\\n```\",\"stop_reason\":\"end_turn\",\"session_id\":\"ced58142-2e75-4de8-bf47-2fa2c7782eb1\",\"total_cost_usd\":0.128547,\"usage\":{\"input_tokens\":29931,\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":31680,\"output_tokens\":1950,\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":0,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"\",\"iterations\":[],\"speed\":\"standard\"},\"modelUsage\":{\"claude-sonnet-4-6\":{\"inputTokens\":29931,\"outputTokens\":1950,\"cacheReadInputTokens\":31680,\"cacheCreationInputTokens\":0,\"webSearchRequests\":0,\"costUSD\":0.128547,\"contextWindow\":200000,\"maxOutputTokens\":32000}},\"permission_denials\":[],\"terminal_reason\":\"completed\",\"fast_mode_state\":\"off\",\"uuid\":\"761f3441-b5a9-455a-b837-d52e7e21fc33\"}\n",
         "parsed": {
           "filename": "tests/unit/test_db_engine.py",
           "issues": [
             {
-              "line": 38,
-              "severity": "critical",
-              "message": "isinstance(Base.metadata, sqlalchemy.MetaData) references sqlalchemy without importing it \u2014 will raise NameError at runtime.",
-              "suggestion": "Add `import sqlalchemy` at the top of the file, or replace with `from sqlalchemy import MetaData; isinstance(Base.metadata, MetaData)`."
+              "line": 21,
+              "severity": "warning",
+              "message": "Test restores _sync_engine via direct module-level reassignment, which does not clean up if create_engine_from_env() raises before the assignment executes \u2014 a crash on line 27 leaves _sync_engine permanently None for the process",
+              "suggestion": "Use a try/finally with a flag or mock.patch to handle restoration safely regardless of where pytest.raises intercepts the exception"
+            },
+            {
+              "line": 0,
+              "severity": "info",
+              "message": "load_dotenv() is called at module import time in engine.py; test_db_engine.py does not isolate or mock this side effect, so tests may be ordering-dependent and fail when dotenv state is unexpected",
+              "suggestion": "Add a test fixture or autouse fixture that patches dotenv or resets the relevant engine module globals before each test"
+            },
+            {
+              "line": 0,
+              "severity": "info",
+              "message": "Only two of the many engine functions are tested \u2014 create_engine_from_env, get_async_engine, get_async_session_factory, _build_async_engine, and the Supabase pooler path have no unit test coverage",
+              "suggestion": "Add unit tests for _build_async_engine (Supabase URL, standard URL, path-with-database edge case) and for get_async_session_factory"
             }
           ],
-          "summary": "test_create_engine_requires_url correctly validates the env-var guard, but test_base_is_declarative will fail with NameError because sqlalchemy is not imported."
+          "summary": "Two tests with correct intent but fragile global-state teardown; comprehensive coverage of engine creation paths and side effects is missing."
         }
       }
     ]
