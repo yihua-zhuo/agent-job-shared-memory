@@ -1,23 +1,225 @@
 {
-  "status": "pass",
-  "verdict": "pass",
-  "critical_issues": [],
-  "suggestions": [],
-  "summary": "Reviewed 0 file(s) between origin/master and origin/develop.",
+  "status": "fail",
+  "verdict": "fail",
+  "critical_issues": [
+    {
+      "file": "src/services/customer_service.py",
+      "line": 17,
+      "severity": "critical",
+      "msg": "VALID_STATUSES set is missing 'opportunity' and 'prospect', which are defined in CustomerStatus enum and used elsewhere \u2014 update_customer and change_status will raise ValidationException for these valid statuses.",
+      "suggestion": "Update VALID_STATUSES to: {'lead', 'opportunity', 'customer', 'partner', 'prospect', 'active', 'inactive', 'blocked'}"
+    },
+    {
+      "file": "src/services/customer_service.py",
+      "line": 25,
+      "severity": "critical",
+      "msg": "tenant_id defaults to 0 across all methods (create_customer, list_customers, get_customer, update_customer, delete_customer, search_customers, bulk_import, etc.) \u2014 in a multi-tenant system this can cause cross-tenant data access if the caller forgets to pass tenant_id.",
+      "suggestion": "Make tenant_id a required parameter (remove the default value 0) so callers must explicitly provide it."
+    },
+    {
+      "file": "tests/unit/test_customer_service.py",
+      "line": 20,
+      "severity": "critical",
+      "msg": "mock_session.execute is a plain MagicMock (not AsyncMock), so it returns a MagicMock directly rather than an awaitable. Any async test that calls service.list_customers, get_customer, search_customers, or update_customer would fail at runtime \u2014 currently undetected because only create_customer is tested.",
+      "suggestion": "Replace mock_session = MagicMock(...) with mock_session = AsyncMock() and configure the return values for the execute chain (execute.return_value.scalars.return_value.all = AsyncMock(return_value=[]))."
+    }
+  ],
+  "suggestions": [
+    {
+      "file": "src/models/customer.py",
+      "line": 29,
+      "severity": "warning",
+      "msg": "CustomerCreateDTO.status is typed as str with no validation, but Customer.status uses CustomerStatus enum \u2014 an invalid string value will silently pass creation and only fail when converted to Customer later.",
+      "suggestion": "Use CustomerStatus enum for the status field in CustomerCreateDTO, or validate against CustomerStatus values before creation."
+    },
+    {
+      "file": "src/models/customer.py",
+      "line": 49,
+      "severity": "warning",
+      "msg": "CustomerCreateDTO.from_dict silently defaults missing 'name' and 'email' to empty string instead of raising a validation error \u2014 creates malformed DTOs with no signal.",
+      "suggestion": "Raise ValidationException if 'name' or 'email' is missing or empty in from_dict."
+    },
+    {
+      "file": "src/models/customer.py",
+      "line": 74,
+      "severity": "info",
+      "msg": "to_dict method on Customer dataclass lacks a return type annotation (declared as -> dict without module-level import of Dict).",
+      "suggestion": "Add `from typing import Dict` and annotate as `-> Dict[str, Any]` for consistency with to_dict in CustomerCreateDTO."
+    },
+    {
+      "file": "src/services/customer_service.py",
+      "line": 206,
+      "severity": "warning",
+      "msg": "bulk_import adds all customers to the session but never calls flush() before commit \u2014 on very large imports this defers all inserts to the final commit, losing visibility into partial failures and potentially hitting database max packet sizes.",
+      "suggestion": "Add `await self.session.flush()` after the for loop or flush in batches (e.g., every 1000 rows) before the final commit."
+    },
+    {
+      "file": "tests/unit/test_customer_service.py",
+      "line": 185,
+      "severity": "warning",
+      "msg": "Spacing error in assertion: 'assert call_args.name == \"Customer\"        # default from service' has trailing spaces and a comment that should be on its own line.",
+      "suggestion": "Split into two lines: assert call_args.name == \"Customer\"  # default from service"
+    }
+  ],
+  "summary": "Reviewed 3 file(s) between origin/master and origin/issue-271-customer-dto.",
   "details": {
     "llm_parsed": {
-      "verdict": "pass",
-      "critical": [],
-      "warnings": [],
-      "summary": "Reviewed 0 file(s) between origin/master and origin/develop."
+      "verdict": "fail",
+      "critical": [
+        {
+          "file": "src/services/customer_service.py",
+          "line": 17,
+          "severity": "critical",
+          "msg": "VALID_STATUSES set is missing 'opportunity' and 'prospect', which are defined in CustomerStatus enum and used elsewhere \u2014 update_customer and change_status will raise ValidationException for these valid statuses.",
+          "suggestion": "Update VALID_STATUSES to: {'lead', 'opportunity', 'customer', 'partner', 'prospect', 'active', 'inactive', 'blocked'}"
+        },
+        {
+          "file": "src/services/customer_service.py",
+          "line": 25,
+          "severity": "critical",
+          "msg": "tenant_id defaults to 0 across all methods (create_customer, list_customers, get_customer, update_customer, delete_customer, search_customers, bulk_import, etc.) \u2014 in a multi-tenant system this can cause cross-tenant data access if the caller forgets to pass tenant_id.",
+          "suggestion": "Make tenant_id a required parameter (remove the default value 0) so callers must explicitly provide it."
+        },
+        {
+          "file": "tests/unit/test_customer_service.py",
+          "line": 20,
+          "severity": "critical",
+          "msg": "mock_session.execute is a plain MagicMock (not AsyncMock), so it returns a MagicMock directly rather than an awaitable. Any async test that calls service.list_customers, get_customer, search_customers, or update_customer would fail at runtime \u2014 currently undetected because only create_customer is tested.",
+          "suggestion": "Replace mock_session = MagicMock(...) with mock_session = AsyncMock() and configure the return values for the execute chain (execute.return_value.scalars.return_value.all = AsyncMock(return_value=[]))."
+        }
+      ],
+      "warnings": [
+        {
+          "file": "src/models/customer.py",
+          "line": 29,
+          "severity": "warning",
+          "msg": "CustomerCreateDTO.status is typed as str with no validation, but Customer.status uses CustomerStatus enum \u2014 an invalid string value will silently pass creation and only fail when converted to Customer later.",
+          "suggestion": "Use CustomerStatus enum for the status field in CustomerCreateDTO, or validate against CustomerStatus values before creation."
+        },
+        {
+          "file": "src/models/customer.py",
+          "line": 49,
+          "severity": "warning",
+          "msg": "CustomerCreateDTO.from_dict silently defaults missing 'name' and 'email' to empty string instead of raising a validation error \u2014 creates malformed DTOs with no signal.",
+          "suggestion": "Raise ValidationException if 'name' or 'email' is missing or empty in from_dict."
+        },
+        {
+          "file": "src/models/customer.py",
+          "line": 74,
+          "severity": "info",
+          "msg": "to_dict method on Customer dataclass lacks a return type annotation (declared as -> dict without module-level import of Dict).",
+          "suggestion": "Add `from typing import Dict` and annotate as `-> Dict[str, Any]` for consistency with to_dict in CustomerCreateDTO."
+        },
+        {
+          "file": "src/services/customer_service.py",
+          "line": 206,
+          "severity": "warning",
+          "msg": "bulk_import adds all customers to the session but never calls flush() before commit \u2014 on very large imports this defers all inserts to the final commit, losing visibility into partial failures and potentially hitting database max packet sizes.",
+          "suggestion": "Add `await self.session.flush()` after the for loop or flush in batches (e.g., every 1000 rows) before the final commit."
+        },
+        {
+          "file": "tests/unit/test_customer_service.py",
+          "line": 185,
+          "severity": "warning",
+          "msg": "Spacing error in assertion: 'assert call_args.name == \"Customer\"        # default from service' has trailing spaces and a comment that should be on its own line.",
+          "suggestion": "Split into two lines: assert call_args.name == \"Customer\"  # default from service"
+        }
+      ],
+      "summary": "Reviewed 3 file(s) between origin/master and origin/issue-271-customer-dto."
     },
     "reviewed_refs": {
       "base": "a3338277865fb78d70f1b9234efb4d2802c4fb9f",
-      "head": "3405d76d8079845cfcb256241b01ccd9abcd748c",
+      "head": "2d7c32ce53e43add2033ac76f81bbe7e06271b8d",
       "base_label": "origin/master",
-      "head_label": "origin/develop"
+      "head_label": "origin/issue-271-customer-dto"
     },
-    "reviewed_files": [],
-    "per_file_reviews": []
+    "reviewed_files": [
+      "src/models/customer.py",
+      "src/services/customer_service.py",
+      "tests/unit/test_customer_service.py"
+    ],
+    "per_file_reviews": [
+      {
+        "file": "src/models/customer.py",
+        "returncode": 0,
+        "output": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"api_error_status\":null,\"duration_ms\":147426,\"duration_api_ms\":147335,\"num_turns\":7,\"result\":\"\\n\\n```\\n[\\n  {\\n    \\\"filename\\\": \\\"src/models/customer.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 29,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"CustomerCreateDTO.status is typed as str with no validation, but Customer.status uses CustomerStatus enum \u2014 an invalid string value will silently pass creation and only fail when converted to Customer later.\\\",\\n        \\\"suggestion\\\": \\\"Use CustomerStatus enum for the status field in CustomerCreateDTO, or validate against CustomerStatus values before creation.\\\"\\n      },\\n      {\\n        \\\"line\\\": 49,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"CustomerCreateDTO.from_dict silently defaults missing 'name' and 'email' to empty string instead of raising a validation error \u2014 creates malformed DTOs with no signal.\\\",\\n        \\\"suggestion\\\": \\\"Raise ValidationException if 'name' or 'email' is missing or empty in from_dict.\\\"\\n      },\\n      {\\n        \\\"line\\\": 74,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"to_dict method on Customer dataclass lacks a return type annotation (declared as -> dict without module-level import of Dict).\\\",\\n        \\\"suggestion\\\": \\\"Add `from typing import Dict` and annotate as `-> Dict[str, Any]` for consistency with to_dict in CustomerCreateDTO.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"CustomerCreateDTO accepts invalid status strings and silently defaults missing required fields; overall type safety between DTO and entity is loose.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"src/services/customer_service.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 17,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"VALID_STATUSES set is missing 'opportunity' and 'prospect', which are defined in CustomerStatus enum and used elsewhere \u2014 update_customer and change_status will raise ValidationException for these valid statuses.\\\",\\n        \\\"suggestion\\\": \\\"Update VALID_STATUSES to: {'lead', 'opportunity', 'customer', 'partner', 'prospect', 'active', 'inactive', 'blocked'}\\\"\\n      },\\n      {\\n        \\\"line\\\": 25,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"tenant_id defaults to 0 across all methods (create_customer, list_customers, get_customer, update_customer, delete_customer, search_customers, bulk_import, etc.) \u2014 in a multi-tenant system this can cause cross-tenant data access if the caller forgets to pass tenant_id.\\\",\\n        \\\"suggestion\\\": \\\"Make tenant_id a required parameter (remove the default value 0) so callers must explicitly provide it.\\\"\\n      },\\n      {\\n        \\\"line\\\": 206,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"bulk_import adds all customers to the session but never calls flush() before commit \u2014 on very large imports this defers all inserts to the final commit, losing visibility into partial failures and potentially hitting database max packet sizes.\\\",\\n        \\\"suggestion\\\": \\\"Add `await self.session.flush()` after the for loop or flush in batches (e.g., every 1000 rows) before the final commit.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"VALID_STATUSES is out of sync with CustomerStatus enum (critical bug), tenant_id defaults unsafely to 0 across all methods creating cross-tenant data-leak risk, and bulk_import defers all inserts to a single commit.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"tests/unit/test_customer_service.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 20,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"mock_session.execute is a plain MagicMock (not AsyncMock), so it returns a MagicMock directly rather than an awaitable. Any async test that calls service.list_customers, get_customer, search_customers, or update_customer would fail at runtime \u2014 currently undetected because only create_customer is tested.\\\",\\n        \\\"suggestion\\\": \\\"Replace mock_session = MagicMock(...) with mock_session = AsyncMock() and configure the return values for the execute chain (execute.return_value.scalars.return_value.all = AsyncMock(return_value=[])).\\\"\\n      },\\n      {\\n        \\\"line\\\": 185,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"Spacing error in assertion: 'assert call_args.name == \\\\\\\"Customer\\\\\\\"        # default from service' has trailing spaces and a comment that should be on its own line.\\\",\\n        \\\"suggestion\\\": \\\"Split into two lines: assert call_args.name == \\\\\\\"Customer\\\\\\\"  # default from service\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"mock_session.execute is a synchronous MagicMock that will cause async test failures as soon as any test calls session.execute in an async context \u2014 only create_customer is covered, leaving get_customer/list_customers/search_customers untested and their mocks unchecked.\\\"\\n  }\\n]\\n```\",\"stop_reason\":\"end_turn\",\"session_id\":\"3c34d8f1-9424-452f-b7e6-9a57ac63c2f3\",\"total_cost_usd\":0.32938995000000004,\"usage\":{\"input_tokens\":51437,\"cache_creation_input_tokens\":29049,\"cache_read_input_tokens\":51784,\"output_tokens\":3374,\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":0,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"\",\"iterations\":[],\"speed\":\"standard\"},\"modelUsage\":{\"claude-sonnet-4-6\":{\"inputTokens\":51437,\"outputTokens\":3374,\"cacheReadInputTokens\":51784,\"cacheCreationInputTokens\":29049,\"webSearchRequests\":0,\"costUSD\":0.32938995000000004,\"contextWindow\":200000,\"maxOutputTokens\":32000}},\"permission_denials\":[],\"terminal_reason\":\"completed\",\"fast_mode_state\":\"off\",\"uuid\":\"46a3cfa6-d456-48de-be35-ddf205884d86\"}\n",
+        "parsed": {
+          "filename": "src/models/customer.py",
+          "issues": [
+            {
+              "line": 29,
+              "severity": "warning",
+              "message": "CustomerCreateDTO.status is typed as str with no validation, but Customer.status uses CustomerStatus enum \u2014 an invalid string value will silently pass creation and only fail when converted to Customer later.",
+              "suggestion": "Use CustomerStatus enum for the status field in CustomerCreateDTO, or validate against CustomerStatus values before creation."
+            },
+            {
+              "line": 49,
+              "severity": "warning",
+              "message": "CustomerCreateDTO.from_dict silently defaults missing 'name' and 'email' to empty string instead of raising a validation error \u2014 creates malformed DTOs with no signal.",
+              "suggestion": "Raise ValidationException if 'name' or 'email' is missing or empty in from_dict."
+            },
+            {
+              "line": 74,
+              "severity": "info",
+              "message": "to_dict method on Customer dataclass lacks a return type annotation (declared as -> dict without module-level import of Dict).",
+              "suggestion": "Add `from typing import Dict` and annotate as `-> Dict[str, Any]` for consistency with to_dict in CustomerCreateDTO."
+            }
+          ],
+          "summary": "CustomerCreateDTO accepts invalid status strings and silently defaults missing required fields; overall type safety between DTO and entity is loose."
+        }
+      },
+      {
+        "file": "src/services/customer_service.py",
+        "returncode": 0,
+        "output": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"api_error_status\":null,\"duration_ms\":147426,\"duration_api_ms\":147335,\"num_turns\":7,\"result\":\"\\n\\n```\\n[\\n  {\\n    \\\"filename\\\": \\\"src/models/customer.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 29,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"CustomerCreateDTO.status is typed as str with no validation, but Customer.status uses CustomerStatus enum \u2014 an invalid string value will silently pass creation and only fail when converted to Customer later.\\\",\\n        \\\"suggestion\\\": \\\"Use CustomerStatus enum for the status field in CustomerCreateDTO, or validate against CustomerStatus values before creation.\\\"\\n      },\\n      {\\n        \\\"line\\\": 49,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"CustomerCreateDTO.from_dict silently defaults missing 'name' and 'email' to empty string instead of raising a validation error \u2014 creates malformed DTOs with no signal.\\\",\\n        \\\"suggestion\\\": \\\"Raise ValidationException if 'name' or 'email' is missing or empty in from_dict.\\\"\\n      },\\n      {\\n        \\\"line\\\": 74,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"to_dict method on Customer dataclass lacks a return type annotation (declared as -> dict without module-level import of Dict).\\\",\\n        \\\"suggestion\\\": \\\"Add `from typing import Dict` and annotate as `-> Dict[str, Any]` for consistency with to_dict in CustomerCreateDTO.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"CustomerCreateDTO accepts invalid status strings and silently defaults missing required fields; overall type safety between DTO and entity is loose.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"src/services/customer_service.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 17,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"VALID_STATUSES set is missing 'opportunity' and 'prospect', which are defined in CustomerStatus enum and used elsewhere \u2014 update_customer and change_status will raise ValidationException for these valid statuses.\\\",\\n        \\\"suggestion\\\": \\\"Update VALID_STATUSES to: {'lead', 'opportunity', 'customer', 'partner', 'prospect', 'active', 'inactive', 'blocked'}\\\"\\n      },\\n      {\\n        \\\"line\\\": 25,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"tenant_id defaults to 0 across all methods (create_customer, list_customers, get_customer, update_customer, delete_customer, search_customers, bulk_import, etc.) \u2014 in a multi-tenant system this can cause cross-tenant data access if the caller forgets to pass tenant_id.\\\",\\n        \\\"suggestion\\\": \\\"Make tenant_id a required parameter (remove the default value 0) so callers must explicitly provide it.\\\"\\n      },\\n      {\\n        \\\"line\\\": 206,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"bulk_import adds all customers to the session but never calls flush() before commit \u2014 on very large imports this defers all inserts to the final commit, losing visibility into partial failures and potentially hitting database max packet sizes.\\\",\\n        \\\"suggestion\\\": \\\"Add `await self.session.flush()` after the for loop or flush in batches (e.g., every 1000 rows) before the final commit.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"VALID_STATUSES is out of sync with CustomerStatus enum (critical bug), tenant_id defaults unsafely to 0 across all methods creating cross-tenant data-leak risk, and bulk_import defers all inserts to a single commit.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"tests/unit/test_customer_service.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 20,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"mock_session.execute is a plain MagicMock (not AsyncMock), so it returns a MagicMock directly rather than an awaitable. Any async test that calls service.list_customers, get_customer, search_customers, or update_customer would fail at runtime \u2014 currently undetected because only create_customer is tested.\\\",\\n        \\\"suggestion\\\": \\\"Replace mock_session = MagicMock(...) with mock_session = AsyncMock() and configure the return values for the execute chain (execute.return_value.scalars.return_value.all = AsyncMock(return_value=[])).\\\"\\n      },\\n      {\\n        \\\"line\\\": 185,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"Spacing error in assertion: 'assert call_args.name == \\\\\\\"Customer\\\\\\\"        # default from service' has trailing spaces and a comment that should be on its own line.\\\",\\n        \\\"suggestion\\\": \\\"Split into two lines: assert call_args.name == \\\\\\\"Customer\\\\\\\"  # default from service\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"mock_session.execute is a synchronous MagicMock that will cause async test failures as soon as any test calls session.execute in an async context \u2014 only create_customer is covered, leaving get_customer/list_customers/search_customers untested and their mocks unchecked.\\\"\\n  }\\n]\\n```\",\"stop_reason\":\"end_turn\",\"session_id\":\"3c34d8f1-9424-452f-b7e6-9a57ac63c2f3\",\"total_cost_usd\":0.32938995000000004,\"usage\":{\"input_tokens\":51437,\"cache_creation_input_tokens\":29049,\"cache_read_input_tokens\":51784,\"output_tokens\":3374,\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":0,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"\",\"iterations\":[],\"speed\":\"standard\"},\"modelUsage\":{\"claude-sonnet-4-6\":{\"inputTokens\":51437,\"outputTokens\":3374,\"cacheReadInputTokens\":51784,\"cacheCreationInputTokens\":29049,\"webSearchRequests\":0,\"costUSD\":0.32938995000000004,\"contextWindow\":200000,\"maxOutputTokens\":32000}},\"permission_denials\":[],\"terminal_reason\":\"completed\",\"fast_mode_state\":\"off\",\"uuid\":\"46a3cfa6-d456-48de-be35-ddf205884d86\"}\n",
+        "parsed": {
+          "filename": "src/services/customer_service.py",
+          "issues": [
+            {
+              "line": 17,
+              "severity": "critical",
+              "message": "VALID_STATUSES set is missing 'opportunity' and 'prospect', which are defined in CustomerStatus enum and used elsewhere \u2014 update_customer and change_status will raise ValidationException for these valid statuses.",
+              "suggestion": "Update VALID_STATUSES to: {'lead', 'opportunity', 'customer', 'partner', 'prospect', 'active', 'inactive', 'blocked'}"
+            },
+            {
+              "line": 25,
+              "severity": "critical",
+              "message": "tenant_id defaults to 0 across all methods (create_customer, list_customers, get_customer, update_customer, delete_customer, search_customers, bulk_import, etc.) \u2014 in a multi-tenant system this can cause cross-tenant data access if the caller forgets to pass tenant_id.",
+              "suggestion": "Make tenant_id a required parameter (remove the default value 0) so callers must explicitly provide it."
+            },
+            {
+              "line": 206,
+              "severity": "warning",
+              "message": "bulk_import adds all customers to the session but never calls flush() before commit \u2014 on very large imports this defers all inserts to the final commit, losing visibility into partial failures and potentially hitting database max packet sizes.",
+              "suggestion": "Add `await self.session.flush()` after the for loop or flush in batches (e.g., every 1000 rows) before the final commit."
+            }
+          ],
+          "summary": "VALID_STATUSES is out of sync with CustomerStatus enum (critical bug), tenant_id defaults unsafely to 0 across all methods creating cross-tenant data-leak risk, and bulk_import defers all inserts to a single commit."
+        }
+      },
+      {
+        "file": "tests/unit/test_customer_service.py",
+        "returncode": 0,
+        "output": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"api_error_status\":null,\"duration_ms\":147426,\"duration_api_ms\":147335,\"num_turns\":7,\"result\":\"\\n\\n```\\n[\\n  {\\n    \\\"filename\\\": \\\"src/models/customer.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 29,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"CustomerCreateDTO.status is typed as str with no validation, but Customer.status uses CustomerStatus enum \u2014 an invalid string value will silently pass creation and only fail when converted to Customer later.\\\",\\n        \\\"suggestion\\\": \\\"Use CustomerStatus enum for the status field in CustomerCreateDTO, or validate against CustomerStatus values before creation.\\\"\\n      },\\n      {\\n        \\\"line\\\": 49,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"CustomerCreateDTO.from_dict silently defaults missing 'name' and 'email' to empty string instead of raising a validation error \u2014 creates malformed DTOs with no signal.\\\",\\n        \\\"suggestion\\\": \\\"Raise ValidationException if 'name' or 'email' is missing or empty in from_dict.\\\"\\n      },\\n      {\\n        \\\"line\\\": 74,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"to_dict method on Customer dataclass lacks a return type annotation (declared as -> dict without module-level import of Dict).\\\",\\n        \\\"suggestion\\\": \\\"Add `from typing import Dict` and annotate as `-> Dict[str, Any]` for consistency with to_dict in CustomerCreateDTO.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"CustomerCreateDTO accepts invalid status strings and silently defaults missing required fields; overall type safety between DTO and entity is loose.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"src/services/customer_service.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 17,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"VALID_STATUSES set is missing 'opportunity' and 'prospect', which are defined in CustomerStatus enum and used elsewhere \u2014 update_customer and change_status will raise ValidationException for these valid statuses.\\\",\\n        \\\"suggestion\\\": \\\"Update VALID_STATUSES to: {'lead', 'opportunity', 'customer', 'partner', 'prospect', 'active', 'inactive', 'blocked'}\\\"\\n      },\\n      {\\n        \\\"line\\\": 25,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"tenant_id defaults to 0 across all methods (create_customer, list_customers, get_customer, update_customer, delete_customer, search_customers, bulk_import, etc.) \u2014 in a multi-tenant system this can cause cross-tenant data access if the caller forgets to pass tenant_id.\\\",\\n        \\\"suggestion\\\": \\\"Make tenant_id a required parameter (remove the default value 0) so callers must explicitly provide it.\\\"\\n      },\\n      {\\n        \\\"line\\\": 206,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"bulk_import adds all customers to the session but never calls flush() before commit \u2014 on very large imports this defers all inserts to the final commit, losing visibility into partial failures and potentially hitting database max packet sizes.\\\",\\n        \\\"suggestion\\\": \\\"Add `await self.session.flush()` after the for loop or flush in batches (e.g., every 1000 rows) before the final commit.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"VALID_STATUSES is out of sync with CustomerStatus enum (critical bug), tenant_id defaults unsafely to 0 across all methods creating cross-tenant data-leak risk, and bulk_import defers all inserts to a single commit.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"tests/unit/test_customer_service.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 20,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"mock_session.execute is a plain MagicMock (not AsyncMock), so it returns a MagicMock directly rather than an awaitable. Any async test that calls service.list_customers, get_customer, search_customers, or update_customer would fail at runtime \u2014 currently undetected because only create_customer is tested.\\\",\\n        \\\"suggestion\\\": \\\"Replace mock_session = MagicMock(...) with mock_session = AsyncMock() and configure the return values for the execute chain (execute.return_value.scalars.return_value.all = AsyncMock(return_value=[])).\\\"\\n      },\\n      {\\n        \\\"line\\\": 185,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"Spacing error in assertion: 'assert call_args.name == \\\\\\\"Customer\\\\\\\"        # default from service' has trailing spaces and a comment that should be on its own line.\\\",\\n        \\\"suggestion\\\": \\\"Split into two lines: assert call_args.name == \\\\\\\"Customer\\\\\\\"  # default from service\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"mock_session.execute is a synchronous MagicMock that will cause async test failures as soon as any test calls session.execute in an async context \u2014 only create_customer is covered, leaving get_customer/list_customers/search_customers untested and their mocks unchecked.\\\"\\n  }\\n]\\n```\",\"stop_reason\":\"end_turn\",\"session_id\":\"3c34d8f1-9424-452f-b7e6-9a57ac63c2f3\",\"total_cost_usd\":0.32938995000000004,\"usage\":{\"input_tokens\":51437,\"cache_creation_input_tokens\":29049,\"cache_read_input_tokens\":51784,\"output_tokens\":3374,\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":0,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"\",\"iterations\":[],\"speed\":\"standard\"},\"modelUsage\":{\"claude-sonnet-4-6\":{\"inputTokens\":51437,\"outputTokens\":3374,\"cacheReadInputTokens\":51784,\"cacheCreationInputTokens\":29049,\"webSearchRequests\":0,\"costUSD\":0.32938995000000004,\"contextWindow\":200000,\"maxOutputTokens\":32000}},\"permission_denials\":[],\"terminal_reason\":\"completed\",\"fast_mode_state\":\"off\",\"uuid\":\"46a3cfa6-d456-48de-be35-ddf205884d86\"}\n",
+        "parsed": {
+          "filename": "tests/unit/test_customer_service.py",
+          "issues": [
+            {
+              "line": 20,
+              "severity": "critical",
+              "message": "mock_session.execute is a plain MagicMock (not AsyncMock), so it returns a MagicMock directly rather than an awaitable. Any async test that calls service.list_customers, get_customer, search_customers, or update_customer would fail at runtime \u2014 currently undetected because only create_customer is tested.",
+              "suggestion": "Replace mock_session = MagicMock(...) with mock_session = AsyncMock() and configure the return values for the execute chain (execute.return_value.scalars.return_value.all = AsyncMock(return_value=[]))."
+            },
+            {
+              "line": 185,
+              "severity": "warning",
+              "message": "Spacing error in assertion: 'assert call_args.name == \"Customer\"        # default from service' has trailing spaces and a comment that should be on its own line.",
+              "suggestion": "Split into two lines: assert call_args.name == \"Customer\"  # default from service"
+            }
+          ],
+          "summary": "mock_session.execute is a synchronous MagicMock that will cause async test failures as soon as any test calls session.execute in an async context \u2014 only create_customer is covered, leaving get_customer/list_customers/search_customers untested and their mocks unchecked."
+        }
+      }
+    ]
   }
 }
