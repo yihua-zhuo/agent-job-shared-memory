@@ -3,269 +3,149 @@
   "verdict": "fail",
   "critical_issues": [
     {
-      "file": "src/services/customer_service.py",
-      "line": 148,
+      "file": "scripts/ci/execute_implementation.py",
+      "line": 189,
       "severity": "critical",
-      "msg": "Rule 53: search_customers passes user input directly into ilike without escaping SQL wildcards. An empty keyword or crafted input like '%' will match all records, bypassing intent.",
-      "suggestion": "Escape '%' and '_' in keyword before building the pattern, e.g.: kw = keyword.replace('\\\\', '\\\\\\\\').replace('%', '\\\\%').replace('_', '\\\\_') + '%'"
+      "msg": "GITHUB_OUTPUT values are written without the `<<` delimiter syntax \u2014 multiline values (e.g. plan text) will corrupt the output file and cause workflow steps to misread or reject subsequent outputs.",
+      "suggestion": "In `write_outputs`, for each value use: `f.write(f\"{k}<<{v}\\n\")` \u2014 or use `shlex.join` on the file write, or follow the delimited-heredoc pattern GitHub Actions requires for multi-line values."
     },
     {
-      "file": "src/services/customer_service.py",
-      "line": 215,
+      "file": "scripts/ci/execute_implementation.py",
+      "line": 193,
       "severity": "critical",
-      "msg": "Rule 123: bulk_import calls session.flush() but never refreshes the objects, so auto-generated IDs are never populated on the inserted CustomerModel instances. Any caller relying on returned IDs gets None.",
-      "suggestion": "Call await self.session.refresh(customer) for each customer after flush, or track inserted IDs via a separate SELECT after flush."
-    },
-    {
-      "file": "tests/unit/test_customer_service.py",
-      "line": 146,
-      "severity": "critical",
-      "msg": "Rule 122 / project convention: The test asserts that session.commit is called in the service, but services must only flush \u2014 never commit. The router layer owns the transaction boundary. This test encodes an incorrect expectation.",
-      "suggestion": "Remove the commit assertion. Replace with: mock_db_session.flush.assert_called_once() \u2014 matching the correct service behavior."
+      "msg": "Same GITHUB_OUTPUT delimiter issue as above \u2014 `f.write(f\"{k}={v}\\n\")` is the raw format, which breaks for values containing newlines.",
+      "suggestion": "Append `<<` after each value: `f.write(f\"{k}={v}\\n<<\\n\")` to mark the end of the delimited value block per GitHub Actions convention."
     }
   ],
   "suggestions": [
     {
-      "file": "src/services/customer_service.py",
-      "line": 73,
+      "file": ".github/workflows/implement-ready-issues.yml",
+      "line": 0,
       "severity": "warning",
-      "msg": "Rule 85: tags parameter is accepted but never used \u2014 customers are never filtered by tags despite being listed in the function signature.",
-      "suggestion": "Either implement the tags filter or remove the parameter to avoid misleading callers."
+      "msg": "Step output 'branch' is read in a subsequent shell block (line 79: git checkout -b \"${{ steps.plan.outputs.branch }}\") without delimiter quoting \u2014 if branch name contains newlines or special chars, it can corrupt git command syntax.",
+      "suggestion": "Use delimiter quoting in the step output: add `branch=${{ steps.plan.outputs.branch }}<<` to `write_outputs` in `scripts/ci/claim_and_plan_issue.py` (see that file's issue), so the workflow reading it is protected automatically."
     },
     {
-      "file": "src/services/customer_service.py",
-      "line": 100,
-      "severity": "info",
-      "msg": "Rule 57: Error message uses hardcoded Chinese string '\u5ba2\u6237' instead of English, inconsistent with the rest of the service.",
-      "suggestion": "Use a consistent English identifier, e.g. NotFoundException('Customer')."
-    },
-    {
-      "file": "src/services/customer_service.py",
-      "line": 135,
-      "severity": "info",
-      "msg": "Rule 57: Error message uses hardcoded Chinese string '\u5ba2\u6237' instead of English.",
-      "suggestion": "Use NotFoundException('Customer') for consistency."
-    },
-    {
-      "file": "src/services/customer_service.py",
-      "line": 150,
+      "file": "scripts/ci/execute_implementation.py",
+      "line": 80,
       "severity": "warning",
-      "msg": "Rule 33: search_customers always uses a hard-coded limit of 100 with no pagination \u2014 callers cannot page through large result sets.",
-      "suggestion": "Add optional page/page_size parameters to search_customers, matching the pattern used in list_customers."
+      "msg": "subprocess.Popen with `bufsize=1` (unbuffered) on a pipe is not portable across platforms \u2014 Python requires `bufsize=-1` (fully buffered) or `bufsize=0` (unbuffered, requires binary mode) for pipe streams; `1` maps to fully buffered on some POSIX and is ignored on others.",
+      "suggestion": "Change `bufsize=1` to `bufsize=0` and keep `text=True` \u2014 Python will handle line buffering automatically when writing to a TTY, or rely on explicit `out.flush()` calls already present (line 122)."
     },
     {
-      "file": "src/services/customer_service.py",
-      "line": 18,
+      "file": "scripts/ci/execute_implementation.py",
+      "line": 88,
       "severity": "info",
-      "msg": "Rule 27: VALID_STATUSES is a class-level set of strings but the service also imports and uses models.customer.CustomerStatus (an Enum). These two sets are not reconciled \u2014 a status valid by one may be invalid by the other.",
-      "suggestion": "Derive VALID_STATUSES from CustomerStatus members, or remove the duplicate validation layer."
-    },
-    {
-      "file": "tests/unit/test_customer_service.py",
-      "line": 27,
-      "severity": "info",
-      "msg": "Rule 66: mock_db_session fixture wires fetchall and all on the same mock result, but the actual service only uses .all() for count_by_status. fetchall wiring is dead code.",
-      "suggestion": "Remove the fetchall mock line; it is not exercised by any test."
-    },
-    {
-      "file": "tests/unit/test_customer_service.py",
-      "line": 9,
-      "severity": "warning",
-      "msg": "Rule 8: sys.path.insert at module level is a fragile workaround \u2014 it duplicates the role of PYTHONPATH and breaks if tests are run from different working directories.",
-      "suggestion": "Remove the sys.path manipulation and set PYTHONPATH=src in pytest.ini or pyproject.toml under [tool.pytest.ini_options]."
-    },
-    {
-      "file": "tests/unit/test_customer_service.py",
-      "line": 19,
-      "severity": "warning",
-      "msg": "Rule 66 / project convention: mock_db_session wires commit as AsyncMock, but commit must never be called from services \u2014 this mocks the wrong call. AsyncMock on commit can mask the bug where a service incorrectly calls commit.",
-      "suggestion": "Remove session.commit from the fixture entirely. If a test needs to verify flush-not-commit, a no-op MagicMock for commit is more honest than AsyncMock."
+      "msg": "No retry logic for transient failures (network timeouts, rate limits, Claude API errors). A single transient error causes the entire 60-min workflow to abort and requeue the issue, wasting CI minutes.",
+      "suggestion": "Wrap the `stream_claude` call in a retry loop (3 attempts, exponential backoff) for return codes that may be transient."
     }
   ],
-  "summary": "Reviewed 2 file(s) between origin/master and origin/issue-271-customer-dto.",
+  "summary": "Reviewed 2 file(s) between origin/master and origin/develop.",
   "details": {
     "llm_parsed": {
       "verdict": "fail",
       "critical": [
         {
-          "file": "src/services/customer_service.py",
-          "line": 148,
+          "file": "scripts/ci/execute_implementation.py",
+          "line": 189,
           "severity": "critical",
-          "msg": "Rule 53: search_customers passes user input directly into ilike without escaping SQL wildcards. An empty keyword or crafted input like '%' will match all records, bypassing intent.",
-          "suggestion": "Escape '%' and '_' in keyword before building the pattern, e.g.: kw = keyword.replace('\\\\', '\\\\\\\\').replace('%', '\\\\%').replace('_', '\\\\_') + '%'"
+          "msg": "GITHUB_OUTPUT values are written without the `<<` delimiter syntax \u2014 multiline values (e.g. plan text) will corrupt the output file and cause workflow steps to misread or reject subsequent outputs.",
+          "suggestion": "In `write_outputs`, for each value use: `f.write(f\"{k}<<{v}\\n\")` \u2014 or use `shlex.join` on the file write, or follow the delimited-heredoc pattern GitHub Actions requires for multi-line values."
         },
         {
-          "file": "src/services/customer_service.py",
-          "line": 215,
+          "file": "scripts/ci/execute_implementation.py",
+          "line": 193,
           "severity": "critical",
-          "msg": "Rule 123: bulk_import calls session.flush() but never refreshes the objects, so auto-generated IDs are never populated on the inserted CustomerModel instances. Any caller relying on returned IDs gets None.",
-          "suggestion": "Call await self.session.refresh(customer) for each customer after flush, or track inserted IDs via a separate SELECT after flush."
-        },
-        {
-          "file": "tests/unit/test_customer_service.py",
-          "line": 146,
-          "severity": "critical",
-          "msg": "Rule 122 / project convention: The test asserts that session.commit is called in the service, but services must only flush \u2014 never commit. The router layer owns the transaction boundary. This test encodes an incorrect expectation.",
-          "suggestion": "Remove the commit assertion. Replace with: mock_db_session.flush.assert_called_once() \u2014 matching the correct service behavior."
+          "msg": "Same GITHUB_OUTPUT delimiter issue as above \u2014 `f.write(f\"{k}={v}\\n\")` is the raw format, which breaks for values containing newlines.",
+          "suggestion": "Append `<<` after each value: `f.write(f\"{k}={v}\\n<<\\n\")` to mark the end of the delimited value block per GitHub Actions convention."
         }
       ],
       "warnings": [
         {
-          "file": "src/services/customer_service.py",
-          "line": 73,
+          "file": ".github/workflows/implement-ready-issues.yml",
+          "line": 0,
           "severity": "warning",
-          "msg": "Rule 85: tags parameter is accepted but never used \u2014 customers are never filtered by tags despite being listed in the function signature.",
-          "suggestion": "Either implement the tags filter or remove the parameter to avoid misleading callers."
+          "msg": "Step output 'branch' is read in a subsequent shell block (line 79: git checkout -b \"${{ steps.plan.outputs.branch }}\") without delimiter quoting \u2014 if branch name contains newlines or special chars, it can corrupt git command syntax.",
+          "suggestion": "Use delimiter quoting in the step output: add `branch=${{ steps.plan.outputs.branch }}<<` to `write_outputs` in `scripts/ci/claim_and_plan_issue.py` (see that file's issue), so the workflow reading it is protected automatically."
         },
         {
-          "file": "src/services/customer_service.py",
-          "line": 100,
-          "severity": "info",
-          "msg": "Rule 57: Error message uses hardcoded Chinese string '\u5ba2\u6237' instead of English, inconsistent with the rest of the service.",
-          "suggestion": "Use a consistent English identifier, e.g. NotFoundException('Customer')."
-        },
-        {
-          "file": "src/services/customer_service.py",
-          "line": 135,
-          "severity": "info",
-          "msg": "Rule 57: Error message uses hardcoded Chinese string '\u5ba2\u6237' instead of English.",
-          "suggestion": "Use NotFoundException('Customer') for consistency."
-        },
-        {
-          "file": "src/services/customer_service.py",
-          "line": 150,
+          "file": "scripts/ci/execute_implementation.py",
+          "line": 80,
           "severity": "warning",
-          "msg": "Rule 33: search_customers always uses a hard-coded limit of 100 with no pagination \u2014 callers cannot page through large result sets.",
-          "suggestion": "Add optional page/page_size parameters to search_customers, matching the pattern used in list_customers."
+          "msg": "subprocess.Popen with `bufsize=1` (unbuffered) on a pipe is not portable across platforms \u2014 Python requires `bufsize=-1` (fully buffered) or `bufsize=0` (unbuffered, requires binary mode) for pipe streams; `1` maps to fully buffered on some POSIX and is ignored on others.",
+          "suggestion": "Change `bufsize=1` to `bufsize=0` and keep `text=True` \u2014 Python will handle line buffering automatically when writing to a TTY, or rely on explicit `out.flush()` calls already present (line 122)."
         },
         {
-          "file": "src/services/customer_service.py",
-          "line": 18,
+          "file": "scripts/ci/execute_implementation.py",
+          "line": 88,
           "severity": "info",
-          "msg": "Rule 27: VALID_STATUSES is a class-level set of strings but the service also imports and uses models.customer.CustomerStatus (an Enum). These two sets are not reconciled \u2014 a status valid by one may be invalid by the other.",
-          "suggestion": "Derive VALID_STATUSES from CustomerStatus members, or remove the duplicate validation layer."
-        },
-        {
-          "file": "tests/unit/test_customer_service.py",
-          "line": 27,
-          "severity": "info",
-          "msg": "Rule 66: mock_db_session fixture wires fetchall and all on the same mock result, but the actual service only uses .all() for count_by_status. fetchall wiring is dead code.",
-          "suggestion": "Remove the fetchall mock line; it is not exercised by any test."
-        },
-        {
-          "file": "tests/unit/test_customer_service.py",
-          "line": 9,
-          "severity": "warning",
-          "msg": "Rule 8: sys.path.insert at module level is a fragile workaround \u2014 it duplicates the role of PYTHONPATH and breaks if tests are run from different working directories.",
-          "suggestion": "Remove the sys.path manipulation and set PYTHONPATH=src in pytest.ini or pyproject.toml under [tool.pytest.ini_options]."
-        },
-        {
-          "file": "tests/unit/test_customer_service.py",
-          "line": 19,
-          "severity": "warning",
-          "msg": "Rule 66 / project convention: mock_db_session wires commit as AsyncMock, but commit must never be called from services \u2014 this mocks the wrong call. AsyncMock on commit can mask the bug where a service incorrectly calls commit.",
-          "suggestion": "Remove session.commit from the fixture entirely. If a test needs to verify flush-not-commit, a no-op MagicMock for commit is more honest than AsyncMock."
+          "msg": "No retry logic for transient failures (network timeouts, rate limits, Claude API errors). A single transient error causes the entire 60-min workflow to abort and requeue the issue, wasting CI minutes.",
+          "suggestion": "Wrap the `stream_claude` call in a retry loop (3 attempts, exponential backoff) for return codes that may be transient."
         }
       ],
-      "summary": "Reviewed 2 file(s) between origin/master and origin/issue-271-customer-dto."
+      "summary": "Reviewed 2 file(s) between origin/master and origin/develop."
     },
     "reviewed_refs": {
       "base": "337a134bfad8e842fb9a6a0a06b3a66f935ef7ce",
-      "head": "6acff2afc085910007903c30768e72d10d3db29f",
+      "head": "f0c08510f9ce347737d02b45fb7c69a512de45d2",
       "base_label": "origin/master",
-      "head_label": "origin/issue-271-customer-dto"
+      "head_label": "origin/develop"
     },
     "reviewed_files": [
-      "src/services/customer_service.py",
-      "tests/unit/test_customer_service.py"
+      ".github/workflows/implement-ready-issues.yml",
+      "scripts/ci/execute_implementation.py"
     ],
     "per_file_reviews": [
       {
-        "file": "src/services/customer_service.py",
+        "file": ".github/workflows/implement-ready-issues.yml",
         "returncode": 0,
-        "output": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"api_error_status\":null,\"duration_ms\":59247,\"duration_api_ms\":59204,\"num_turns\":3,\"result\":\"\\n\\n[\\n  {\\n    \\\"filename\\\": \\\"src/services/customer_service.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 73,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"Rule 85: tags parameter is accepted but never used \u2014 customers are never filtered by tags despite being listed in the function signature.\\\",\\n        \\\"suggestion\\\": \\\"Either implement the tags filter or remove the parameter to avoid misleading callers.\\\"\\n      },\\n      {\\n        \\\"line\\\": 100,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"Rule 57: Error message uses hardcoded Chinese string '\u5ba2\u6237' instead of English, inconsistent with the rest of the service.\\\",\\n        \\\"suggestion\\\": \\\"Use a consistent English identifier, e.g. NotFoundException('Customer').\\\"\\n      },\\n      {\\n        \\\"line\\\": 135,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"Rule 57: Error message uses hardcoded Chinese string '\u5ba2\u6237' instead of English.\\\",\\n        \\\"suggestion\\\": \\\"Use NotFoundException('Customer') for consistency.\\\"\\n      },\\n      {\\n        \\\"line\\\": 148,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"Rule 53: search_customers passes user input directly into ilike without escaping SQL wildcards. An empty keyword or crafted input like '%' will match all records, bypassing intent.\\\",\\n        \\\"suggestion\\\": \\\"Escape '%' and '_' in keyword before building the pattern, e.g.: kw = keyword.replace('\\\\\\\\\\\\\\\\', '\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\').replace('%', '\\\\\\\\\\\\\\\\%').replace('_', '\\\\\\\\\\\\\\\\_') + '%'\\\"\\n      },\\n      {\\n        \\\"line\\\": 150,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"Rule 33: search_customers always uses a hard-coded limit of 100 with no pagination \u2014 callers cannot page through large result sets.\\\",\\n        \\\"suggestion\\\": \\\"Add optional page/page_size parameters to search_customers, matching the pattern used in list_customers.\\\"\\n      },\\n      {\\n        \\\"line\\\": 215,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"Rule 123: bulk_import calls session.flush() but never refreshes the objects, so auto-generated IDs are never populated on the inserted CustomerModel instances. Any caller relying on returned IDs gets None.\\\",\\n        \\\"suggestion\\\": \\\"Call await self.session.refresh(customer) for each customer after flush, or track inserted IDs via a separate SELECT after flush.\\\"\\n      },\\n      {\\n        \\\"line\\\": 18,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"Rule 27: VALID_STATUSES is a class-level set of strings but the service also imports and uses models.customer.CustomerStatus (an Enum). These two sets are not reconciled \u2014 a status valid by one may be invalid by the other.\\\",\\n        \\\"suggestion\\\": \\\"Derive VALID_STATUSES from CustomerStatus members, or remove the duplicate validation layer.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Core CRUD logic is sound with correct flush/refresh patterns, but bulk_import leaves auto-generated IDs unpopulated, search_customers is vulnerable to SQL wildcard injection, and an unimplemented tags parameter creates a misleading API surface.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"tests/unit/test_customer_service.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 146,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"Rule 122 / project convention: The test asserts that session.commit is called in the service, but services must only flush \u2014 never commit. The router layer owns the transaction boundary. This test encodes an incorrect expectation.\\\",\\n        \\\"suggestion\\\": \\\"Remove the commit assertion. Replace with: mock_db_session.flush.assert_called_once() \u2014 matching the correct service behavior.\\\"\\n      },\\n      {\\n        \\\"line\\\": 27,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"Rule 66: mock_db_session fixture wires fetchall and all on the same mock result, but the actual service only uses .all() for count_by_status. fetchall wiring is dead code.\\\",\\n        \\\"suggestion\\\": \\\"Remove the fetchall mock line; it is not exercised by any test.\\\"\\n      },\\n      {\\n        \\\"line\\\": 9,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"Rule 8: sys.path.insert at module level is a fragile workaround \u2014 it duplicates the role of PYTHONPATH and breaks if tests are run from different working directories.\\\",\\n        \\\"suggestion\\\": \\\"Remove the sys.path manipulation and set PYTHONPATH=src in pytest.ini or pyproject.toml under [tool.pytest.ini_options].\\\"\\n      },\\n      {\\n        \\\"line\\\": 19,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"Rule 66 / project convention: mock_db_session wires commit as AsyncMock, but commit must never be called from services \u2014 this mocks the wrong call. AsyncMock on commit can mask the bug where a service incorrectly calls commit.\\\",\\n        \\\"suggestion\\\": \\\"Remove session.commit from the fixture entirely. If a test needs to verify flush-not-commit, a no-op MagicMock for commit is more honest than AsyncMock.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Tests cover the DTO and count_by_status logic well, but one test asserts session.commit (forbidden in services) and the fixture's path manipulation is an anti-pattern \u2014 PYTHONPATH should be configured in the test runner, not injected at import time.\\\"\\n  }\\n]\",\"stop_reason\":\"end_turn\",\"session_id\":\"f1b6f1b8-873a-4cb9-9391-51b5923c7801\",\"total_cost_usd\":0.1442838,\"usage\":{\"input_tokens\":35114,\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":30656,\"output_tokens\":1983,\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":0,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"\",\"iterations\":[],\"speed\":\"standard\"},\"modelUsage\":{\"claude-sonnet-4-6\":{\"inputTokens\":35114,\"outputTokens\":1983,\"cacheReadInputTokens\":30656,\"cacheCreationInputTokens\":0,\"webSearchRequests\":0,\"costUSD\":0.1442838,\"contextWindow\":200000,\"maxOutputTokens\":32000}},\"permission_denials\":[],\"terminal_reason\":\"completed\",\"fast_mode_state\":\"off\",\"uuid\":\"a84a0c3d-001f-4dcd-ab91-94c370ea2b3f\"}\n",
+        "output": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"api_error_status\":null,\"duration_ms\":125131,\"duration_api_ms\":124999,\"num_turns\":10,\"result\":\"\\n\\n```json\\n[\\n  {\\n    \\\"filename\\\": \\\".github/workflows/implement-ready-issues.yml\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 0,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"Step output 'branch' is read in a subsequent shell block (line 79: git checkout -b \\\\\\\"${{ steps.plan.outputs.branch }}\\\\\\\") without delimiter quoting \u2014 if branch name contains newlines or special chars, it can corrupt git command syntax.\\\",\\n        \\\"suggestion\\\": \\\"Use delimiter quoting in the step output: add `branch=${{ steps.plan.outputs.branch }}<<` to `write_outputs` in `scripts/ci/claim_and_plan_issue.py` (see that file's issue), so the workflow reading it is protected automatically.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Well-structured CI pipeline with proper concurrency control, retry loops, and staged gates; minor GITHUB_OUTPUT quoting risk is inherited from the script.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"scripts/ci/execute_implementation.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 189,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"GITHUB_OUTPUT values are written without the `<<` delimiter syntax \u2014 multiline values (e.g. plan text) will corrupt the output file and cause workflow steps to misread or reject subsequent outputs.\\\",\\n        \\\"suggestion\\\": \\\"In `write_outputs`, for each value use: `f.write(f\\\\\\\"{k}<<{v}\\\\\\\\n\\\\\\\")` \u2014 or use `shlex.join` on the file write, or follow the delimited-heredoc pattern GitHub Actions requires for multi-line values.\\\"\\n      },\\n      {\\n        \\\"line\\\": 193,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"Same GITHUB_OUTPUT delimiter issue as above \u2014 `f.write(f\\\\\\\"{k}={v}\\\\\\\\n\\\\\\\")` is the raw format, which breaks for values containing newlines.\\\",\\n        \\\"suggestion\\\": \\\"Append `<<` after each value: `f.write(f\\\\\\\"{k}={v}\\\\\\\\n<<\\\\\\\\n\\\\\\\")` to mark the end of the delimited value block per GitHub Actions convention.\\\"\\n      },\\n      {\\n        \\\"line\\\": 80,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"subprocess.Popen with `bufsize=1` (unbuffered) on a pipe is not portable across platforms \u2014 Python requires `bufsize=-1` (fully buffered) or `bufsize=0` (unbuffered, requires binary mode) for pipe streams; `1` maps to fully buffered on some POSIX and is ignored on others.\\\",\\n        \\\"suggestion\\\": \\\"Change `bufsize=1` to `bufsize=0` and keep `text=True` \u2014 Python will handle line buffering automatically when writing to a TTY, or rely on explicit `out.flush()` calls already present (line 122).\\\"\\n      },\\n      {\\n        \\\"line\\\": 88,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"No retry logic for transient failures (network timeouts, rate limits, Claude API errors). A single transient error causes the entire 60-min workflow to abort and requeue the issue, wasting CI minutes.\\\",\\n        \\\"suggestion\\\": \\\"Wrap the `stream_claude` call in a retry loop (3 attempts, exponential backoff) for return codes that may be transient.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Solid design with real-time streaming and proper timeout handling; GITHUB_OUTPUT delimiter fix is critical and `bufsize=1` may cause portability issues on some systems.\\\"\\n  }\\n]\\n```\",\"stop_reason\":\"end_turn\",\"session_id\":\"d4c6a282-a943-4d05-b6ca-fc865f028f81\",\"total_cost_usd\":0.34748280000000004,\"usage\":{\"input_tokens\":39981,\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":292416,\"output_tokens\":9321,\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":0,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"\",\"iterations\":[],\"speed\":\"standard\"},\"modelUsage\":{\"claude-sonnet-4-6\":{\"inputTokens\":39981,\"outputTokens\":9321,\"cacheReadInputTokens\":292416,\"cacheCreationInputTokens\":0,\"webSearchRequests\":0,\"costUSD\":0.34748280000000004,\"contextWindow\":200000,\"maxOutputTokens\":32000}},\"permission_denials\":[],\"terminal_reason\":\"completed\",\"fast_mode_state\":\"off\",\"uuid\":\"b392eb81-162d-4181-972b-3fbc196429e0\"}\n",
         "parsed": {
-          "filename": "src/services/customer_service.py",
+          "filename": ".github/workflows/implement-ready-issues.yml",
           "issues": [
             {
-              "line": 73,
+              "line": 0,
               "severity": "warning",
-              "message": "Rule 85: tags parameter is accepted but never used \u2014 customers are never filtered by tags despite being listed in the function signature.",
-              "suggestion": "Either implement the tags filter or remove the parameter to avoid misleading callers."
-            },
-            {
-              "line": 100,
-              "severity": "info",
-              "message": "Rule 57: Error message uses hardcoded Chinese string '\u5ba2\u6237' instead of English, inconsistent with the rest of the service.",
-              "suggestion": "Use a consistent English identifier, e.g. NotFoundException('Customer')."
-            },
-            {
-              "line": 135,
-              "severity": "info",
-              "message": "Rule 57: Error message uses hardcoded Chinese string '\u5ba2\u6237' instead of English.",
-              "suggestion": "Use NotFoundException('Customer') for consistency."
-            },
-            {
-              "line": 148,
-              "severity": "critical",
-              "message": "Rule 53: search_customers passes user input directly into ilike without escaping SQL wildcards. An empty keyword or crafted input like '%' will match all records, bypassing intent.",
-              "suggestion": "Escape '%' and '_' in keyword before building the pattern, e.g.: kw = keyword.replace('\\\\', '\\\\\\\\').replace('%', '\\\\%').replace('_', '\\\\_') + '%'"
-            },
-            {
-              "line": 150,
-              "severity": "warning",
-              "message": "Rule 33: search_customers always uses a hard-coded limit of 100 with no pagination \u2014 callers cannot page through large result sets.",
-              "suggestion": "Add optional page/page_size parameters to search_customers, matching the pattern used in list_customers."
-            },
-            {
-              "line": 215,
-              "severity": "critical",
-              "message": "Rule 123: bulk_import calls session.flush() but never refreshes the objects, so auto-generated IDs are never populated on the inserted CustomerModel instances. Any caller relying on returned IDs gets None.",
-              "suggestion": "Call await self.session.refresh(customer) for each customer after flush, or track inserted IDs via a separate SELECT after flush."
-            },
-            {
-              "line": 18,
-              "severity": "info",
-              "message": "Rule 27: VALID_STATUSES is a class-level set of strings but the service also imports and uses models.customer.CustomerStatus (an Enum). These two sets are not reconciled \u2014 a status valid by one may be invalid by the other.",
-              "suggestion": "Derive VALID_STATUSES from CustomerStatus members, or remove the duplicate validation layer."
+              "message": "Step output 'branch' is read in a subsequent shell block (line 79: git checkout -b \"${{ steps.plan.outputs.branch }}\") without delimiter quoting \u2014 if branch name contains newlines or special chars, it can corrupt git command syntax.",
+              "suggestion": "Use delimiter quoting in the step output: add `branch=${{ steps.plan.outputs.branch }}<<` to `write_outputs` in `scripts/ci/claim_and_plan_issue.py` (see that file's issue), so the workflow reading it is protected automatically."
             }
           ],
-          "summary": "Core CRUD logic is sound with correct flush/refresh patterns, but bulk_import leaves auto-generated IDs unpopulated, search_customers is vulnerable to SQL wildcard injection, and an unimplemented tags parameter creates a misleading API surface."
+          "summary": "Well-structured CI pipeline with proper concurrency control, retry loops, and staged gates; minor GITHUB_OUTPUT quoting risk is inherited from the script."
         }
       },
       {
-        "file": "tests/unit/test_customer_service.py",
+        "file": "scripts/ci/execute_implementation.py",
         "returncode": 0,
-        "output": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"api_error_status\":null,\"duration_ms\":59247,\"duration_api_ms\":59204,\"num_turns\":3,\"result\":\"\\n\\n[\\n  {\\n    \\\"filename\\\": \\\"src/services/customer_service.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 73,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"Rule 85: tags parameter is accepted but never used \u2014 customers are never filtered by tags despite being listed in the function signature.\\\",\\n        \\\"suggestion\\\": \\\"Either implement the tags filter or remove the parameter to avoid misleading callers.\\\"\\n      },\\n      {\\n        \\\"line\\\": 100,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"Rule 57: Error message uses hardcoded Chinese string '\u5ba2\u6237' instead of English, inconsistent with the rest of the service.\\\",\\n        \\\"suggestion\\\": \\\"Use a consistent English identifier, e.g. NotFoundException('Customer').\\\"\\n      },\\n      {\\n        \\\"line\\\": 135,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"Rule 57: Error message uses hardcoded Chinese string '\u5ba2\u6237' instead of English.\\\",\\n        \\\"suggestion\\\": \\\"Use NotFoundException('Customer') for consistency.\\\"\\n      },\\n      {\\n        \\\"line\\\": 148,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"Rule 53: search_customers passes user input directly into ilike without escaping SQL wildcards. An empty keyword or crafted input like '%' will match all records, bypassing intent.\\\",\\n        \\\"suggestion\\\": \\\"Escape '%' and '_' in keyword before building the pattern, e.g.: kw = keyword.replace('\\\\\\\\\\\\\\\\', '\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\').replace('%', '\\\\\\\\\\\\\\\\%').replace('_', '\\\\\\\\\\\\\\\\_') + '%'\\\"\\n      },\\n      {\\n        \\\"line\\\": 150,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"Rule 33: search_customers always uses a hard-coded limit of 100 with no pagination \u2014 callers cannot page through large result sets.\\\",\\n        \\\"suggestion\\\": \\\"Add optional page/page_size parameters to search_customers, matching the pattern used in list_customers.\\\"\\n      },\\n      {\\n        \\\"line\\\": 215,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"Rule 123: bulk_import calls session.flush() but never refreshes the objects, so auto-generated IDs are never populated on the inserted CustomerModel instances. Any caller relying on returned IDs gets None.\\\",\\n        \\\"suggestion\\\": \\\"Call await self.session.refresh(customer) for each customer after flush, or track inserted IDs via a separate SELECT after flush.\\\"\\n      },\\n      {\\n        \\\"line\\\": 18,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"Rule 27: VALID_STATUSES is a class-level set of strings but the service also imports and uses models.customer.CustomerStatus (an Enum). These two sets are not reconciled \u2014 a status valid by one may be invalid by the other.\\\",\\n        \\\"suggestion\\\": \\\"Derive VALID_STATUSES from CustomerStatus members, or remove the duplicate validation layer.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Core CRUD logic is sound with correct flush/refresh patterns, but bulk_import leaves auto-generated IDs unpopulated, search_customers is vulnerable to SQL wildcard injection, and an unimplemented tags parameter creates a misleading API surface.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"tests/unit/test_customer_service.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 146,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"Rule 122 / project convention: The test asserts that session.commit is called in the service, but services must only flush \u2014 never commit. The router layer owns the transaction boundary. This test encodes an incorrect expectation.\\\",\\n        \\\"suggestion\\\": \\\"Remove the commit assertion. Replace with: mock_db_session.flush.assert_called_once() \u2014 matching the correct service behavior.\\\"\\n      },\\n      {\\n        \\\"line\\\": 27,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"Rule 66: mock_db_session fixture wires fetchall and all on the same mock result, but the actual service only uses .all() for count_by_status. fetchall wiring is dead code.\\\",\\n        \\\"suggestion\\\": \\\"Remove the fetchall mock line; it is not exercised by any test.\\\"\\n      },\\n      {\\n        \\\"line\\\": 9,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"Rule 8: sys.path.insert at module level is a fragile workaround \u2014 it duplicates the role of PYTHONPATH and breaks if tests are run from different working directories.\\\",\\n        \\\"suggestion\\\": \\\"Remove the sys.path manipulation and set PYTHONPATH=src in pytest.ini or pyproject.toml under [tool.pytest.ini_options].\\\"\\n      },\\n      {\\n        \\\"line\\\": 19,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"Rule 66 / project convention: mock_db_session wires commit as AsyncMock, but commit must never be called from services \u2014 this mocks the wrong call. AsyncMock on commit can mask the bug where a service incorrectly calls commit.\\\",\\n        \\\"suggestion\\\": \\\"Remove session.commit from the fixture entirely. If a test needs to verify flush-not-commit, a no-op MagicMock for commit is more honest than AsyncMock.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Tests cover the DTO and count_by_status logic well, but one test asserts session.commit (forbidden in services) and the fixture's path manipulation is an anti-pattern \u2014 PYTHONPATH should be configured in the test runner, not injected at import time.\\\"\\n  }\\n]\",\"stop_reason\":\"end_turn\",\"session_id\":\"f1b6f1b8-873a-4cb9-9391-51b5923c7801\",\"total_cost_usd\":0.1442838,\"usage\":{\"input_tokens\":35114,\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":30656,\"output_tokens\":1983,\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":0,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"\",\"iterations\":[],\"speed\":\"standard\"},\"modelUsage\":{\"claude-sonnet-4-6\":{\"inputTokens\":35114,\"outputTokens\":1983,\"cacheReadInputTokens\":30656,\"cacheCreationInputTokens\":0,\"webSearchRequests\":0,\"costUSD\":0.1442838,\"contextWindow\":200000,\"maxOutputTokens\":32000}},\"permission_denials\":[],\"terminal_reason\":\"completed\",\"fast_mode_state\":\"off\",\"uuid\":\"a84a0c3d-001f-4dcd-ab91-94c370ea2b3f\"}\n",
+        "output": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"api_error_status\":null,\"duration_ms\":125131,\"duration_api_ms\":124999,\"num_turns\":10,\"result\":\"\\n\\n```json\\n[\\n  {\\n    \\\"filename\\\": \\\".github/workflows/implement-ready-issues.yml\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 0,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"Step output 'branch' is read in a subsequent shell block (line 79: git checkout -b \\\\\\\"${{ steps.plan.outputs.branch }}\\\\\\\") without delimiter quoting \u2014 if branch name contains newlines or special chars, it can corrupt git command syntax.\\\",\\n        \\\"suggestion\\\": \\\"Use delimiter quoting in the step output: add `branch=${{ steps.plan.outputs.branch }}<<` to `write_outputs` in `scripts/ci/claim_and_plan_issue.py` (see that file's issue), so the workflow reading it is protected automatically.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Well-structured CI pipeline with proper concurrency control, retry loops, and staged gates; minor GITHUB_OUTPUT quoting risk is inherited from the script.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"scripts/ci/execute_implementation.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 189,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"GITHUB_OUTPUT values are written without the `<<` delimiter syntax \u2014 multiline values (e.g. plan text) will corrupt the output file and cause workflow steps to misread or reject subsequent outputs.\\\",\\n        \\\"suggestion\\\": \\\"In `write_outputs`, for each value use: `f.write(f\\\\\\\"{k}<<{v}\\\\\\\\n\\\\\\\")` \u2014 or use `shlex.join` on the file write, or follow the delimited-heredoc pattern GitHub Actions requires for multi-line values.\\\"\\n      },\\n      {\\n        \\\"line\\\": 193,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"Same GITHUB_OUTPUT delimiter issue as above \u2014 `f.write(f\\\\\\\"{k}={v}\\\\\\\\n\\\\\\\")` is the raw format, which breaks for values containing newlines.\\\",\\n        \\\"suggestion\\\": \\\"Append `<<` after each value: `f.write(f\\\\\\\"{k}={v}\\\\\\\\n<<\\\\\\\\n\\\\\\\")` to mark the end of the delimited value block per GitHub Actions convention.\\\"\\n      },\\n      {\\n        \\\"line\\\": 80,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"subprocess.Popen with `bufsize=1` (unbuffered) on a pipe is not portable across platforms \u2014 Python requires `bufsize=-1` (fully buffered) or `bufsize=0` (unbuffered, requires binary mode) for pipe streams; `1` maps to fully buffered on some POSIX and is ignored on others.\\\",\\n        \\\"suggestion\\\": \\\"Change `bufsize=1` to `bufsize=0` and keep `text=True` \u2014 Python will handle line buffering automatically when writing to a TTY, or rely on explicit `out.flush()` calls already present (line 122).\\\"\\n      },\\n      {\\n        \\\"line\\\": 88,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"No retry logic for transient failures (network timeouts, rate limits, Claude API errors). A single transient error causes the entire 60-min workflow to abort and requeue the issue, wasting CI minutes.\\\",\\n        \\\"suggestion\\\": \\\"Wrap the `stream_claude` call in a retry loop (3 attempts, exponential backoff) for return codes that may be transient.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Solid design with real-time streaming and proper timeout handling; GITHUB_OUTPUT delimiter fix is critical and `bufsize=1` may cause portability issues on some systems.\\\"\\n  }\\n]\\n```\",\"stop_reason\":\"end_turn\",\"session_id\":\"d4c6a282-a943-4d05-b6ca-fc865f028f81\",\"total_cost_usd\":0.34748280000000004,\"usage\":{\"input_tokens\":39981,\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":292416,\"output_tokens\":9321,\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":0,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"\",\"iterations\":[],\"speed\":\"standard\"},\"modelUsage\":{\"claude-sonnet-4-6\":{\"inputTokens\":39981,\"outputTokens\":9321,\"cacheReadInputTokens\":292416,\"cacheCreationInputTokens\":0,\"webSearchRequests\":0,\"costUSD\":0.34748280000000004,\"contextWindow\":200000,\"maxOutputTokens\":32000}},\"permission_denials\":[],\"terminal_reason\":\"completed\",\"fast_mode_state\":\"off\",\"uuid\":\"b392eb81-162d-4181-972b-3fbc196429e0\"}\n",
         "parsed": {
-          "filename": "tests/unit/test_customer_service.py",
+          "filename": "scripts/ci/execute_implementation.py",
           "issues": [
             {
-              "line": 146,
+              "line": 189,
               "severity": "critical",
-              "message": "Rule 122 / project convention: The test asserts that session.commit is called in the service, but services must only flush \u2014 never commit. The router layer owns the transaction boundary. This test encodes an incorrect expectation.",
-              "suggestion": "Remove the commit assertion. Replace with: mock_db_session.flush.assert_called_once() \u2014 matching the correct service behavior."
+              "message": "GITHUB_OUTPUT values are written without the `<<` delimiter syntax \u2014 multiline values (e.g. plan text) will corrupt the output file and cause workflow steps to misread or reject subsequent outputs.",
+              "suggestion": "In `write_outputs`, for each value use: `f.write(f\"{k}<<{v}\\n\")` \u2014 or use `shlex.join` on the file write, or follow the delimited-heredoc pattern GitHub Actions requires for multi-line values."
             },
             {
-              "line": 27,
+              "line": 193,
+              "severity": "critical",
+              "message": "Same GITHUB_OUTPUT delimiter issue as above \u2014 `f.write(f\"{k}={v}\\n\")` is the raw format, which breaks for values containing newlines.",
+              "suggestion": "Append `<<` after each value: `f.write(f\"{k}={v}\\n<<\\n\")` to mark the end of the delimited value block per GitHub Actions convention."
+            },
+            {
+              "line": 80,
+              "severity": "warning",
+              "message": "subprocess.Popen with `bufsize=1` (unbuffered) on a pipe is not portable across platforms \u2014 Python requires `bufsize=-1` (fully buffered) or `bufsize=0` (unbuffered, requires binary mode) for pipe streams; `1` maps to fully buffered on some POSIX and is ignored on others.",
+              "suggestion": "Change `bufsize=1` to `bufsize=0` and keep `text=True` \u2014 Python will handle line buffering automatically when writing to a TTY, or rely on explicit `out.flush()` calls already present (line 122)."
+            },
+            {
+              "line": 88,
               "severity": "info",
-              "message": "Rule 66: mock_db_session fixture wires fetchall and all on the same mock result, but the actual service only uses .all() for count_by_status. fetchall wiring is dead code.",
-              "suggestion": "Remove the fetchall mock line; it is not exercised by any test."
-            },
-            {
-              "line": 9,
-              "severity": "warning",
-              "message": "Rule 8: sys.path.insert at module level is a fragile workaround \u2014 it duplicates the role of PYTHONPATH and breaks if tests are run from different working directories.",
-              "suggestion": "Remove the sys.path manipulation and set PYTHONPATH=src in pytest.ini or pyproject.toml under [tool.pytest.ini_options]."
-            },
-            {
-              "line": 19,
-              "severity": "warning",
-              "message": "Rule 66 / project convention: mock_db_session wires commit as AsyncMock, but commit must never be called from services \u2014 this mocks the wrong call. AsyncMock on commit can mask the bug where a service incorrectly calls commit.",
-              "suggestion": "Remove session.commit from the fixture entirely. If a test needs to verify flush-not-commit, a no-op MagicMock for commit is more honest than AsyncMock."
+              "message": "No retry logic for transient failures (network timeouts, rate limits, Claude API errors). A single transient error causes the entire 60-min workflow to abort and requeue the issue, wasting CI minutes.",
+              "suggestion": "Wrap the `stream_claude` call in a retry loop (3 attempts, exponential backoff) for return codes that may be transient."
             }
           ],
-          "summary": "Tests cover the DTO and count_by_status logic well, but one test asserts session.commit (forbidden in services) and the fixture's path manipulation is an anti-pattern \u2014 PYTHONPATH should be configured in the test runner, not injected at import time."
+          "summary": "Solid design with real-time streaming and proper timeout handling; GITHUB_OUTPUT delimiter fix is critical and `bufsize=1` may cause portability issues on some systems."
         }
       }
     ]
