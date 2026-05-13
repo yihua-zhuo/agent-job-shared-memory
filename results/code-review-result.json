@@ -6,80 +6,73 @@
       "file": "src/services/customer_service.py",
       "line": 18,
       "severity": "critical",
-      "msg": "VALID_STATUSES has 7 values but CustomerStatus enum only has 4 (LEAD, OPPORTUNITY, CUSTOMER, INACTIVE); storing status 'prospect', 'partner', 'active', or 'blocked' via update_customer/change_status succeeds, but count_by_status raises KeyError when those DB values are used as keys in {CustomerStatus(row[0]): ...}.",
-      "suggestion": "Align VALID_STATUSES with CustomerStatus members, or broaden the enum to include all valid statuses. Add a defensive lookup: try CustomerStatus(row[0]) except ValueError: skip or log."
+      "msg": "VALID_STATUSES contains values not in the CustomerStatus enum ('partner', 'prospect', 'active', 'blocked'), causing ValueError in count_by_status when any customer has those statuses.",
+      "suggestion": "Align VALID_STATUSES with CustomerStatus values, or expand the enum to include all seven statuses (add PARTNER, PROSPECT, ACTIVE, BLOCKED)."
+    },
+    {
+      "file": "src/services/customer_service.py",
+      "line": 100,
+      "severity": "critical",
+      "msg": "NotFoundException uses Chinese '\u5ba2\u6237' while all other exception messages in this file and the codebase use English \u2014 inconsistent, unhelpful in logs/traces.",
+      "suggestion": "Use 'Customer' in NotFoundException to match the English convention used everywhere else."
+    },
+    {
+      "file": "src/services/customer_service.py",
+      "line": 135,
+      "severity": "critical",
+      "msg": "NotFoundException uses Chinese '\u5ba2\u6237' \u2014 same inconsistency as line 100.",
+      "suggestion": "Use 'Customer' instead of '\u5ba2\u6237'."
     }
   ],
   "suggestions": [
     {
       "file": "src/services/customer_service.py",
-      "line": 71,
+      "line": 0,
       "severity": "warning",
-      "msg": "Parameter 'tags: str | None' is accepted but never used in the method body \u2014 dead parameter with no effect on the query.",
-      "suggestion": "Either implement the tag filter (e.g., conditions.append(CustomerModel.tags.contains(tags))) or remove the parameter."
+      "msg": "No logging calls anywhere in the service \u2014 raised exceptions (NotFoundException, ValidationException) have no trace in logs, violating Rule 41.",
+      "suggestion": "Add a logger (e.g. logger = logging.getLogger(__name__)) and log at error level before raising exceptions, including tenant_id and customer_id for traceability."
     },
     {
       "file": "src/services/customer_service.py",
-      "line": 148,
-      "severity": "warning",
-      "msg": "Keyword is wrapped in '%' for LIKE matching but '_' and '%' within the keyword itself act as wildcards (e.g., search 'test_1' matches 'testX1').",
-      "suggestion": "Escape special LIKE characters before wrapping: import re; kw = re.sub(r'([%_\\\\])', r'\\\\\\1', keyword); kw = f'%{kw}%'"
-    },
-    {
-      "file": "src/services/customer_service.py",
-      "line": 100,
+      "line": 215,
       "severity": "info",
-      "msg": "NotFoundException message uses Chinese characters '\u5ba2\u6237' (customer) \u2014 inconsistent with the rest of the codebase which uses English.",
-      "suggestion": "Use 'Customer' (matching the pattern of other NotFoundException usages)."
+      "msg": "bulk_import calls session.add() individually inside a loop; session.add_all(customers) would be more efficient and idiomatic for bulk inserts.",
+      "suggestion": "Replace the loop with session.add_all([CustomerModel(...) for c in customers]) followed by a single flush()."
     },
     {
-      "file": "src/services/customer_service.py",
-      "line": 135,
+      "file": "tests/integration/test_sales_customer_integration.py",
+      "line": 483,
+      "severity": "warning",
+      "msg": "auth_headers_web commits async_session (line 355 in conftest) before test_count_by_status_tenant_isolation runs, persisting a user record into tenant_id_web's scope across tests in the same module \u2014 minor data leakage.",
+      "suggestion": "Have auth_headers_web use its own session instance rather than committing via the shared async_session fixture, or scope tenant_id_web to 'function' to avoid cross-test pollution."
+    },
+    {
+      "file": "tests/integration/test_sales_customer_integration.py",
+      "line": 54,
       "severity": "info",
-      "msg": "NotFoundException message uses Chinese characters '\u5ba2\u6237' (customer) \u2014 inconsistent with the rest of the codebase which uses English.",
-      "suggestion": "Use 'Customer' instead of '\u5ba2\u6237'."
+      "msg": "TestCustomerServiceIntegration, TestPipelineServiceIntegration, TestSalesServiceIntegration, TestCustomerCountByStatusIntegration lack @pytest.mark.asyncio \u2014 relies on asyncio_mode=auto in pytest.ini; works but is implicit.",
+      "suggestion": "Add @pytest.mark.asyncio to each test class for explicitness and defense against future pytest-asyncio configuration changes."
     },
     {
       "file": "tests/integration/test_sales_customer_integration.py",
-      "line": 130,
-      "severity": "warning",
-      "msg": "test_list_customers asserts 'len(items) >= 3' \u2014 this only creates 3 customers in this test, so the '>=' allows unrelated tenant data from other tests to silently make the assertion pass.",
-      "suggestion": "Use '== 3' and rely on db_schema (TRUNCATE CASCADE) to ensure isolation, or assert with a known minimum that is strictly from this test."
-    },
-    {
-      "file": "tests/integration/test_sales_customer_integration.py",
-      "line": 143,
-      "severity": "warning",
-      "msg": "test_list_customers_pagination asserts 'total1 >= 5' and 'total1 >= 5' \u2014 only 5 customers are created in this test, so '>=' makes the assertion pass if any other tests left data in the shared tenant.",
-      "suggestion": "Use '== 5' to ensure the test is truly isolated and deterministic."
-    },
-    {
-      "file": "tests/integration/test_sales_customer_integration.py",
-      "line": 268,
-      "severity": "warning",
-      "msg": "test_list_pipelines asserts 'len(items) >= 2' \u2014 only 2 pipelines are created in this test, so '>=' allows pre-existing tenant data to silently satisfy the assertion.",
-      "suggestion": "Use '== 2' for a deterministic assertion."
-    },
-    {
-      "file": "tests/integration/test_sales_customer_integration.py",
-      "line": 435,
+      "line": 302,
       "severity": "info",
-      "msg": "test_count_by_status_returns_correct_counts uses 'tenant_id_web' fixture while test_count_by_status_empty (line 427) uses plain 'tenant_id' \u2014 mixing tenant fixtures within the same test class makes it harder to reason about isolation boundaries.",
-      "suggestion": "Standardize on one tenant fixture (e.g., tenant_id) or clearly document why the REST-based tests require tenant_id_web."
+      "msg": "TestSalesServiceIntegration imports SalesService, PipelineService, UserService but none of the test classes (TestCustomerServiceIntegration, TestPipelineServiceIntegration) use the fixtures from conftest that are specific to those services \u2014 mixing two concerns in one file.",
+      "suggestion": "Split into test_pipeline_service_integration.py and test_sales_service_integration.py to follow the one-domain-per-file convention used by test_customer_service.py."
+    },
+    {
+      "file": "tests/unit/test_customer_service.py",
+      "line": 223,
+      "severity": "warning",
+      "msg": "test_count_by_status_empty mocks result.all() with AsyncMock(return_value=[]) \u2014 but SQLAlchemy's Result.all() is synchronous and returns a plain list, not a coroutine; mock signature does not match the real API.",
+      "suggestion": "Change to mock_result.all = MagicMock(return_value=[]) (synchronous MagicMock, matching SQLAlchemy's synchronous interface), consistent with how test_count_by_status_returns_counts sets up the same mock."
     },
     {
       "file": "tests/unit/test_customer_service.py",
       "line": 9,
-      "severity": "warning",
-      "msg": "sys.path.insert(0, str(Path(__file__).resolve().parents[2])) hardcodes the repo root and duplicates PYTHONPATH setup already handled by the integration conftest and documented in CLAUDE.md \u2014 fragile when run from different working directories.",
-      "suggestion": "Remove the sys.path manipulation and rely on PYTHONPATH=src (exported in .env or the shell environment) as the single source of truth."
-    },
-    {
-      "file": "tests/unit/test_customer_service.py",
-      "line": 34,
       "severity": "info",
-      "msg": "mock_db_session fixture sets session.refresh = AsyncMock(), then individual tests reassign it to a plain function (e.g., fake_refresh); this overwrites the fixture-level mock unnecessarily.",
-      "suggestion": "Define fake_refresh within each test that needs it and pass it to the service constructor directly, or make the fixture accept a configurable refresh callable \u2014 avoid mutating the shared fixture object."
+      "msg": "sys.path.insert(0, ...) duplicates work already done by tests/unit/conftest.py lines 34-35; redundant and can mask import errors that PYTHONPATH would otherwise surface.",
+      "suggestion": "Remove the sys.path manipulation entirely and rely solely on the conftest setup."
     }
   ],
   "summary": "Reviewed 3 file(s) between origin/master and origin/issue-271-customer-dto.",
@@ -91,87 +84,80 @@
           "file": "src/services/customer_service.py",
           "line": 18,
           "severity": "critical",
-          "msg": "VALID_STATUSES has 7 values but CustomerStatus enum only has 4 (LEAD, OPPORTUNITY, CUSTOMER, INACTIVE); storing status 'prospect', 'partner', 'active', or 'blocked' via update_customer/change_status succeeds, but count_by_status raises KeyError when those DB values are used as keys in {CustomerStatus(row[0]): ...}.",
-          "suggestion": "Align VALID_STATUSES with CustomerStatus members, or broaden the enum to include all valid statuses. Add a defensive lookup: try CustomerStatus(row[0]) except ValueError: skip or log."
+          "msg": "VALID_STATUSES contains values not in the CustomerStatus enum ('partner', 'prospect', 'active', 'blocked'), causing ValueError in count_by_status when any customer has those statuses.",
+          "suggestion": "Align VALID_STATUSES with CustomerStatus values, or expand the enum to include all seven statuses (add PARTNER, PROSPECT, ACTIVE, BLOCKED)."
+        },
+        {
+          "file": "src/services/customer_service.py",
+          "line": 100,
+          "severity": "critical",
+          "msg": "NotFoundException uses Chinese '\u5ba2\u6237' while all other exception messages in this file and the codebase use English \u2014 inconsistent, unhelpful in logs/traces.",
+          "suggestion": "Use 'Customer' in NotFoundException to match the English convention used everywhere else."
+        },
+        {
+          "file": "src/services/customer_service.py",
+          "line": 135,
+          "severity": "critical",
+          "msg": "NotFoundException uses Chinese '\u5ba2\u6237' \u2014 same inconsistency as line 100.",
+          "suggestion": "Use 'Customer' instead of '\u5ba2\u6237'."
         }
       ],
       "warnings": [
         {
           "file": "src/services/customer_service.py",
-          "line": 71,
+          "line": 0,
           "severity": "warning",
-          "msg": "Parameter 'tags: str | None' is accepted but never used in the method body \u2014 dead parameter with no effect on the query.",
-          "suggestion": "Either implement the tag filter (e.g., conditions.append(CustomerModel.tags.contains(tags))) or remove the parameter."
+          "msg": "No logging calls anywhere in the service \u2014 raised exceptions (NotFoundException, ValidationException) have no trace in logs, violating Rule 41.",
+          "suggestion": "Add a logger (e.g. logger = logging.getLogger(__name__)) and log at error level before raising exceptions, including tenant_id and customer_id for traceability."
         },
         {
           "file": "src/services/customer_service.py",
-          "line": 148,
-          "severity": "warning",
-          "msg": "Keyword is wrapped in '%' for LIKE matching but '_' and '%' within the keyword itself act as wildcards (e.g., search 'test_1' matches 'testX1').",
-          "suggestion": "Escape special LIKE characters before wrapping: import re; kw = re.sub(r'([%_\\\\])', r'\\\\\\1', keyword); kw = f'%{kw}%'"
-        },
-        {
-          "file": "src/services/customer_service.py",
-          "line": 100,
+          "line": 215,
           "severity": "info",
-          "msg": "NotFoundException message uses Chinese characters '\u5ba2\u6237' (customer) \u2014 inconsistent with the rest of the codebase which uses English.",
-          "suggestion": "Use 'Customer' (matching the pattern of other NotFoundException usages)."
+          "msg": "bulk_import calls session.add() individually inside a loop; session.add_all(customers) would be more efficient and idiomatic for bulk inserts.",
+          "suggestion": "Replace the loop with session.add_all([CustomerModel(...) for c in customers]) followed by a single flush()."
         },
         {
-          "file": "src/services/customer_service.py",
-          "line": 135,
+          "file": "tests/integration/test_sales_customer_integration.py",
+          "line": 483,
+          "severity": "warning",
+          "msg": "auth_headers_web commits async_session (line 355 in conftest) before test_count_by_status_tenant_isolation runs, persisting a user record into tenant_id_web's scope across tests in the same module \u2014 minor data leakage.",
+          "suggestion": "Have auth_headers_web use its own session instance rather than committing via the shared async_session fixture, or scope tenant_id_web to 'function' to avoid cross-test pollution."
+        },
+        {
+          "file": "tests/integration/test_sales_customer_integration.py",
+          "line": 54,
           "severity": "info",
-          "msg": "NotFoundException message uses Chinese characters '\u5ba2\u6237' (customer) \u2014 inconsistent with the rest of the codebase which uses English.",
-          "suggestion": "Use 'Customer' instead of '\u5ba2\u6237'."
+          "msg": "TestCustomerServiceIntegration, TestPipelineServiceIntegration, TestSalesServiceIntegration, TestCustomerCountByStatusIntegration lack @pytest.mark.asyncio \u2014 relies on asyncio_mode=auto in pytest.ini; works but is implicit.",
+          "suggestion": "Add @pytest.mark.asyncio to each test class for explicitness and defense against future pytest-asyncio configuration changes."
         },
         {
           "file": "tests/integration/test_sales_customer_integration.py",
-          "line": 130,
-          "severity": "warning",
-          "msg": "test_list_customers asserts 'len(items) >= 3' \u2014 this only creates 3 customers in this test, so the '>=' allows unrelated tenant data from other tests to silently make the assertion pass.",
-          "suggestion": "Use '== 3' and rely on db_schema (TRUNCATE CASCADE) to ensure isolation, or assert with a known minimum that is strictly from this test."
-        },
-        {
-          "file": "tests/integration/test_sales_customer_integration.py",
-          "line": 143,
-          "severity": "warning",
-          "msg": "test_list_customers_pagination asserts 'total1 >= 5' and 'total1 >= 5' \u2014 only 5 customers are created in this test, so '>=' makes the assertion pass if any other tests left data in the shared tenant.",
-          "suggestion": "Use '== 5' to ensure the test is truly isolated and deterministic."
-        },
-        {
-          "file": "tests/integration/test_sales_customer_integration.py",
-          "line": 268,
-          "severity": "warning",
-          "msg": "test_list_pipelines asserts 'len(items) >= 2' \u2014 only 2 pipelines are created in this test, so '>=' allows pre-existing tenant data to silently satisfy the assertion.",
-          "suggestion": "Use '== 2' for a deterministic assertion."
-        },
-        {
-          "file": "tests/integration/test_sales_customer_integration.py",
-          "line": 435,
+          "line": 302,
           "severity": "info",
-          "msg": "test_count_by_status_returns_correct_counts uses 'tenant_id_web' fixture while test_count_by_status_empty (line 427) uses plain 'tenant_id' \u2014 mixing tenant fixtures within the same test class makes it harder to reason about isolation boundaries.",
-          "suggestion": "Standardize on one tenant fixture (e.g., tenant_id) or clearly document why the REST-based tests require tenant_id_web."
+          "msg": "TestSalesServiceIntegration imports SalesService, PipelineService, UserService but none of the test classes (TestCustomerServiceIntegration, TestPipelineServiceIntegration) use the fixtures from conftest that are specific to those services \u2014 mixing two concerns in one file.",
+          "suggestion": "Split into test_pipeline_service_integration.py and test_sales_service_integration.py to follow the one-domain-per-file convention used by test_customer_service.py."
+        },
+        {
+          "file": "tests/unit/test_customer_service.py",
+          "line": 223,
+          "severity": "warning",
+          "msg": "test_count_by_status_empty mocks result.all() with AsyncMock(return_value=[]) \u2014 but SQLAlchemy's Result.all() is synchronous and returns a plain list, not a coroutine; mock signature does not match the real API.",
+          "suggestion": "Change to mock_result.all = MagicMock(return_value=[]) (synchronous MagicMock, matching SQLAlchemy's synchronous interface), consistent with how test_count_by_status_returns_counts sets up the same mock."
         },
         {
           "file": "tests/unit/test_customer_service.py",
           "line": 9,
-          "severity": "warning",
-          "msg": "sys.path.insert(0, str(Path(__file__).resolve().parents[2])) hardcodes the repo root and duplicates PYTHONPATH setup already handled by the integration conftest and documented in CLAUDE.md \u2014 fragile when run from different working directories.",
-          "suggestion": "Remove the sys.path manipulation and rely on PYTHONPATH=src (exported in .env or the shell environment) as the single source of truth."
-        },
-        {
-          "file": "tests/unit/test_customer_service.py",
-          "line": 34,
           "severity": "info",
-          "msg": "mock_db_session fixture sets session.refresh = AsyncMock(), then individual tests reassign it to a plain function (e.g., fake_refresh); this overwrites the fixture-level mock unnecessarily.",
-          "suggestion": "Define fake_refresh within each test that needs it and pass it to the service constructor directly, or make the fixture accept a configurable refresh callable \u2014 avoid mutating the shared fixture object."
+          "msg": "sys.path.insert(0, ...) duplicates work already done by tests/unit/conftest.py lines 34-35; redundant and can mask import errors that PYTHONPATH would otherwise surface.",
+          "suggestion": "Remove the sys.path manipulation entirely and rely solely on the conftest setup."
         }
       ],
       "summary": "Reviewed 3 file(s) between origin/master and origin/issue-271-customer-dto."
     },
     "reviewed_refs": {
       "base": "ad61e5be9cdd83693cd5a071c4760a7d4c168f41",
-      "head": "1a4c807d958291f0fd2db98d072e0c28c5f3f04e",
+      "head": "adf3d0a5675f4bf7b44b9657fb598a456aae3337",
       "base_label": "origin/master",
       "head_label": "origin/issue-271-customer-dto"
     },
@@ -184,100 +170,94 @@
       {
         "file": "src/services/customer_service.py",
         "returncode": 0,
-        "output": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"api_error_status\":null,\"duration_ms\":182749,\"duration_api_ms\":182644,\"num_turns\":9,\"result\":\"\\nNow I have all the information. Here is the full review:\\n\\n```json\\n[\\n  {\\n    \\\"filename\\\": \\\"src/services/customer_service.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 18,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"VALID_STATUSES has 7 values but CustomerStatus enum only has 4 (LEAD, OPPORTUNITY, CUSTOMER, INACTIVE); storing status 'prospect', 'partner', 'active', or 'blocked' via update_customer/change_status succeeds, but count_by_status raises KeyError when those DB values are used as keys in {CustomerStatus(row[0]): ...}.\\\",\\n        \\\"suggestion\\\": \\\"Align VALID_STATUSES with CustomerStatus members, or broaden the enum to include all valid statuses. Add a defensive lookup: try CustomerStatus(row[0]) except ValueError: skip or log.\\\"\\n      },\\n      {\\n        \\\"line\\\": 71,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"Parameter 'tags: str | None' is accepted but never used in the method body \u2014 dead parameter with no effect on the query.\\\",\\n        \\\"suggestion\\\": \\\"Either implement the tag filter (e.g., conditions.append(CustomerModel.tags.contains(tags))) or remove the parameter.\\\"\\n      },\\n      {\\n        \\\"line\\\": 148,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"Keyword is wrapped in '%' for LIKE matching but '_' and '%' within the keyword itself act as wildcards (e.g., search 'test_1' matches 'testX1').\\\",\\n        \\\"suggestion\\\": \\\"Escape special LIKE characters before wrapping: import re; kw = re.sub(r'([%_\\\\\\\\\\\\\\\\])', r'\\\\\\\\\\\\\\\\\\\\\\\\1', keyword); kw = f'%{kw}%'\\\"\\n      },\\n      {\\n        \\\"line\\\": 100,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"NotFoundException message uses Chinese characters '\u5ba2\u6237' (customer) \u2014 inconsistent with the rest of the codebase which uses English.\\\",\\n        \\\"suggestion\\\": \\\"Use 'Customer' (matching the pattern of other NotFoundException usages).\\\"\\n      },\\n      {\\n        \\\"line\\\": 135,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"NotFoundException message uses Chinese characters '\u5ba2\u6237' (customer) \u2014 inconsistent with the rest of the codebase which uses English.\\\",\\n        \\\"suggestion\\\": \\\"Use 'Customer' instead of '\u5ba2\u6237'.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Service logic is generally sound with correct flush/commit semantics, but a critical mismatch between VALID_STATUSES and the CustomerStatus enum will cause KeyError at runtime for four valid-looking status values, and the unused tags parameter is dead code.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"tests/integration/test_sales_customer_integration.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 130,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"test_list_customers asserts 'len(items) >= 3' \u2014 this only creates 3 customers in this test, so the '>=' allows unrelated tenant data from other tests to silently make the assertion pass.\\\",\\n        \\\"suggestion\\\": \\\"Use '== 3' and rely on db_schema (TRUNCATE CASCADE) to ensure isolation, or assert with a known minimum that is strictly from this test.\\\"\\n      },\\n      {\\n        \\\"line\\\": 143,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"test_list_customers_pagination asserts 'total1 >= 5' and 'total1 >= 5' \u2014 only 5 customers are created in this test, so '>=' makes the assertion pass if any other tests left data in the shared tenant.\\\",\\n        \\\"suggestion\\\": \\\"Use '== 5' to ensure the test is truly isolated and deterministic.\\\"\\n      },\\n      {\\n        \\\"line\\\": 268,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"test_list_pipelines asserts 'len(items) >= 2' \u2014 only 2 pipelines are created in this test, so '>=' allows pre-existing tenant data to silently satisfy the assertion.\\\",\\n        \\\"suggestion\\\": \\\"Use '== 2' for a deterministic assertion.\\\"\\n      },\\n      {\\n        \\\"line\\\": 435,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"test_count_by_status_returns_correct_counts uses 'tenant_id_web' fixture while test_count_by_status_empty (line 427) uses plain 'tenant_id' \u2014 mixing tenant fixtures within the same test class makes it harder to reason about isolation boundaries.\\\",\\n        \\\"suggestion\\\": \\\"Standardize on one tenant fixture (e.g., tenant_id) or clearly document why the REST-based tests require tenant_id_web.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Integration tests correctly use real DB fixtures and exercise the full stack; however, several assertions use '>=' against a known exact count, making tests non-deterministic when other tests leave data in the shared tenant scope.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"tests/unit/test_customer_service.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 9,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"sys.path.insert(0, str(Path(__file__).resolve().parents[2])) hardcodes the repo root and duplicates PYTHONPATH setup already handled by the integration conftest and documented in CLAUDE.md \u2014 fragile when run from different working directories.\\\",\\n        \\\"suggestion\\\": \\\"Remove the sys.path manipulation and rely on PYTHONPATH=src (exported in .env or the shell environment) as the single source of truth.\\\"\\n      },\\n      {\\n        \\\"line\\\": 34,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"mock_db_session fixture sets session.refresh = AsyncMock(), then individual tests reassign it to a plain function (e.g., fake_refresh); this overwrites the fixture-level mock unnecessarily.\\\",\\n        \\\"suggestion\\\": \\\"Define fake_refresh within each test that needs it and pass it to the service constructor directly, or make the fixture accept a configurable refresh callable \u2014 avoid mutating the shared fixture object.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Unit tests are well-structured and cover DTO integration and count_by_status logic correctly; the hardcoded sys.path is the most actionable issue to fix for portability.\\\"\\n  }\\n]\\n```\",\"stop_reason\":\"end_turn\",\"session_id\":\"6deee983-34e1-484c-8d4d-37e78c3237b3\",\"total_cost_usd\":0.6184899,\"usage\":{\"input_tokens\":120618,\"cache_creation_input_tokens\":30714,\"cache_read_input_tokens\":149178,\"output_tokens\":6447,\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":0,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"\",\"iterations\":[],\"speed\":\"standard\"},\"modelUsage\":{\"claude-sonnet-4-6\":{\"inputTokens\":120618,\"outputTokens\":6447,\"cacheReadInputTokens\":149178,\"cacheCreationInputTokens\":30714,\"webSearchRequests\":0,\"costUSD\":0.6184899,\"contextWindow\":200000,\"maxOutputTokens\":32000}},\"permission_denials\":[],\"terminal_reason\":\"completed\",\"fast_mode_state\":\"off\",\"uuid\":\"c8dc5b20-6d7b-45ed-abe3-120742e92745\"}\n",
+        "output": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"api_error_status\":null,\"duration_ms\":225742,\"duration_api_ms\":225173,\"num_turns\":13,\"result\":\"[\\n  {\\n    \\\"filename\\\": \\\"src/services/customer_service.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 18,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"VALID_STATUSES contains values not in the CustomerStatus enum ('partner', 'prospect', 'active', 'blocked'), causing ValueError in count_by_status when any customer has those statuses.\\\",\\n        \\\"suggestion\\\": \\\"Align VALID_STATUSES with CustomerStatus values, or expand the enum to include all seven statuses (add PARTNER, PROSPECT, ACTIVE, BLOCKED).\\\"\\n      },\\n      {\\n        \\\"line\\\": 100,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"NotFoundException uses Chinese '\u5ba2\u6237' while all other exception messages in this file and the codebase use English \u2014 inconsistent, unhelpful in logs/traces.\\\",\\n        \\\"suggestion\\\": \\\"Use 'Customer' in NotFoundException to match the English convention used everywhere else.\\\"\\n      },\\n      {\\n        \\\"line\\\": 135,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"NotFoundException uses Chinese '\u5ba2\u6237' \u2014 same inconsistency as line 100.\\\",\\n        \\\"suggestion\\\": \\\"Use 'Customer' instead of '\u5ba2\u6237'.\\\"\\n      },\\n      {\\n        \\\"line\\\": 0,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"No logging calls anywhere in the service \u2014 raised exceptions (NotFoundException, ValidationException) have no trace in logs, violating Rule 41.\\\",\\n        \\\"suggestion\\\": \\\"Add a logger (e.g. logger = logging.getLogger(__name__)) and log at error level before raising exceptions, including tenant_id and customer_id for traceability.\\\"\\n      },\\n      {\\n        \\\"line\\\": 215,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"bulk_import calls session.add() individually inside a loop; session.add_all(customers) would be more efficient and idiomatic for bulk inserts.\\\",\\n        \\\"suggestion\\\": \\\"Replace the loop with session.add_all([CustomerModel(...) for c in customers]) followed by a single flush().\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Service logic is solid (flush/refresh pattern correct, tenant scoping consistent, no commit() calls), but a critical enum/set mismatch will crash count_by_status for several valid statuses, and mixed-language exception messages hurt debuggability.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"tests/integration/test_sales_customer_integration.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 483,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"auth_headers_web commits async_session (line 355 in conftest) before test_count_by_status_tenant_isolation runs, persisting a user record into tenant_id_web's scope across tests in the same module \u2014 minor data leakage.\\\",\\n        \\\"suggestion\\\": \\\"Have auth_headers_web use its own session instance rather than committing via the shared async_session fixture, or scope tenant_id_web to 'function' to avoid cross-test pollution.\\\"\\n      },\\n      {\\n        \\\"line\\\": 54,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"TestCustomerServiceIntegration, TestPipelineServiceIntegration, TestSalesServiceIntegration, TestCustomerCountByStatusIntegration lack @pytest.mark.asyncio \u2014 relies on asyncio_mode=auto in pytest.ini; works but is implicit.\\\",\\n        \\\"suggestion\\\": \\\"Add @pytest.mark.asyncio to each test class for explicitness and defense against future pytest-asyncio configuration changes.\\\"\\n      },\\n      {\\n        \\\"line\\\": 302,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"TestSalesServiceIntegration imports SalesService, PipelineService, UserService but none of the test classes (TestCustomerServiceIntegration, TestPipelineServiceIntegration) use the fixtures from conftest that are specific to those services \u2014 mixing two concerns in one file.\\\",\\n        \\\"suggestion\\\": \\\"Split into test_pipeline_service_integration.py and test_sales_service_integration.py to follow the one-domain-per-file convention used by test_customer_service.py.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Integration tests exercise the real DB correctly, use REST API for critical paths, and have solid tenant isolation assertions; the main concern is fixture/session lifecycle pollution from auth_headers_web committing across test boundaries.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"tests/unit/test_customer_service.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 223,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"test_count_by_status_empty mocks result.all() with AsyncMock(return_value=[]) \u2014 but SQLAlchemy's Result.all() is synchronous and returns a plain list, not a coroutine; mock signature does not match the real API.\\\",\\n        \\\"suggestion\\\": \\\"Change to mock_result.all = MagicMock(return_value=[]) (synchronous MagicMock, matching SQLAlchemy's synchronous interface), consistent with how test_count_by_status_returns_counts sets up the same mock.\\\"\\n      },\\n      {\\n        \\\"line\\\": 9,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"sys.path.insert(0, ...) duplicates work already done by tests/unit/conftest.py lines 34-35; redundant and can mask import errors that PYTHONPATH would otherwise surface.\\\",\\n        \\\"suggestion\\\": \\\"Remove the sys.path manipulation entirely and rely solely on the conftest setup.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"DTO validation and service-layer DTO-acceptance tests are well-structured; the mock signature mismatch on Result.all() is the only actionable issue, making the empty-result test fragile if the mock contract ever changes.\\\"\\n  }\\n]\",\"stop_reason\":\"end_turn\",\"session_id\":\"9023b5b2-bad1-4994-9047-243891d0012a\",\"total_cost_usd\":0.8358564,\"usage\":{\"input_tokens\":205308,\"cache_creation_input_tokens\":11432,\"cache_read_input_tokens\":218258,\"output_tokens\":7439,\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":0,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"\",\"iterations\":[],\"speed\":\"standard\"},\"modelUsage\":{\"claude-sonnet-4-6\":{\"inputTokens\":205308,\"outputTokens\":7439,\"cacheReadInputTokens\":218258,\"cacheCreationInputTokens\":11432,\"webSearchRequests\":0,\"costUSD\":0.8358564,\"contextWindow\":200000,\"maxOutputTokens\":32000}},\"permission_denials\":[],\"terminal_reason\":\"completed\",\"fast_mode_state\":\"off\",\"uuid\":\"17db340c-17fa-45f0-8ac1-d67af3a9fd06\"}\n",
         "parsed": {
           "filename": "src/services/customer_service.py",
           "issues": [
             {
               "line": 18,
               "severity": "critical",
-              "message": "VALID_STATUSES has 7 values but CustomerStatus enum only has 4 (LEAD, OPPORTUNITY, CUSTOMER, INACTIVE); storing status 'prospect', 'partner', 'active', or 'blocked' via update_customer/change_status succeeds, but count_by_status raises KeyError when those DB values are used as keys in {CustomerStatus(row[0]): ...}.",
-              "suggestion": "Align VALID_STATUSES with CustomerStatus members, or broaden the enum to include all valid statuses. Add a defensive lookup: try CustomerStatus(row[0]) except ValueError: skip or log."
-            },
-            {
-              "line": 71,
-              "severity": "warning",
-              "message": "Parameter 'tags: str | None' is accepted but never used in the method body \u2014 dead parameter with no effect on the query.",
-              "suggestion": "Either implement the tag filter (e.g., conditions.append(CustomerModel.tags.contains(tags))) or remove the parameter."
-            },
-            {
-              "line": 148,
-              "severity": "warning",
-              "message": "Keyword is wrapped in '%' for LIKE matching but '_' and '%' within the keyword itself act as wildcards (e.g., search 'test_1' matches 'testX1').",
-              "suggestion": "Escape special LIKE characters before wrapping: import re; kw = re.sub(r'([%_\\\\])', r'\\\\\\1', keyword); kw = f'%{kw}%'"
+              "message": "VALID_STATUSES contains values not in the CustomerStatus enum ('partner', 'prospect', 'active', 'blocked'), causing ValueError in count_by_status when any customer has those statuses.",
+              "suggestion": "Align VALID_STATUSES with CustomerStatus values, or expand the enum to include all seven statuses (add PARTNER, PROSPECT, ACTIVE, BLOCKED)."
             },
             {
               "line": 100,
-              "severity": "info",
-              "message": "NotFoundException message uses Chinese characters '\u5ba2\u6237' (customer) \u2014 inconsistent with the rest of the codebase which uses English.",
-              "suggestion": "Use 'Customer' (matching the pattern of other NotFoundException usages)."
+              "severity": "critical",
+              "message": "NotFoundException uses Chinese '\u5ba2\u6237' while all other exception messages in this file and the codebase use English \u2014 inconsistent, unhelpful in logs/traces.",
+              "suggestion": "Use 'Customer' in NotFoundException to match the English convention used everywhere else."
             },
             {
               "line": 135,
-              "severity": "info",
-              "message": "NotFoundException message uses Chinese characters '\u5ba2\u6237' (customer) \u2014 inconsistent with the rest of the codebase which uses English.",
+              "severity": "critical",
+              "message": "NotFoundException uses Chinese '\u5ba2\u6237' \u2014 same inconsistency as line 100.",
               "suggestion": "Use 'Customer' instead of '\u5ba2\u6237'."
+            },
+            {
+              "line": 0,
+              "severity": "warning",
+              "message": "No logging calls anywhere in the service \u2014 raised exceptions (NotFoundException, ValidationException) have no trace in logs, violating Rule 41.",
+              "suggestion": "Add a logger (e.g. logger = logging.getLogger(__name__)) and log at error level before raising exceptions, including tenant_id and customer_id for traceability."
+            },
+            {
+              "line": 215,
+              "severity": "info",
+              "message": "bulk_import calls session.add() individually inside a loop; session.add_all(customers) would be more efficient and idiomatic for bulk inserts.",
+              "suggestion": "Replace the loop with session.add_all([CustomerModel(...) for c in customers]) followed by a single flush()."
             }
           ],
-          "summary": "Service logic is generally sound with correct flush/commit semantics, but a critical mismatch between VALID_STATUSES and the CustomerStatus enum will cause KeyError at runtime for four valid-looking status values, and the unused tags parameter is dead code."
+          "summary": "Service logic is solid (flush/refresh pattern correct, tenant scoping consistent, no commit() calls), but a critical enum/set mismatch will crash count_by_status for several valid statuses, and mixed-language exception messages hurt debuggability."
         }
       },
       {
         "file": "tests/integration/test_sales_customer_integration.py",
         "returncode": 0,
-        "output": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"api_error_status\":null,\"duration_ms\":182749,\"duration_api_ms\":182644,\"num_turns\":9,\"result\":\"\\nNow I have all the information. Here is the full review:\\n\\n```json\\n[\\n  {\\n    \\\"filename\\\": \\\"src/services/customer_service.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 18,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"VALID_STATUSES has 7 values but CustomerStatus enum only has 4 (LEAD, OPPORTUNITY, CUSTOMER, INACTIVE); storing status 'prospect', 'partner', 'active', or 'blocked' via update_customer/change_status succeeds, but count_by_status raises KeyError when those DB values are used as keys in {CustomerStatus(row[0]): ...}.\\\",\\n        \\\"suggestion\\\": \\\"Align VALID_STATUSES with CustomerStatus members, or broaden the enum to include all valid statuses. Add a defensive lookup: try CustomerStatus(row[0]) except ValueError: skip or log.\\\"\\n      },\\n      {\\n        \\\"line\\\": 71,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"Parameter 'tags: str | None' is accepted but never used in the method body \u2014 dead parameter with no effect on the query.\\\",\\n        \\\"suggestion\\\": \\\"Either implement the tag filter (e.g., conditions.append(CustomerModel.tags.contains(tags))) or remove the parameter.\\\"\\n      },\\n      {\\n        \\\"line\\\": 148,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"Keyword is wrapped in '%' for LIKE matching but '_' and '%' within the keyword itself act as wildcards (e.g., search 'test_1' matches 'testX1').\\\",\\n        \\\"suggestion\\\": \\\"Escape special LIKE characters before wrapping: import re; kw = re.sub(r'([%_\\\\\\\\\\\\\\\\])', r'\\\\\\\\\\\\\\\\\\\\\\\\1', keyword); kw = f'%{kw}%'\\\"\\n      },\\n      {\\n        \\\"line\\\": 100,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"NotFoundException message uses Chinese characters '\u5ba2\u6237' (customer) \u2014 inconsistent with the rest of the codebase which uses English.\\\",\\n        \\\"suggestion\\\": \\\"Use 'Customer' (matching the pattern of other NotFoundException usages).\\\"\\n      },\\n      {\\n        \\\"line\\\": 135,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"NotFoundException message uses Chinese characters '\u5ba2\u6237' (customer) \u2014 inconsistent with the rest of the codebase which uses English.\\\",\\n        \\\"suggestion\\\": \\\"Use 'Customer' instead of '\u5ba2\u6237'.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Service logic is generally sound with correct flush/commit semantics, but a critical mismatch between VALID_STATUSES and the CustomerStatus enum will cause KeyError at runtime for four valid-looking status values, and the unused tags parameter is dead code.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"tests/integration/test_sales_customer_integration.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 130,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"test_list_customers asserts 'len(items) >= 3' \u2014 this only creates 3 customers in this test, so the '>=' allows unrelated tenant data from other tests to silently make the assertion pass.\\\",\\n        \\\"suggestion\\\": \\\"Use '== 3' and rely on db_schema (TRUNCATE CASCADE) to ensure isolation, or assert with a known minimum that is strictly from this test.\\\"\\n      },\\n      {\\n        \\\"line\\\": 143,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"test_list_customers_pagination asserts 'total1 >= 5' and 'total1 >= 5' \u2014 only 5 customers are created in this test, so '>=' makes the assertion pass if any other tests left data in the shared tenant.\\\",\\n        \\\"suggestion\\\": \\\"Use '== 5' to ensure the test is truly isolated and deterministic.\\\"\\n      },\\n      {\\n        \\\"line\\\": 268,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"test_list_pipelines asserts 'len(items) >= 2' \u2014 only 2 pipelines are created in this test, so '>=' allows pre-existing tenant data to silently satisfy the assertion.\\\",\\n        \\\"suggestion\\\": \\\"Use '== 2' for a deterministic assertion.\\\"\\n      },\\n      {\\n        \\\"line\\\": 435,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"test_count_by_status_returns_correct_counts uses 'tenant_id_web' fixture while test_count_by_status_empty (line 427) uses plain 'tenant_id' \u2014 mixing tenant fixtures within the same test class makes it harder to reason about isolation boundaries.\\\",\\n        \\\"suggestion\\\": \\\"Standardize on one tenant fixture (e.g., tenant_id) or clearly document why the REST-based tests require tenant_id_web.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Integration tests correctly use real DB fixtures and exercise the full stack; however, several assertions use '>=' against a known exact count, making tests non-deterministic when other tests leave data in the shared tenant scope.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"tests/unit/test_customer_service.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 9,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"sys.path.insert(0, str(Path(__file__).resolve().parents[2])) hardcodes the repo root and duplicates PYTHONPATH setup already handled by the integration conftest and documented in CLAUDE.md \u2014 fragile when run from different working directories.\\\",\\n        \\\"suggestion\\\": \\\"Remove the sys.path manipulation and rely on PYTHONPATH=src (exported in .env or the shell environment) as the single source of truth.\\\"\\n      },\\n      {\\n        \\\"line\\\": 34,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"mock_db_session fixture sets session.refresh = AsyncMock(), then individual tests reassign it to a plain function (e.g., fake_refresh); this overwrites the fixture-level mock unnecessarily.\\\",\\n        \\\"suggestion\\\": \\\"Define fake_refresh within each test that needs it and pass it to the service constructor directly, or make the fixture accept a configurable refresh callable \u2014 avoid mutating the shared fixture object.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Unit tests are well-structured and cover DTO integration and count_by_status logic correctly; the hardcoded sys.path is the most actionable issue to fix for portability.\\\"\\n  }\\n]\\n```\",\"stop_reason\":\"end_turn\",\"session_id\":\"6deee983-34e1-484c-8d4d-37e78c3237b3\",\"total_cost_usd\":0.6184899,\"usage\":{\"input_tokens\":120618,\"cache_creation_input_tokens\":30714,\"cache_read_input_tokens\":149178,\"output_tokens\":6447,\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":0,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"\",\"iterations\":[],\"speed\":\"standard\"},\"modelUsage\":{\"claude-sonnet-4-6\":{\"inputTokens\":120618,\"outputTokens\":6447,\"cacheReadInputTokens\":149178,\"cacheCreationInputTokens\":30714,\"webSearchRequests\":0,\"costUSD\":0.6184899,\"contextWindow\":200000,\"maxOutputTokens\":32000}},\"permission_denials\":[],\"terminal_reason\":\"completed\",\"fast_mode_state\":\"off\",\"uuid\":\"c8dc5b20-6d7b-45ed-abe3-120742e92745\"}\n",
+        "output": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"api_error_status\":null,\"duration_ms\":225742,\"duration_api_ms\":225173,\"num_turns\":13,\"result\":\"[\\n  {\\n    \\\"filename\\\": \\\"src/services/customer_service.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 18,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"VALID_STATUSES contains values not in the CustomerStatus enum ('partner', 'prospect', 'active', 'blocked'), causing ValueError in count_by_status when any customer has those statuses.\\\",\\n        \\\"suggestion\\\": \\\"Align VALID_STATUSES with CustomerStatus values, or expand the enum to include all seven statuses (add PARTNER, PROSPECT, ACTIVE, BLOCKED).\\\"\\n      },\\n      {\\n        \\\"line\\\": 100,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"NotFoundException uses Chinese '\u5ba2\u6237' while all other exception messages in this file and the codebase use English \u2014 inconsistent, unhelpful in logs/traces.\\\",\\n        \\\"suggestion\\\": \\\"Use 'Customer' in NotFoundException to match the English convention used everywhere else.\\\"\\n      },\\n      {\\n        \\\"line\\\": 135,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"NotFoundException uses Chinese '\u5ba2\u6237' \u2014 same inconsistency as line 100.\\\",\\n        \\\"suggestion\\\": \\\"Use 'Customer' instead of '\u5ba2\u6237'.\\\"\\n      },\\n      {\\n        \\\"line\\\": 0,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"No logging calls anywhere in the service \u2014 raised exceptions (NotFoundException, ValidationException) have no trace in logs, violating Rule 41.\\\",\\n        \\\"suggestion\\\": \\\"Add a logger (e.g. logger = logging.getLogger(__name__)) and log at error level before raising exceptions, including tenant_id and customer_id for traceability.\\\"\\n      },\\n      {\\n        \\\"line\\\": 215,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"bulk_import calls session.add() individually inside a loop; session.add_all(customers) would be more efficient and idiomatic for bulk inserts.\\\",\\n        \\\"suggestion\\\": \\\"Replace the loop with session.add_all([CustomerModel(...) for c in customers]) followed by a single flush().\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Service logic is solid (flush/refresh pattern correct, tenant scoping consistent, no commit() calls), but a critical enum/set mismatch will crash count_by_status for several valid statuses, and mixed-language exception messages hurt debuggability.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"tests/integration/test_sales_customer_integration.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 483,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"auth_headers_web commits async_session (line 355 in conftest) before test_count_by_status_tenant_isolation runs, persisting a user record into tenant_id_web's scope across tests in the same module \u2014 minor data leakage.\\\",\\n        \\\"suggestion\\\": \\\"Have auth_headers_web use its own session instance rather than committing via the shared async_session fixture, or scope tenant_id_web to 'function' to avoid cross-test pollution.\\\"\\n      },\\n      {\\n        \\\"line\\\": 54,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"TestCustomerServiceIntegration, TestPipelineServiceIntegration, TestSalesServiceIntegration, TestCustomerCountByStatusIntegration lack @pytest.mark.asyncio \u2014 relies on asyncio_mode=auto in pytest.ini; works but is implicit.\\\",\\n        \\\"suggestion\\\": \\\"Add @pytest.mark.asyncio to each test class for explicitness and defense against future pytest-asyncio configuration changes.\\\"\\n      },\\n      {\\n        \\\"line\\\": 302,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"TestSalesServiceIntegration imports SalesService, PipelineService, UserService but none of the test classes (TestCustomerServiceIntegration, TestPipelineServiceIntegration) use the fixtures from conftest that are specific to those services \u2014 mixing two concerns in one file.\\\",\\n        \\\"suggestion\\\": \\\"Split into test_pipeline_service_integration.py and test_sales_service_integration.py to follow the one-domain-per-file convention used by test_customer_service.py.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Integration tests exercise the real DB correctly, use REST API for critical paths, and have solid tenant isolation assertions; the main concern is fixture/session lifecycle pollution from auth_headers_web committing across test boundaries.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"tests/unit/test_customer_service.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 223,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"test_count_by_status_empty mocks result.all() with AsyncMock(return_value=[]) \u2014 but SQLAlchemy's Result.all() is synchronous and returns a plain list, not a coroutine; mock signature does not match the real API.\\\",\\n        \\\"suggestion\\\": \\\"Change to mock_result.all = MagicMock(return_value=[]) (synchronous MagicMock, matching SQLAlchemy's synchronous interface), consistent with how test_count_by_status_returns_counts sets up the same mock.\\\"\\n      },\\n      {\\n        \\\"line\\\": 9,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"sys.path.insert(0, ...) duplicates work already done by tests/unit/conftest.py lines 34-35; redundant and can mask import errors that PYTHONPATH would otherwise surface.\\\",\\n        \\\"suggestion\\\": \\\"Remove the sys.path manipulation entirely and rely solely on the conftest setup.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"DTO validation and service-layer DTO-acceptance tests are well-structured; the mock signature mismatch on Result.all() is the only actionable issue, making the empty-result test fragile if the mock contract ever changes.\\\"\\n  }\\n]\",\"stop_reason\":\"end_turn\",\"session_id\":\"9023b5b2-bad1-4994-9047-243891d0012a\",\"total_cost_usd\":0.8358564,\"usage\":{\"input_tokens\":205308,\"cache_creation_input_tokens\":11432,\"cache_read_input_tokens\":218258,\"output_tokens\":7439,\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":0,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"\",\"iterations\":[],\"speed\":\"standard\"},\"modelUsage\":{\"claude-sonnet-4-6\":{\"inputTokens\":205308,\"outputTokens\":7439,\"cacheReadInputTokens\":218258,\"cacheCreationInputTokens\":11432,\"webSearchRequests\":0,\"costUSD\":0.8358564,\"contextWindow\":200000,\"maxOutputTokens\":32000}},\"permission_denials\":[],\"terminal_reason\":\"completed\",\"fast_mode_state\":\"off\",\"uuid\":\"17db340c-17fa-45f0-8ac1-d67af3a9fd06\"}\n",
         "parsed": {
           "filename": "tests/integration/test_sales_customer_integration.py",
           "issues": [
             {
-              "line": 130,
+              "line": 483,
               "severity": "warning",
-              "message": "test_list_customers asserts 'len(items) >= 3' \u2014 this only creates 3 customers in this test, so the '>=' allows unrelated tenant data from other tests to silently make the assertion pass.",
-              "suggestion": "Use '== 3' and rely on db_schema (TRUNCATE CASCADE) to ensure isolation, or assert with a known minimum that is strictly from this test."
+              "message": "auth_headers_web commits async_session (line 355 in conftest) before test_count_by_status_tenant_isolation runs, persisting a user record into tenant_id_web's scope across tests in the same module \u2014 minor data leakage.",
+              "suggestion": "Have auth_headers_web use its own session instance rather than committing via the shared async_session fixture, or scope tenant_id_web to 'function' to avoid cross-test pollution."
             },
             {
-              "line": 143,
-              "severity": "warning",
-              "message": "test_list_customers_pagination asserts 'total1 >= 5' and 'total1 >= 5' \u2014 only 5 customers are created in this test, so '>=' makes the assertion pass if any other tests left data in the shared tenant.",
-              "suggestion": "Use '== 5' to ensure the test is truly isolated and deterministic."
-            },
-            {
-              "line": 268,
-              "severity": "warning",
-              "message": "test_list_pipelines asserts 'len(items) >= 2' \u2014 only 2 pipelines are created in this test, so '>=' allows pre-existing tenant data to silently satisfy the assertion.",
-              "suggestion": "Use '== 2' for a deterministic assertion."
-            },
-            {
-              "line": 435,
+              "line": 54,
               "severity": "info",
-              "message": "test_count_by_status_returns_correct_counts uses 'tenant_id_web' fixture while test_count_by_status_empty (line 427) uses plain 'tenant_id' \u2014 mixing tenant fixtures within the same test class makes it harder to reason about isolation boundaries.",
-              "suggestion": "Standardize on one tenant fixture (e.g., tenant_id) or clearly document why the REST-based tests require tenant_id_web."
+              "message": "TestCustomerServiceIntegration, TestPipelineServiceIntegration, TestSalesServiceIntegration, TestCustomerCountByStatusIntegration lack @pytest.mark.asyncio \u2014 relies on asyncio_mode=auto in pytest.ini; works but is implicit.",
+              "suggestion": "Add @pytest.mark.asyncio to each test class for explicitness and defense against future pytest-asyncio configuration changes."
+            },
+            {
+              "line": 302,
+              "severity": "info",
+              "message": "TestSalesServiceIntegration imports SalesService, PipelineService, UserService but none of the test classes (TestCustomerServiceIntegration, TestPipelineServiceIntegration) use the fixtures from conftest that are specific to those services \u2014 mixing two concerns in one file.",
+              "suggestion": "Split into test_pipeline_service_integration.py and test_sales_service_integration.py to follow the one-domain-per-file convention used by test_customer_service.py."
             }
           ],
-          "summary": "Integration tests correctly use real DB fixtures and exercise the full stack; however, several assertions use '>=' against a known exact count, making tests non-deterministic when other tests leave data in the shared tenant scope."
+          "summary": "Integration tests exercise the real DB correctly, use REST API for critical paths, and have solid tenant isolation assertions; the main concern is fixture/session lifecycle pollution from auth_headers_web committing across test boundaries."
         }
       },
       {
         "file": "tests/unit/test_customer_service.py",
         "returncode": 0,
-        "output": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"api_error_status\":null,\"duration_ms\":182749,\"duration_api_ms\":182644,\"num_turns\":9,\"result\":\"\\nNow I have all the information. Here is the full review:\\n\\n```json\\n[\\n  {\\n    \\\"filename\\\": \\\"src/services/customer_service.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 18,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"VALID_STATUSES has 7 values but CustomerStatus enum only has 4 (LEAD, OPPORTUNITY, CUSTOMER, INACTIVE); storing status 'prospect', 'partner', 'active', or 'blocked' via update_customer/change_status succeeds, but count_by_status raises KeyError when those DB values are used as keys in {CustomerStatus(row[0]): ...}.\\\",\\n        \\\"suggestion\\\": \\\"Align VALID_STATUSES with CustomerStatus members, or broaden the enum to include all valid statuses. Add a defensive lookup: try CustomerStatus(row[0]) except ValueError: skip or log.\\\"\\n      },\\n      {\\n        \\\"line\\\": 71,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"Parameter 'tags: str | None' is accepted but never used in the method body \u2014 dead parameter with no effect on the query.\\\",\\n        \\\"suggestion\\\": \\\"Either implement the tag filter (e.g., conditions.append(CustomerModel.tags.contains(tags))) or remove the parameter.\\\"\\n      },\\n      {\\n        \\\"line\\\": 148,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"Keyword is wrapped in '%' for LIKE matching but '_' and '%' within the keyword itself act as wildcards (e.g., search 'test_1' matches 'testX1').\\\",\\n        \\\"suggestion\\\": \\\"Escape special LIKE characters before wrapping: import re; kw = re.sub(r'([%_\\\\\\\\\\\\\\\\])', r'\\\\\\\\\\\\\\\\\\\\\\\\1', keyword); kw = f'%{kw}%'\\\"\\n      },\\n      {\\n        \\\"line\\\": 100,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"NotFoundException message uses Chinese characters '\u5ba2\u6237' (customer) \u2014 inconsistent with the rest of the codebase which uses English.\\\",\\n        \\\"suggestion\\\": \\\"Use 'Customer' (matching the pattern of other NotFoundException usages).\\\"\\n      },\\n      {\\n        \\\"line\\\": 135,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"NotFoundException message uses Chinese characters '\u5ba2\u6237' (customer) \u2014 inconsistent with the rest of the codebase which uses English.\\\",\\n        \\\"suggestion\\\": \\\"Use 'Customer' instead of '\u5ba2\u6237'.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Service logic is generally sound with correct flush/commit semantics, but a critical mismatch between VALID_STATUSES and the CustomerStatus enum will cause KeyError at runtime for four valid-looking status values, and the unused tags parameter is dead code.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"tests/integration/test_sales_customer_integration.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 130,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"test_list_customers asserts 'len(items) >= 3' \u2014 this only creates 3 customers in this test, so the '>=' allows unrelated tenant data from other tests to silently make the assertion pass.\\\",\\n        \\\"suggestion\\\": \\\"Use '== 3' and rely on db_schema (TRUNCATE CASCADE) to ensure isolation, or assert with a known minimum that is strictly from this test.\\\"\\n      },\\n      {\\n        \\\"line\\\": 143,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"test_list_customers_pagination asserts 'total1 >= 5' and 'total1 >= 5' \u2014 only 5 customers are created in this test, so '>=' makes the assertion pass if any other tests left data in the shared tenant.\\\",\\n        \\\"suggestion\\\": \\\"Use '== 5' to ensure the test is truly isolated and deterministic.\\\"\\n      },\\n      {\\n        \\\"line\\\": 268,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"test_list_pipelines asserts 'len(items) >= 2' \u2014 only 2 pipelines are created in this test, so '>=' allows pre-existing tenant data to silently satisfy the assertion.\\\",\\n        \\\"suggestion\\\": \\\"Use '== 2' for a deterministic assertion.\\\"\\n      },\\n      {\\n        \\\"line\\\": 435,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"test_count_by_status_returns_correct_counts uses 'tenant_id_web' fixture while test_count_by_status_empty (line 427) uses plain 'tenant_id' \u2014 mixing tenant fixtures within the same test class makes it harder to reason about isolation boundaries.\\\",\\n        \\\"suggestion\\\": \\\"Standardize on one tenant fixture (e.g., tenant_id) or clearly document why the REST-based tests require tenant_id_web.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Integration tests correctly use real DB fixtures and exercise the full stack; however, several assertions use '>=' against a known exact count, making tests non-deterministic when other tests leave data in the shared tenant scope.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"tests/unit/test_customer_service.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 9,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"sys.path.insert(0, str(Path(__file__).resolve().parents[2])) hardcodes the repo root and duplicates PYTHONPATH setup already handled by the integration conftest and documented in CLAUDE.md \u2014 fragile when run from different working directories.\\\",\\n        \\\"suggestion\\\": \\\"Remove the sys.path manipulation and rely on PYTHONPATH=src (exported in .env or the shell environment) as the single source of truth.\\\"\\n      },\\n      {\\n        \\\"line\\\": 34,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"mock_db_session fixture sets session.refresh = AsyncMock(), then individual tests reassign it to a plain function (e.g., fake_refresh); this overwrites the fixture-level mock unnecessarily.\\\",\\n        \\\"suggestion\\\": \\\"Define fake_refresh within each test that needs it and pass it to the service constructor directly, or make the fixture accept a configurable refresh callable \u2014 avoid mutating the shared fixture object.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Unit tests are well-structured and cover DTO integration and count_by_status logic correctly; the hardcoded sys.path is the most actionable issue to fix for portability.\\\"\\n  }\\n]\\n```\",\"stop_reason\":\"end_turn\",\"session_id\":\"6deee983-34e1-484c-8d4d-37e78c3237b3\",\"total_cost_usd\":0.6184899,\"usage\":{\"input_tokens\":120618,\"cache_creation_input_tokens\":30714,\"cache_read_input_tokens\":149178,\"output_tokens\":6447,\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":0,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"\",\"iterations\":[],\"speed\":\"standard\"},\"modelUsage\":{\"claude-sonnet-4-6\":{\"inputTokens\":120618,\"outputTokens\":6447,\"cacheReadInputTokens\":149178,\"cacheCreationInputTokens\":30714,\"webSearchRequests\":0,\"costUSD\":0.6184899,\"contextWindow\":200000,\"maxOutputTokens\":32000}},\"permission_denials\":[],\"terminal_reason\":\"completed\",\"fast_mode_state\":\"off\",\"uuid\":\"c8dc5b20-6d7b-45ed-abe3-120742e92745\"}\n",
+        "output": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"api_error_status\":null,\"duration_ms\":225742,\"duration_api_ms\":225173,\"num_turns\":13,\"result\":\"[\\n  {\\n    \\\"filename\\\": \\\"src/services/customer_service.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 18,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"VALID_STATUSES contains values not in the CustomerStatus enum ('partner', 'prospect', 'active', 'blocked'), causing ValueError in count_by_status when any customer has those statuses.\\\",\\n        \\\"suggestion\\\": \\\"Align VALID_STATUSES with CustomerStatus values, or expand the enum to include all seven statuses (add PARTNER, PROSPECT, ACTIVE, BLOCKED).\\\"\\n      },\\n      {\\n        \\\"line\\\": 100,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"NotFoundException uses Chinese '\u5ba2\u6237' while all other exception messages in this file and the codebase use English \u2014 inconsistent, unhelpful in logs/traces.\\\",\\n        \\\"suggestion\\\": \\\"Use 'Customer' in NotFoundException to match the English convention used everywhere else.\\\"\\n      },\\n      {\\n        \\\"line\\\": 135,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"NotFoundException uses Chinese '\u5ba2\u6237' \u2014 same inconsistency as line 100.\\\",\\n        \\\"suggestion\\\": \\\"Use 'Customer' instead of '\u5ba2\u6237'.\\\"\\n      },\\n      {\\n        \\\"line\\\": 0,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"No logging calls anywhere in the service \u2014 raised exceptions (NotFoundException, ValidationException) have no trace in logs, violating Rule 41.\\\",\\n        \\\"suggestion\\\": \\\"Add a logger (e.g. logger = logging.getLogger(__name__)) and log at error level before raising exceptions, including tenant_id and customer_id for traceability.\\\"\\n      },\\n      {\\n        \\\"line\\\": 215,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"bulk_import calls session.add() individually inside a loop; session.add_all(customers) would be more efficient and idiomatic for bulk inserts.\\\",\\n        \\\"suggestion\\\": \\\"Replace the loop with session.add_all([CustomerModel(...) for c in customers]) followed by a single flush().\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Service logic is solid (flush/refresh pattern correct, tenant scoping consistent, no commit() calls), but a critical enum/set mismatch will crash count_by_status for several valid statuses, and mixed-language exception messages hurt debuggability.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"tests/integration/test_sales_customer_integration.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 483,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"auth_headers_web commits async_session (line 355 in conftest) before test_count_by_status_tenant_isolation runs, persisting a user record into tenant_id_web's scope across tests in the same module \u2014 minor data leakage.\\\",\\n        \\\"suggestion\\\": \\\"Have auth_headers_web use its own session instance rather than committing via the shared async_session fixture, or scope tenant_id_web to 'function' to avoid cross-test pollution.\\\"\\n      },\\n      {\\n        \\\"line\\\": 54,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"TestCustomerServiceIntegration, TestPipelineServiceIntegration, TestSalesServiceIntegration, TestCustomerCountByStatusIntegration lack @pytest.mark.asyncio \u2014 relies on asyncio_mode=auto in pytest.ini; works but is implicit.\\\",\\n        \\\"suggestion\\\": \\\"Add @pytest.mark.asyncio to each test class for explicitness and defense against future pytest-asyncio configuration changes.\\\"\\n      },\\n      {\\n        \\\"line\\\": 302,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"TestSalesServiceIntegration imports SalesService, PipelineService, UserService but none of the test classes (TestCustomerServiceIntegration, TestPipelineServiceIntegration) use the fixtures from conftest that are specific to those services \u2014 mixing two concerns in one file.\\\",\\n        \\\"suggestion\\\": \\\"Split into test_pipeline_service_integration.py and test_sales_service_integration.py to follow the one-domain-per-file convention used by test_customer_service.py.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Integration tests exercise the real DB correctly, use REST API for critical paths, and have solid tenant isolation assertions; the main concern is fixture/session lifecycle pollution from auth_headers_web committing across test boundaries.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"tests/unit/test_customer_service.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 223,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"test_count_by_status_empty mocks result.all() with AsyncMock(return_value=[]) \u2014 but SQLAlchemy's Result.all() is synchronous and returns a plain list, not a coroutine; mock signature does not match the real API.\\\",\\n        \\\"suggestion\\\": \\\"Change to mock_result.all = MagicMock(return_value=[]) (synchronous MagicMock, matching SQLAlchemy's synchronous interface), consistent with how test_count_by_status_returns_counts sets up the same mock.\\\"\\n      },\\n      {\\n        \\\"line\\\": 9,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"sys.path.insert(0, ...) duplicates work already done by tests/unit/conftest.py lines 34-35; redundant and can mask import errors that PYTHONPATH would otherwise surface.\\\",\\n        \\\"suggestion\\\": \\\"Remove the sys.path manipulation entirely and rely solely on the conftest setup.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"DTO validation and service-layer DTO-acceptance tests are well-structured; the mock signature mismatch on Result.all() is the only actionable issue, making the empty-result test fragile if the mock contract ever changes.\\\"\\n  }\\n]\",\"stop_reason\":\"end_turn\",\"session_id\":\"9023b5b2-bad1-4994-9047-243891d0012a\",\"total_cost_usd\":0.8358564,\"usage\":{\"input_tokens\":205308,\"cache_creation_input_tokens\":11432,\"cache_read_input_tokens\":218258,\"output_tokens\":7439,\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":0,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"\",\"iterations\":[],\"speed\":\"standard\"},\"modelUsage\":{\"claude-sonnet-4-6\":{\"inputTokens\":205308,\"outputTokens\":7439,\"cacheReadInputTokens\":218258,\"cacheCreationInputTokens\":11432,\"webSearchRequests\":0,\"costUSD\":0.8358564,\"contextWindow\":200000,\"maxOutputTokens\":32000}},\"permission_denials\":[],\"terminal_reason\":\"completed\",\"fast_mode_state\":\"off\",\"uuid\":\"17db340c-17fa-45f0-8ac1-d67af3a9fd06\"}\n",
         "parsed": {
           "filename": "tests/unit/test_customer_service.py",
           "issues": [
             {
-              "line": 9,
+              "line": 223,
               "severity": "warning",
-              "message": "sys.path.insert(0, str(Path(__file__).resolve().parents[2])) hardcodes the repo root and duplicates PYTHONPATH setup already handled by the integration conftest and documented in CLAUDE.md \u2014 fragile when run from different working directories.",
-              "suggestion": "Remove the sys.path manipulation and rely on PYTHONPATH=src (exported in .env or the shell environment) as the single source of truth."
+              "message": "test_count_by_status_empty mocks result.all() with AsyncMock(return_value=[]) \u2014 but SQLAlchemy's Result.all() is synchronous and returns a plain list, not a coroutine; mock signature does not match the real API.",
+              "suggestion": "Change to mock_result.all = MagicMock(return_value=[]) (synchronous MagicMock, matching SQLAlchemy's synchronous interface), consistent with how test_count_by_status_returns_counts sets up the same mock."
             },
             {
-              "line": 34,
+              "line": 9,
               "severity": "info",
-              "message": "mock_db_session fixture sets session.refresh = AsyncMock(), then individual tests reassign it to a plain function (e.g., fake_refresh); this overwrites the fixture-level mock unnecessarily.",
-              "suggestion": "Define fake_refresh within each test that needs it and pass it to the service constructor directly, or make the fixture accept a configurable refresh callable \u2014 avoid mutating the shared fixture object."
+              "message": "sys.path.insert(0, ...) duplicates work already done by tests/unit/conftest.py lines 34-35; redundant and can mask import errors that PYTHONPATH would otherwise surface.",
+              "suggestion": "Remove the sys.path manipulation entirely and rely solely on the conftest setup."
             }
           ],
-          "summary": "Unit tests are well-structured and cover DTO integration and count_by_status logic correctly; the hardcoded sys.path is the most actionable issue to fix for portability."
+          "summary": "DTO validation and service-layer DTO-acceptance tests are well-structured; the mock signature mismatch on Result.all() is the only actionable issue, making the empty-result test fragile if the mock contract ever changes."
         }
       }
     ]
