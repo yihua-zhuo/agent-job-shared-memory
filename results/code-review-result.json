@@ -1,498 +1,333 @@
 {
-  "status": "fail",
-  "verdict": "fail",
-  "critical_issues": [
-    {
-      "file": "alembic/env.py",
-      "line": 48,
-      "severity": "critical",
-      "msg": "Hardcoded fallback DATABASE_URL contains plaintext credentials (postgres:postgres), violating Rule 51 (secrets never hardcoded); if the env var is unset in production the migration silently connects to an unintended database.",
-      "suggestion": "Remove the fallback default; require DATABASE_URL to be set explicitly, or raise a clear error if it is absent rather than silently falling back."
-    },
-    {
-      "file": "src/db/models/contract.py",
-      "line": 19,
-      "severity": "critical",
-      "msg": "quote_id has no ForeignKey constraint, risking referential integrity violations at the DB level.",
-      "suggestion": "Add ForeignKey(\"quotes.id\", ondelete=\"SET NULL\") to the mapped_column call for quote_id."
-    },
-    {
-      "file": "src/db/models/contract.py",
-      "line": 20,
-      "severity": "critical",
-      "msg": "customer_id has no ForeignKey constraint, risking orphaned/invalid references.",
-      "suggestion": "Add ForeignKey(\"customers.id\", ondelete=\"SET NULL\") to the mapped_column call for customer_id."
-    },
-    {
-      "file": "src/db/models/quote.py",
-      "line": 19,
-      "severity": "critical",
-      "msg": "opportunity_id has no ForeignKey constraint, risking orphaned/invalid references.",
-      "suggestion": "Add ForeignKey(\"opportunities.id\", ondelete=\"SET NULL\") to the mapped_column call for opportunity_id."
-    },
-    {
-      "file": "src/db/models/quote.py",
-      "line": 20,
-      "severity": "critical",
-      "msg": "customer_id has no ForeignKey constraint, risking orphaned/invalid references.",
-      "suggestion": "Add ForeignKey(\"customers.id\", ondelete=\"SET NULL\") to the mapped_column call for customer_id."
-    },
-    {
-      "file": "src/services/contract_service.py",
-      "line": 50,
-      "severity": "critical",
-      "msg": "Duplicate-contract check does not filter by tenant_id \u2014 tenant A's quote could find tenant B's contract via direct contract_id or quote_id enumeration (Rule 6)",
-      "suggestion": "Add tenant_id to the duplicate check: select(ContractModel).where(and_(ContractModel.quote_id == quote_id, ContractModel.tenant_id == tenant_id))"
-    },
-    {
-      "file": "src/services/contract_service.py",
-      "line": 166,
-      "severity": "critical",
-      "msg": "update_expiry() has no tenant_id parameter and applies no tenant filter \u2014 it would expire contracts across all tenants (Rule 6)",
-      "suggestion": "Add tenant_id: int parameter and filter by ContractModel.tenant_id == tenant_id in the WHERE clause, or add tenant_id as an optional parameter and default to restricting to a specific tenant"
-    }
-  ],
+  "status": "pass",
+  "verdict": "pass",
+  "critical_issues": [],
   "suggestions": [
     {
-      "file": ".plans/issue-72.md",
-      "line": "",
-      "severity": "info",
-      "msg": "Implementation plan is thorough and follows project conventions, correctly identifying all files to create/modify, multi-tenancy requirements, and the service/router patterns."
-    },
-    {
-      "file": "alembic/versions/6a13a1cae89b_add_quotes_contracts_tables.py",
-      "line": 26,
+      "file": ".github/workflows/fix-pr-comments.yml",
+      "line": 80,
       "severity": "warning",
-      "msg": "contracts.quote_id column has neither a ForeignKey constraint nor an index, yet ContractService.create_contract_from_quote queries this column to detect duplicate conversions \u2014 will cause an N+1/full-scan on every call (Rule 84).",
-      "suggestion": "Add op.create_index(op.f('ix_contracts_quote_id'), 'contracts', ['quote_id']) after line 40, and consider op.add_column('quote_id', sa.ForeignKeyConstraint(['quote_id'], ['quotes.id'])) in a follow-up migration."
+      "msg": "pip install fallback chain is fragile and repeats work \u2014 if -e '.[dev]' succeeds it already includes ruff/pytest; the subsequent pip install lines are dead code in that path and confusing in the failure path",
+      "suggestion": "Consolidate into one install step: first try `pip install -e '.[dev]'` with a clear error if it fails, then fall back to pinned requirements.txt only if that file exists \u2014 never re-install individually named packages that may drift from the lock file"
     },
     {
-      "file": "alembic/versions/6a13a1cae89b_add_quotes_contracts_tables.py",
+      "file": ".github/workflows/fix-pr-comments.yml",
+      "line": 81,
+      "severity": "warning",
+      "msg": "Five packages are installed with no version pins; if the repo has a pyproject.toml or requirements.txt these will silently shadow or conflict with those definitions, producing non-reproducible CI runs",
+      "suggestion": "Remove these explicit pip installs; rely entirely on `pip install -e '.[dev]'` or a pinned requirements file. If a dev extras group doesn't exist yet, create one in pyproject.toml"
+    },
+    {
+      "file": ".github/workflows/fix-pr-comments.yml",
+      "line": 98,
+      "severity": "info",
+      "msg": "The workflow runs the test suite (step 99) but does not gate the commit/push step (119) on test results \u2014 a Claude run that exits 0 without running tests will still push",
+      "suggestion": "Add a step between the Claude step and commit step that checks for test evidence (e.g. check pytest cache or exit code), or clarify in documentation that Claude is trusted to self-enforce the test requirement from the prompt"
+    },
+    {
+      "file": ".github/workflows/fix-pr-comments.yml",
+      "line": 113,
+      "severity": "info",
+      "msg": "git status -uall (uppercase U) lists untracked files as 'untracked' rather than showing their names, reducing diagnostic value",
+      "suggestion": "Use `git status` (no flag) which shows untracked file names; `-uall` is only needed for a pager-less format that the workflow doesn't require"
+    },
+    {
+      "file": "scripts/ci/dispatch_pr_fixes.py",
+      "line": 137,
+      "severity": "info",
+      "msg": "Bare except catches SystemExit, KeyboardInterrupt, and GeneratorExit alongside all other exceptions; the noqa comment is accurate but the suppression of those three classes is a latent hazard if the loop ever runs in an interactive interpreter",
+      "suggestion": "Change to `except Exception as e:` (without catching BaseException) \u2014 currently the noqa already acknowledges BLE001, so the fix also removes the noqa and satisfies the linter"
+    },
+    {
+      "file": "scripts/ci/dispatch_pr_fixes.py",
+      "line": 96,
+      "severity": "warning",
+      "msg": "dispatch_fix returns bool but the caller in main() ignores the return value on success and only checks it in the else branch; the True return is unused",
+      "suggestion": "The function could return the subprocess result directly or return None on failure so the caller can distinguish 'dispatched ok' from 'dispatched and also logged' \u2014 currently the return value is functionally dead code"
+    },
+    {
+      "file": "scripts/ci/fix_pr_comments.py",
+      "line": 338,
+      "severity": "warning",
+      "msg": "CLAUDE_TIMEOUT_SECONDS default value (2400) is embedded in production code with no validation \u2014 a typo like '240O' (letter O) or negative value would be accepted and produce nonsensical behavior",
+      "suggestion": "Validate after parsing: raise ValueError or return 1 if timeout <= 0. The same applies to CLAUDE_MAX_TURNS on line 339"
+    },
+    {
+      "file": "scripts/ci/fix_pr_comments.py",
+      "line": 337,
+      "severity": "info",
+      "msg": "CLAUDE_MODEL falls back to a hardcoded string 'claude-sonnet-4-6'; if the model name changes (e.g. new default in the project) this fallback silently overrides without any signal to the operator",
+      "suggestion": "Omit the hardcoded fallback entirely and let the subprocess fail with a clear 'model not found' error rather than silently defaulting \u2014 or log a warning when the fallback is used"
+    },
+    {
+      "file": "scripts/ci/fix_pr_comments.py",
+      "line": 26,
+      "severity": "info",
+      "msg": "BOT_MARKERS is a tuple of literal string markers; if a future workflow uses a different marker format, this tuple will silently diverge and cause the bot-skip logic to miss it",
+      "suggestion": "Consider loading markers from an environment variable or a shared constants module so all pipeline scripts read from one source of truth"
+    },
+    {
+      "file": "scripts/ci/fix_pr_comments.py",
       "line": 44,
-      "severity": "warning",
-      "msg": "quotes.opportunity_id column has no index; QuoteService.list_quotes filters by opportunity_id, and the plan (step 1) explicitly specifies this column should be indexed.",
-      "suggestion": "Add op.create_index(op.f('ix_quotes_opportunity_id'), 'quotes', ['opportunity_id']) after line 57."
-    },
-    {
-      "file": "src/db/models/__init__.py",
-      "line": 19,
-      "severity": "warning",
-      "msg": "opportunity_id on QuoteModel has no index=True (line 19 of quote.py), but QuoteService.list_quotes filters by opportunity_id and the migration does not add this index \u2014 the ORM and DB will drift.",
-      "suggestion": "Add index=True to the opportunity_id mapped_column in quote.py and update the migration to include op.create_index(op.f('ix_quotes_opportunity_id'), 'quotes', ['opportunity_id'])."
-    },
-    {
-      "file": "src/db/models/contract.py",
-      "line": 0,
       "severity": "info",
-      "msg": "Status values 'draft'/'sent'/'viewed'/'signed'/'expired' are magic strings with no enum or constant.",
-      "suggestion": "Define a ContractStatus enum in src/models/contract.py and reference it in both the ORM default and the Pydantic schema pattern."
+      "msg": "run_gh uses check=False and the caller inspects returncode manually, which is correct, but several callers log the error and break instead of returning an error sentinel \u2014 this makes it hard to distinguish a transient gh failure from a legitimately empty result",
+      "suggestion": "Add a comment noting that empty lists ([]) are the canonical 'nothing found' signal, so callers that do `if result.returncode != 0: break` are intentionally collapsing gh errors and API-empty responses into the same outcome"
     },
     {
-      "file": "src/db/models/quote.py",
-      "line": 0,
-      "severity": "info",
-      "msg": "Status values 'draft' and discount_type values 'percentage'/'fixed'/'none' are magic strings with no enum.",
-      "suggestion": "Define QuoteStatus and DiscountType enums in src/models/quote.py and reference them consistently in both ORM defaults and Pydantic schemas."
-    },
-    {
-      "file": "src/models/contract.py",
-      "line": 13,
+      "file": "scripts/ci/self_review_implementation.py",
+      "line": 168,
       "severity": "warning",
-      "msg": "ContractSendForSignature.signer_email has no email format validation, allowing invalid addresses.",
-      "suggestion": "Use Field(..., validation_alias=BeforeValidator(parse_obj_as(EmailStr))) or upgrade to Pydantic v2 email validation with Field(..., validators=[...])."
+      "msg": "CLAUDE_TIMEOUT_SECONDS default (1800) and CLAUDE_MAX_TURNS default (100) have no validation \u2014 same concern as fix_pr_comments.py: a misconfigured environment variable bypasses the intent silently",
+      "suggestion": "Validate timeout > 0 and max_turns > 0 after parsing; return 1 with a descriptive log if invalid"
     },
     {
-      "file": "src/models/contract.py",
-      "line": 0,
+      "file": "scripts/ci/self_review_implementation.py",
+      "line": 168,
       "severity": "info",
-      "msg": "No response schema (e.g. ContractResponse) is defined, requiring routers to manually construct response dicts.",
-      "suggestion": "Add a ContractResponse schema referencing the existing ORM to_dict output shape for consistency."
+      "msg": "CLAUDE_MODEL defaults to 'claude-sonnet-4-6'; unlike fix_pr_comments.py (which also defaults it), this creates two independent copies of the same default string \u2014 if the intended default ever changes, both files must be updated in sync",
+      "suggestion": "Extract the default model name to a shared constant (e.g. in a shared constants.py or at minimum a single DEFAULT_MODEL variable at module level referenced by both scripts)"
     },
     {
-      "file": "src/models/quote.py",
-      "line": 26,
-      "severity": "warning",
-      "msg": "QuoteCreate.opportunity_id and QuoteCreate.notes fields exist but no corresponding QuoteUpdate includes a status or amount field \u2014 services cannot set initial status or amount.",
-      "suggestion": "Ensure the service layer can set default status='draft' and amount on quote creation; if amount requires computation from items, consider adding an explicit field or documenting the behavior."
-    },
-    {
-      "file": "src/models/quote.py",
-      "line": 0,
+      "file": "scripts/ci/self_review_implementation.py",
+      "line": 177,
       "severity": "info",
-      "msg": "No response schema (e.g. QuoteResponse, QuoteItemResponse) is defined.",
-      "suggestion": "Add QuoteResponse and QuoteItemResponse schemas mirroring the ORM to_dict output shape for consistent router serialization."
-    },
-    {
-      "file": "src/services/quote_service.py",
-      "line": 278,
-      "severity": "warning",
-      "msg": "apply_discount() calls _calc_amount() which flushes, but then calls session.refresh(quote) without an explicit flush immediately before it \u2014 the refresh will succeed but the call chain is non-obvious (Rule 123)",
-      "suggestion": "Add an explicit await self.session.flush() before the refresh to make the lifecycle explicit, even though _calc_amount already flushes \u2014 this prevents future bugs if _calc_amount is refactored"
+      "msg": "The comment justifying bypassPermissions ('headless -p in CI has no UI for permission prompts') is accurate but the comment itself is fragile \u2014 future editors may remove it believing it to be noise",
+      "suggestion": "Consider extracting the rationale into a shared helper constant or docstring explaining the permission-mode requirement, so the 'why' survives code cleanups"
     }
   ],
-  "summary": "Reviewed 10 file(s) between origin/master and origin/auto/issue-72.",
+  "summary": "Reviewed 4 file(s) between origin/master and origin/develop.",
   "details": {
     "llm_parsed": {
-      "verdict": "fail",
-      "critical": [
-        {
-          "file": "alembic/env.py",
-          "line": 48,
-          "severity": "critical",
-          "msg": "Hardcoded fallback DATABASE_URL contains plaintext credentials (postgres:postgres), violating Rule 51 (secrets never hardcoded); if the env var is unset in production the migration silently connects to an unintended database.",
-          "suggestion": "Remove the fallback default; require DATABASE_URL to be set explicitly, or raise a clear error if it is absent rather than silently falling back."
-        },
-        {
-          "file": "src/db/models/contract.py",
-          "line": 19,
-          "severity": "critical",
-          "msg": "quote_id has no ForeignKey constraint, risking referential integrity violations at the DB level.",
-          "suggestion": "Add ForeignKey(\"quotes.id\", ondelete=\"SET NULL\") to the mapped_column call for quote_id."
-        },
-        {
-          "file": "src/db/models/contract.py",
-          "line": 20,
-          "severity": "critical",
-          "msg": "customer_id has no ForeignKey constraint, risking orphaned/invalid references.",
-          "suggestion": "Add ForeignKey(\"customers.id\", ondelete=\"SET NULL\") to the mapped_column call for customer_id."
-        },
-        {
-          "file": "src/db/models/quote.py",
-          "line": 19,
-          "severity": "critical",
-          "msg": "opportunity_id has no ForeignKey constraint, risking orphaned/invalid references.",
-          "suggestion": "Add ForeignKey(\"opportunities.id\", ondelete=\"SET NULL\") to the mapped_column call for opportunity_id."
-        },
-        {
-          "file": "src/db/models/quote.py",
-          "line": 20,
-          "severity": "critical",
-          "msg": "customer_id has no ForeignKey constraint, risking orphaned/invalid references.",
-          "suggestion": "Add ForeignKey(\"customers.id\", ondelete=\"SET NULL\") to the mapped_column call for customer_id."
-        },
-        {
-          "file": "src/services/contract_service.py",
-          "line": 50,
-          "severity": "critical",
-          "msg": "Duplicate-contract check does not filter by tenant_id \u2014 tenant A's quote could find tenant B's contract via direct contract_id or quote_id enumeration (Rule 6)",
-          "suggestion": "Add tenant_id to the duplicate check: select(ContractModel).where(and_(ContractModel.quote_id == quote_id, ContractModel.tenant_id == tenant_id))"
-        },
-        {
-          "file": "src/services/contract_service.py",
-          "line": 166,
-          "severity": "critical",
-          "msg": "update_expiry() has no tenant_id parameter and applies no tenant filter \u2014 it would expire contracts across all tenants (Rule 6)",
-          "suggestion": "Add tenant_id: int parameter and filter by ContractModel.tenant_id == tenant_id in the WHERE clause, or add tenant_id as an optional parameter and default to restricting to a specific tenant"
-        }
-      ],
+      "verdict": "pass",
+      "critical": [],
       "warnings": [
         {
-          "file": ".plans/issue-72.md",
-          "line": "",
-          "severity": "info",
-          "msg": "Implementation plan is thorough and follows project conventions, correctly identifying all files to create/modify, multi-tenancy requirements, and the service/router patterns."
-        },
-        {
-          "file": "alembic/versions/6a13a1cae89b_add_quotes_contracts_tables.py",
-          "line": 26,
+          "file": ".github/workflows/fix-pr-comments.yml",
+          "line": 80,
           "severity": "warning",
-          "msg": "contracts.quote_id column has neither a ForeignKey constraint nor an index, yet ContractService.create_contract_from_quote queries this column to detect duplicate conversions \u2014 will cause an N+1/full-scan on every call (Rule 84).",
-          "suggestion": "Add op.create_index(op.f('ix_contracts_quote_id'), 'contracts', ['quote_id']) after line 40, and consider op.add_column('quote_id', sa.ForeignKeyConstraint(['quote_id'], ['quotes.id'])) in a follow-up migration."
+          "msg": "pip install fallback chain is fragile and repeats work \u2014 if -e '.[dev]' succeeds it already includes ruff/pytest; the subsequent pip install lines are dead code in that path and confusing in the failure path",
+          "suggestion": "Consolidate into one install step: first try `pip install -e '.[dev]'` with a clear error if it fails, then fall back to pinned requirements.txt only if that file exists \u2014 never re-install individually named packages that may drift from the lock file"
         },
         {
-          "file": "alembic/versions/6a13a1cae89b_add_quotes_contracts_tables.py",
+          "file": ".github/workflows/fix-pr-comments.yml",
+          "line": 81,
+          "severity": "warning",
+          "msg": "Five packages are installed with no version pins; if the repo has a pyproject.toml or requirements.txt these will silently shadow or conflict with those definitions, producing non-reproducible CI runs",
+          "suggestion": "Remove these explicit pip installs; rely entirely on `pip install -e '.[dev]'` or a pinned requirements file. If a dev extras group doesn't exist yet, create one in pyproject.toml"
+        },
+        {
+          "file": ".github/workflows/fix-pr-comments.yml",
+          "line": 98,
+          "severity": "info",
+          "msg": "The workflow runs the test suite (step 99) but does not gate the commit/push step (119) on test results \u2014 a Claude run that exits 0 without running tests will still push",
+          "suggestion": "Add a step between the Claude step and commit step that checks for test evidence (e.g. check pytest cache or exit code), or clarify in documentation that Claude is trusted to self-enforce the test requirement from the prompt"
+        },
+        {
+          "file": ".github/workflows/fix-pr-comments.yml",
+          "line": 113,
+          "severity": "info",
+          "msg": "git status -uall (uppercase U) lists untracked files as 'untracked' rather than showing their names, reducing diagnostic value",
+          "suggestion": "Use `git status` (no flag) which shows untracked file names; `-uall` is only needed for a pager-less format that the workflow doesn't require"
+        },
+        {
+          "file": "scripts/ci/dispatch_pr_fixes.py",
+          "line": 137,
+          "severity": "info",
+          "msg": "Bare except catches SystemExit, KeyboardInterrupt, and GeneratorExit alongside all other exceptions; the noqa comment is accurate but the suppression of those three classes is a latent hazard if the loop ever runs in an interactive interpreter",
+          "suggestion": "Change to `except Exception as e:` (without catching BaseException) \u2014 currently the noqa already acknowledges BLE001, so the fix also removes the noqa and satisfies the linter"
+        },
+        {
+          "file": "scripts/ci/dispatch_pr_fixes.py",
+          "line": 96,
+          "severity": "warning",
+          "msg": "dispatch_fix returns bool but the caller in main() ignores the return value on success and only checks it in the else branch; the True return is unused",
+          "suggestion": "The function could return the subprocess result directly or return None on failure so the caller can distinguish 'dispatched ok' from 'dispatched and also logged' \u2014 currently the return value is functionally dead code"
+        },
+        {
+          "file": "scripts/ci/fix_pr_comments.py",
+          "line": 338,
+          "severity": "warning",
+          "msg": "CLAUDE_TIMEOUT_SECONDS default value (2400) is embedded in production code with no validation \u2014 a typo like '240O' (letter O) or negative value would be accepted and produce nonsensical behavior",
+          "suggestion": "Validate after parsing: raise ValueError or return 1 if timeout <= 0. The same applies to CLAUDE_MAX_TURNS on line 339"
+        },
+        {
+          "file": "scripts/ci/fix_pr_comments.py",
+          "line": 337,
+          "severity": "info",
+          "msg": "CLAUDE_MODEL falls back to a hardcoded string 'claude-sonnet-4-6'; if the model name changes (e.g. new default in the project) this fallback silently overrides without any signal to the operator",
+          "suggestion": "Omit the hardcoded fallback entirely and let the subprocess fail with a clear 'model not found' error rather than silently defaulting \u2014 or log a warning when the fallback is used"
+        },
+        {
+          "file": "scripts/ci/fix_pr_comments.py",
+          "line": 26,
+          "severity": "info",
+          "msg": "BOT_MARKERS is a tuple of literal string markers; if a future workflow uses a different marker format, this tuple will silently diverge and cause the bot-skip logic to miss it",
+          "suggestion": "Consider loading markers from an environment variable or a shared constants module so all pipeline scripts read from one source of truth"
+        },
+        {
+          "file": "scripts/ci/fix_pr_comments.py",
           "line": 44,
-          "severity": "warning",
-          "msg": "quotes.opportunity_id column has no index; QuoteService.list_quotes filters by opportunity_id, and the plan (step 1) explicitly specifies this column should be indexed.",
-          "suggestion": "Add op.create_index(op.f('ix_quotes_opportunity_id'), 'quotes', ['opportunity_id']) after line 57."
-        },
-        {
-          "file": "src/db/models/__init__.py",
-          "line": 19,
-          "severity": "warning",
-          "msg": "opportunity_id on QuoteModel has no index=True (line 19 of quote.py), but QuoteService.list_quotes filters by opportunity_id and the migration does not add this index \u2014 the ORM and DB will drift.",
-          "suggestion": "Add index=True to the opportunity_id mapped_column in quote.py and update the migration to include op.create_index(op.f('ix_quotes_opportunity_id'), 'quotes', ['opportunity_id'])."
-        },
-        {
-          "file": "src/db/models/contract.py",
-          "line": 0,
           "severity": "info",
-          "msg": "Status values 'draft'/'sent'/'viewed'/'signed'/'expired' are magic strings with no enum or constant.",
-          "suggestion": "Define a ContractStatus enum in src/models/contract.py and reference it in both the ORM default and the Pydantic schema pattern."
+          "msg": "run_gh uses check=False and the caller inspects returncode manually, which is correct, but several callers log the error and break instead of returning an error sentinel \u2014 this makes it hard to distinguish a transient gh failure from a legitimately empty result",
+          "suggestion": "Add a comment noting that empty lists ([]) are the canonical 'nothing found' signal, so callers that do `if result.returncode != 0: break` are intentionally collapsing gh errors and API-empty responses into the same outcome"
         },
         {
-          "file": "src/db/models/quote.py",
-          "line": 0,
-          "severity": "info",
-          "msg": "Status values 'draft' and discount_type values 'percentage'/'fixed'/'none' are magic strings with no enum.",
-          "suggestion": "Define QuoteStatus and DiscountType enums in src/models/quote.py and reference them consistently in both ORM defaults and Pydantic schemas."
-        },
-        {
-          "file": "src/models/contract.py",
-          "line": 13,
+          "file": "scripts/ci/self_review_implementation.py",
+          "line": 168,
           "severity": "warning",
-          "msg": "ContractSendForSignature.signer_email has no email format validation, allowing invalid addresses.",
-          "suggestion": "Use Field(..., validation_alias=BeforeValidator(parse_obj_as(EmailStr))) or upgrade to Pydantic v2 email validation with Field(..., validators=[...])."
+          "msg": "CLAUDE_TIMEOUT_SECONDS default (1800) and CLAUDE_MAX_TURNS default (100) have no validation \u2014 same concern as fix_pr_comments.py: a misconfigured environment variable bypasses the intent silently",
+          "suggestion": "Validate timeout > 0 and max_turns > 0 after parsing; return 1 with a descriptive log if invalid"
         },
         {
-          "file": "src/models/contract.py",
-          "line": 0,
+          "file": "scripts/ci/self_review_implementation.py",
+          "line": 168,
           "severity": "info",
-          "msg": "No response schema (e.g. ContractResponse) is defined, requiring routers to manually construct response dicts.",
-          "suggestion": "Add a ContractResponse schema referencing the existing ORM to_dict output shape for consistency."
+          "msg": "CLAUDE_MODEL defaults to 'claude-sonnet-4-6'; unlike fix_pr_comments.py (which also defaults it), this creates two independent copies of the same default string \u2014 if the intended default ever changes, both files must be updated in sync",
+          "suggestion": "Extract the default model name to a shared constant (e.g. in a shared constants.py or at minimum a single DEFAULT_MODEL variable at module level referenced by both scripts)"
         },
         {
-          "file": "src/models/quote.py",
-          "line": 26,
-          "severity": "warning",
-          "msg": "QuoteCreate.opportunity_id and QuoteCreate.notes fields exist but no corresponding QuoteUpdate includes a status or amount field \u2014 services cannot set initial status or amount.",
-          "suggestion": "Ensure the service layer can set default status='draft' and amount on quote creation; if amount requires computation from items, consider adding an explicit field or documenting the behavior."
-        },
-        {
-          "file": "src/models/quote.py",
-          "line": 0,
+          "file": "scripts/ci/self_review_implementation.py",
+          "line": 177,
           "severity": "info",
-          "msg": "No response schema (e.g. QuoteResponse, QuoteItemResponse) is defined.",
-          "suggestion": "Add QuoteResponse and QuoteItemResponse schemas mirroring the ORM to_dict output shape for consistent router serialization."
-        },
-        {
-          "file": "src/services/quote_service.py",
-          "line": 278,
-          "severity": "warning",
-          "msg": "apply_discount() calls _calc_amount() which flushes, but then calls session.refresh(quote) without an explicit flush immediately before it \u2014 the refresh will succeed but the call chain is non-obvious (Rule 123)",
-          "suggestion": "Add an explicit await self.session.flush() before the refresh to make the lifecycle explicit, even though _calc_amount already flushes \u2014 this prevents future bugs if _calc_amount is refactored"
+          "msg": "The comment justifying bypassPermissions ('headless -p in CI has no UI for permission prompts') is accurate but the comment itself is fragile \u2014 future editors may remove it believing it to be noise",
+          "suggestion": "Consider extracting the rationale into a shared helper constant or docstring explaining the permission-mode requirement, so the 'why' survives code cleanups"
         }
       ],
-      "summary": "Reviewed 10 file(s) between origin/master and origin/auto/issue-72."
+      "summary": "Reviewed 4 file(s) between origin/master and origin/develop."
     },
     "reviewed_refs": {
       "base": "8409a996a4cc8d3ea5796207f4d1213c84d504d4",
-      "head": "84304ee0cc97885d210381b8394f448553a221f6",
+      "head": "b0f21614eae8405a189e7345d48f39710766e0ea",
       "base_label": "origin/master",
-      "head_label": "origin/auto/issue-72"
+      "head_label": "origin/develop"
     },
     "reviewed_files": [
-      ".plans/issue-72.md",
-      "alembic/env.py",
-      "alembic/versions/6a13a1cae89b_add_quotes_contracts_tables.py",
-      "src/db/models/__init__.py",
-      "src/db/models/contract.py",
-      "src/db/models/quote.py",
-      "src/models/contract.py",
-      "src/models/quote.py",
-      "src/services/contract_service.py",
-      "src/services/quote_service.py"
+      ".github/workflows/fix-pr-comments.yml",
+      "scripts/ci/dispatch_pr_fixes.py",
+      "scripts/ci/fix_pr_comments.py",
+      "scripts/ci/self_review_implementation.py"
     ],
     "per_file_reviews": [
       {
-        "file": ".plans/issue-72.md",
+        "file": ".github/workflows/fix-pr-comments.yml",
         "returncode": 0,
-        "output": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"api_error_status\":null,\"duration_ms\":67818,\"duration_api_ms\":67741,\"num_turns\":8,\"result\":\"[\\n  {\\n    \\\"filename\\\": \\\".plans/issue-72.md\\\",\\n    \\\"issues\\\": [],\\n    \\\"summary\\\": \\\"Implementation plan is thorough and follows project conventions, correctly identifying all files to create/modify, multi-tenancy requirements, and the service/router patterns.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"alembic/env.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 48,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"Hardcoded fallback DATABASE_URL contains plaintext credentials (postgres:postgres), violating Rule 51 (secrets never hardcoded); if the env var is unset in production the migration silently connects to an unintended database.\\\",\\n        \\\"suggestion\\\": \\\"Remove the fallback default; require DATABASE_URL to be set explicitly, or raise a clear error if it is absent rather than silently falling back.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Alembic environment is correctly configured for async SQLAlchemy with all models imported for autogenerate, but contains a hardcoded credential fallback that is a critical security issue.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"alembic/versions/6a13a1cae89b_add_quotes_contracts_tables.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 26,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"contracts.quote_id column has neither a ForeignKey constraint nor an index, yet ContractService.create_contract_from_quote queries this column to detect duplicate conversions \u2014 will cause an N+1/full-scan on every call (Rule 84).\\\",\\n        \\\"suggestion\\\": \\\"Add op.create_index(op.f('ix_contracts_quote_id'), 'contracts', ['quote_id']) after line 40, and consider op.add_column('quote_id', sa.ForeignKeyConstraint(['quote_id'], ['quotes.id'])) in a follow-up migration.\\\"\\n      },\\n      {\\n        \\\"line\\\": 44,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"quotes.opportunity_id column has no index; QuoteService.list_quotes filters by opportunity_id, and the plan (step 1) explicitly specifies this column should be indexed.\\\",\\n        \\\"suggestion\\\": \\\"Add op.create_index(op.f('ix_quotes_opportunity_id'), 'quotes', ['opportunity_id']) after line 57.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Migration correctly creates all three tables with tenant_id indexes but omits a quote_id index on contracts (needed for the duplicate-conversion check) and an opportunity_id index on quotes (needed for list filtering).\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"src/db/models/__init__.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 19,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"opportunity_id on QuoteModel has no index=True (line 19 of quote.py), but QuoteService.list_quotes filters by opportunity_id and the migration does not add this index \u2014 the ORM and DB will drift.\\\",\\n        \\\"suggestion\\\": \\\"Add index=True to the opportunity_id mapped_column in quote.py and update the migration to include op.create_index(op.f('ix_quotes_opportunity_id'), 'quotes', ['opportunity_id']).\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Exports and __all__ are complete and correct; no structural issues, but the opportunity_id index mismatch between the ORM model and the migration needs to be resolved.\\\"\\n  }\\n]\",\"stop_reason\":\"end_turn\",\"session_id\":\"68ba375d-26ab-4fd5-823a-ef2b1b5cde03\",\"total_cost_usd\":0.30681135,\"usage\":{\"input_tokens\":41527,\"cache_creation_input_tokens\":30719,\"cache_read_input_tokens\":74547,\"output_tokens\":2978,\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":0,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"\",\"iterations\":[],\"speed\":\"standard\"},\"modelUsage\":{\"claude-sonnet-4-6\":{\"inputTokens\":41527,\"outputTokens\":2978,\"cacheReadInputTokens\":74547,\"cacheCreationInputTokens\":30719,\"webSearchRequests\":0,\"costUSD\":0.30681135,\"contextWindow\":200000,\"maxOutputTokens\":32000}},\"permission_denials\":[],\"terminal_reason\":\"completed\",\"fast_mode_state\":\"off\",\"uuid\":\"ec886df9-6b0c-468e-a7e2-6277a7462d15\"}\n",
+        "output": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"api_error_status\":null,\"duration_ms\":108140,\"duration_api_ms\":108056,\"num_turns\":8,\"result\":\"\\n\\n[\\n  {\\n    \\\"filename\\\": \\\".github/workflows/fix-pr-comments.yml\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 80,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"pip install fallback chain is fragile and repeats work \u2014 if -e '.[dev]' succeeds it already includes ruff/pytest; the subsequent pip install lines are dead code in that path and confusing in the failure path\\\",\\n        \\\"suggestion\\\": \\\"Consolidate into one install step: first try `pip install -e '.[dev]'` with a clear error if it fails, then fall back to pinned requirements.txt only if that file exists \u2014 never re-install individually named packages that may drift from the lock file\\\"\\n      },\\n      {\\n        \\\"line\\\": 81,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"Five packages are installed with no version pins; if the repo has a pyproject.toml or requirements.txt these will silently shadow or conflict with those definitions, producing non-reproducible CI runs\\\",\\n        \\\"suggestion\\\": \\\"Remove these explicit pip installs; rely entirely on `pip install -e '.[dev]'` or a pinned requirements file. If a dev extras group doesn't exist yet, create one in pyproject.toml\\\"\\n      },\\n      {\\n        \\\"line\\\": 98,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"The workflow runs the test suite (step 99) but does not gate the commit/push step (119) on test results \u2014 a Claude run that exits 0 without running tests will still push\\\",\\n        \\\"suggestion\\\": \\\"Add a step between the Claude step and commit step that checks for test evidence (e.g. check pytest cache or exit code), or clarify in documentation that Claude is trusted to self-enforce the test requirement from the prompt\\\"\\n      },\\n      {\\n        \\\"line\\\": 113,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"git status -uall (uppercase U) lists untracked files as 'untracked' rather than showing their names, reducing diagnostic value\\\",\\n        \\\"suggestion\\\": \\\"Use `git status` (no flag) which shows untracked file names; `-uall` is only needed for a pager-less format that the workflow doesn't require\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Workflow is well-structured overall but installs overlapping/unpinned packages and lacks a test-gate between Claude execution and the commit/push step\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"scripts/ci/dispatch_pr_fixes.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 137,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"Bare except catches SystemExit, KeyboardInterrupt, and GeneratorExit alongside all other exceptions; the noqa comment is accurate but the suppression of those three classes is a latent hazard if the loop ever runs in an interactive interpreter\\\",\\n        \\\"suggestion\\\": \\\"Change to `except Exception as e:` (without catching BaseException) \u2014 currently the noqa already acknowledges BLE001, so the fix also removes the noqa and satisfies the linter\\\"\\n      },\\n      {\\n        \\\"line\\\": 96,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"dispatch_fix returns bool but the caller in main() ignores the return value on success and only checks it in the else branch; the True return is unused\\\",\\n        \\\"suggestion\\\": \\\"The function could return the subprocess result directly or return None on failure so the caller can distinguish 'dispatched ok' from 'dispatched and also logged' \u2014 currently the return value is functionally dead code\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Small script with a minor bare-except issue in the PR loop and an unused bool return from dispatch_fix\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"scripts/ci/fix_pr_comments.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 338,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"CLAUDE_TIMEOUT_SECONDS default value (2400) is embedded in production code with no validation \u2014 a typo like '240O' (letter O) or negative value would be accepted and produce nonsensical behavior\\\",\\n        \\\"suggestion\\\": \\\"Validate after parsing: raise ValueError or return 1 if timeout <= 0. The same applies to CLAUDE_MAX_TURNS on line 339\\\"\\n      },\\n      {\\n        \\\"line\\\": 337,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"CLAUDE_MODEL falls back to a hardcoded string 'claude-sonnet-4-6'; if the model name changes (e.g. new default in the project) this fallback silently overrides without any signal to the operator\\\",\\n        \\\"suggestion\\\": \\\"Omit the hardcoded fallback entirely and let the subprocess fail with a clear 'model not found' error rather than silently defaulting \u2014 or log a warning when the fallback is used\\\"\\n      },\\n      {\\n        \\\"line\\\": 26,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"BOT_MARKERS is a tuple of literal string markers; if a future workflow uses a different marker format, this tuple will silently diverge and cause the bot-skip logic to miss it\\\",\\n        \\\"suggestion\\\": \\\"Consider loading markers from an environment variable or a shared constants module so all pipeline scripts read from one source of truth\\\"\\n      },\\n      {\\n        \\\"line\\\": 44,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"run_gh uses check=False and the caller inspects returncode manually, which is correct, but several callers log the error and break instead of returning an error sentinel \u2014 this makes it hard to distinguish a transient gh failure from a legitimately empty result\\\",\\n        \\\"suggestion\\\": \\\"Add a comment noting that empty lists ([]) are the canonical 'nothing found' signal, so callers that do `if result.returncode != 0: break` are intentionally collapsing gh errors and API-empty responses into the same outcome\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Script is solid; main concerns are unvalidated numeric env vars (timeout) and a hardcoded model default that masks configuration drift\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"scripts/ci/self_review_implementation.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 168,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"CLAUDE_TIMEOUT_SECONDS default (1800) and CLAUDE_MAX_TURNS default (100) have no validation \u2014 same concern as fix_pr_comments.py: a misconfigured environment variable bypasses the intent silently\\\",\\n        \\\"suggestion\\\": \\\"Validate timeout > 0 and max_turns > 0 after parsing; return 1 with a descriptive log if invalid\\\"\\n      },\\n      {\\n        \\\"line\\\": 168,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"CLAUDE_MODEL defaults to 'claude-sonnet-4-6'; unlike fix_pr_comments.py (which also defaults it), this creates two independent copies of the same default string \u2014 if the intended default ever changes, both files must be updated in sync\\\",\\n        \\\"suggestion\\\": \\\"Extract the default model name to a shared constant (e.g. in a shared constants.py or at minimum a single DEFAULT_MODEL variable at module level referenced by both scripts)\\\"\\n      },\\n      {\\n        \\\"line\\\": 177,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"The comment justifying bypassPermissions ('headless -p in CI has no UI for permission prompts') is accurate but the comment itself is fragile \u2014 future editors may remove it believing it to be noise\\\",\\n        \\\"suggestion\\\": \\\"Consider extracting the rationale into a shared helper constant or docstring explaining the permission-mode requirement, so the 'why' survives code cleanups\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Duplicates the same validation-gap pattern from fix_pr_comments.py; model default should be shared rather than copied\\\"\\n  }\\n]\",\"stop_reason\":\"end_turn\",\"session_id\":\"7827025a-b380-431d-a424-4e10f15f9dc9\",\"total_cost_usd\":0.26202060000000005,\"usage\":{\"input_tokens\":44816,\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":152992,\"output_tokens\":5445,\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":0,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"\",\"iterations\":[],\"speed\":\"standard\"},\"modelUsage\":{\"claude-sonnet-4-6\":{\"inputTokens\":44816,\"outputTokens\":5445,\"cacheReadInputTokens\":152992,\"cacheCreationInputTokens\":0,\"webSearchRequests\":0,\"costUSD\":0.26202060000000005,\"contextWindow\":200000,\"maxOutputTokens\":32000}},\"permission_denials\":[],\"terminal_reason\":\"completed\",\"fast_mode_state\":\"off\",\"uuid\":\"6828d848-bdf0-417c-93ce-decbd1b60c55\"}\n",
         "parsed": {
-          "filename": ".plans/issue-72.md",
-          "issues": [],
-          "summary": "Implementation plan is thorough and follows project conventions, correctly identifying all files to create/modify, multi-tenancy requirements, and the service/router patterns."
-        }
-      },
-      {
-        "file": "alembic/env.py",
-        "returncode": 0,
-        "output": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"api_error_status\":null,\"duration_ms\":67818,\"duration_api_ms\":67741,\"num_turns\":8,\"result\":\"[\\n  {\\n    \\\"filename\\\": \\\".plans/issue-72.md\\\",\\n    \\\"issues\\\": [],\\n    \\\"summary\\\": \\\"Implementation plan is thorough and follows project conventions, correctly identifying all files to create/modify, multi-tenancy requirements, and the service/router patterns.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"alembic/env.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 48,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"Hardcoded fallback DATABASE_URL contains plaintext credentials (postgres:postgres), violating Rule 51 (secrets never hardcoded); if the env var is unset in production the migration silently connects to an unintended database.\\\",\\n        \\\"suggestion\\\": \\\"Remove the fallback default; require DATABASE_URL to be set explicitly, or raise a clear error if it is absent rather than silently falling back.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Alembic environment is correctly configured for async SQLAlchemy with all models imported for autogenerate, but contains a hardcoded credential fallback that is a critical security issue.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"alembic/versions/6a13a1cae89b_add_quotes_contracts_tables.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 26,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"contracts.quote_id column has neither a ForeignKey constraint nor an index, yet ContractService.create_contract_from_quote queries this column to detect duplicate conversions \u2014 will cause an N+1/full-scan on every call (Rule 84).\\\",\\n        \\\"suggestion\\\": \\\"Add op.create_index(op.f('ix_contracts_quote_id'), 'contracts', ['quote_id']) after line 40, and consider op.add_column('quote_id', sa.ForeignKeyConstraint(['quote_id'], ['quotes.id'])) in a follow-up migration.\\\"\\n      },\\n      {\\n        \\\"line\\\": 44,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"quotes.opportunity_id column has no index; QuoteService.list_quotes filters by opportunity_id, and the plan (step 1) explicitly specifies this column should be indexed.\\\",\\n        \\\"suggestion\\\": \\\"Add op.create_index(op.f('ix_quotes_opportunity_id'), 'quotes', ['opportunity_id']) after line 57.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Migration correctly creates all three tables with tenant_id indexes but omits a quote_id index on contracts (needed for the duplicate-conversion check) and an opportunity_id index on quotes (needed for list filtering).\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"src/db/models/__init__.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 19,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"opportunity_id on QuoteModel has no index=True (line 19 of quote.py), but QuoteService.list_quotes filters by opportunity_id and the migration does not add this index \u2014 the ORM and DB will drift.\\\",\\n        \\\"suggestion\\\": \\\"Add index=True to the opportunity_id mapped_column in quote.py and update the migration to include op.create_index(op.f('ix_quotes_opportunity_id'), 'quotes', ['opportunity_id']).\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Exports and __all__ are complete and correct; no structural issues, but the opportunity_id index mismatch between the ORM model and the migration needs to be resolved.\\\"\\n  }\\n]\",\"stop_reason\":\"end_turn\",\"session_id\":\"68ba375d-26ab-4fd5-823a-ef2b1b5cde03\",\"total_cost_usd\":0.30681135,\"usage\":{\"input_tokens\":41527,\"cache_creation_input_tokens\":30719,\"cache_read_input_tokens\":74547,\"output_tokens\":2978,\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":0,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"\",\"iterations\":[],\"speed\":\"standard\"},\"modelUsage\":{\"claude-sonnet-4-6\":{\"inputTokens\":41527,\"outputTokens\":2978,\"cacheReadInputTokens\":74547,\"cacheCreationInputTokens\":30719,\"webSearchRequests\":0,\"costUSD\":0.30681135,\"contextWindow\":200000,\"maxOutputTokens\":32000}},\"permission_denials\":[],\"terminal_reason\":\"completed\",\"fast_mode_state\":\"off\",\"uuid\":\"ec886df9-6b0c-468e-a7e2-6277a7462d15\"}\n",
-        "parsed": {
-          "filename": "alembic/env.py",
+          "filename": ".github/workflows/fix-pr-comments.yml",
           "issues": [
             {
-              "line": 48,
-              "severity": "critical",
-              "message": "Hardcoded fallback DATABASE_URL contains plaintext credentials (postgres:postgres), violating Rule 51 (secrets never hardcoded); if the env var is unset in production the migration silently connects to an unintended database.",
-              "suggestion": "Remove the fallback default; require DATABASE_URL to be set explicitly, or raise a clear error if it is absent rather than silently falling back."
+              "line": 80,
+              "severity": "warning",
+              "message": "pip install fallback chain is fragile and repeats work \u2014 if -e '.[dev]' succeeds it already includes ruff/pytest; the subsequent pip install lines are dead code in that path and confusing in the failure path",
+              "suggestion": "Consolidate into one install step: first try `pip install -e '.[dev]'` with a clear error if it fails, then fall back to pinned requirements.txt only if that file exists \u2014 never re-install individually named packages that may drift from the lock file"
+            },
+            {
+              "line": 81,
+              "severity": "warning",
+              "message": "Five packages are installed with no version pins; if the repo has a pyproject.toml or requirements.txt these will silently shadow or conflict with those definitions, producing non-reproducible CI runs",
+              "suggestion": "Remove these explicit pip installs; rely entirely on `pip install -e '.[dev]'` or a pinned requirements file. If a dev extras group doesn't exist yet, create one in pyproject.toml"
+            },
+            {
+              "line": 98,
+              "severity": "info",
+              "message": "The workflow runs the test suite (step 99) but does not gate the commit/push step (119) on test results \u2014 a Claude run that exits 0 without running tests will still push",
+              "suggestion": "Add a step between the Claude step and commit step that checks for test evidence (e.g. check pytest cache or exit code), or clarify in documentation that Claude is trusted to self-enforce the test requirement from the prompt"
+            },
+            {
+              "line": 113,
+              "severity": "info",
+              "message": "git status -uall (uppercase U) lists untracked files as 'untracked' rather than showing their names, reducing diagnostic value",
+              "suggestion": "Use `git status` (no flag) which shows untracked file names; `-uall` is only needed for a pager-less format that the workflow doesn't require"
             }
           ],
-          "summary": "Alembic environment is correctly configured for async SQLAlchemy with all models imported for autogenerate, but contains a hardcoded credential fallback that is a critical security issue."
+          "summary": "Workflow is well-structured overall but installs overlapping/unpinned packages and lacks a test-gate between Claude execution and the commit/push step"
         }
       },
       {
-        "file": "alembic/versions/6a13a1cae89b_add_quotes_contracts_tables.py",
+        "file": "scripts/ci/dispatch_pr_fixes.py",
         "returncode": 0,
-        "output": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"api_error_status\":null,\"duration_ms\":67818,\"duration_api_ms\":67741,\"num_turns\":8,\"result\":\"[\\n  {\\n    \\\"filename\\\": \\\".plans/issue-72.md\\\",\\n    \\\"issues\\\": [],\\n    \\\"summary\\\": \\\"Implementation plan is thorough and follows project conventions, correctly identifying all files to create/modify, multi-tenancy requirements, and the service/router patterns.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"alembic/env.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 48,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"Hardcoded fallback DATABASE_URL contains plaintext credentials (postgres:postgres), violating Rule 51 (secrets never hardcoded); if the env var is unset in production the migration silently connects to an unintended database.\\\",\\n        \\\"suggestion\\\": \\\"Remove the fallback default; require DATABASE_URL to be set explicitly, or raise a clear error if it is absent rather than silently falling back.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Alembic environment is correctly configured for async SQLAlchemy with all models imported for autogenerate, but contains a hardcoded credential fallback that is a critical security issue.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"alembic/versions/6a13a1cae89b_add_quotes_contracts_tables.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 26,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"contracts.quote_id column has neither a ForeignKey constraint nor an index, yet ContractService.create_contract_from_quote queries this column to detect duplicate conversions \u2014 will cause an N+1/full-scan on every call (Rule 84).\\\",\\n        \\\"suggestion\\\": \\\"Add op.create_index(op.f('ix_contracts_quote_id'), 'contracts', ['quote_id']) after line 40, and consider op.add_column('quote_id', sa.ForeignKeyConstraint(['quote_id'], ['quotes.id'])) in a follow-up migration.\\\"\\n      },\\n      {\\n        \\\"line\\\": 44,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"quotes.opportunity_id column has no index; QuoteService.list_quotes filters by opportunity_id, and the plan (step 1) explicitly specifies this column should be indexed.\\\",\\n        \\\"suggestion\\\": \\\"Add op.create_index(op.f('ix_quotes_opportunity_id'), 'quotes', ['opportunity_id']) after line 57.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Migration correctly creates all three tables with tenant_id indexes but omits a quote_id index on contracts (needed for the duplicate-conversion check) and an opportunity_id index on quotes (needed for list filtering).\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"src/db/models/__init__.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 19,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"opportunity_id on QuoteModel has no index=True (line 19 of quote.py), but QuoteService.list_quotes filters by opportunity_id and the migration does not add this index \u2014 the ORM and DB will drift.\\\",\\n        \\\"suggestion\\\": \\\"Add index=True to the opportunity_id mapped_column in quote.py and update the migration to include op.create_index(op.f('ix_quotes_opportunity_id'), 'quotes', ['opportunity_id']).\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Exports and __all__ are complete and correct; no structural issues, but the opportunity_id index mismatch between the ORM model and the migration needs to be resolved.\\\"\\n  }\\n]\",\"stop_reason\":\"end_turn\",\"session_id\":\"68ba375d-26ab-4fd5-823a-ef2b1b5cde03\",\"total_cost_usd\":0.30681135,\"usage\":{\"input_tokens\":41527,\"cache_creation_input_tokens\":30719,\"cache_read_input_tokens\":74547,\"output_tokens\":2978,\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":0,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"\",\"iterations\":[],\"speed\":\"standard\"},\"modelUsage\":{\"claude-sonnet-4-6\":{\"inputTokens\":41527,\"outputTokens\":2978,\"cacheReadInputTokens\":74547,\"cacheCreationInputTokens\":30719,\"webSearchRequests\":0,\"costUSD\":0.30681135,\"contextWindow\":200000,\"maxOutputTokens\":32000}},\"permission_denials\":[],\"terminal_reason\":\"completed\",\"fast_mode_state\":\"off\",\"uuid\":\"ec886df9-6b0c-468e-a7e2-6277a7462d15\"}\n",
+        "output": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"api_error_status\":null,\"duration_ms\":108140,\"duration_api_ms\":108056,\"num_turns\":8,\"result\":\"\\n\\n[\\n  {\\n    \\\"filename\\\": \\\".github/workflows/fix-pr-comments.yml\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 80,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"pip install fallback chain is fragile and repeats work \u2014 if -e '.[dev]' succeeds it already includes ruff/pytest; the subsequent pip install lines are dead code in that path and confusing in the failure path\\\",\\n        \\\"suggestion\\\": \\\"Consolidate into one install step: first try `pip install -e '.[dev]'` with a clear error if it fails, then fall back to pinned requirements.txt only if that file exists \u2014 never re-install individually named packages that may drift from the lock file\\\"\\n      },\\n      {\\n        \\\"line\\\": 81,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"Five packages are installed with no version pins; if the repo has a pyproject.toml or requirements.txt these will silently shadow or conflict with those definitions, producing non-reproducible CI runs\\\",\\n        \\\"suggestion\\\": \\\"Remove these explicit pip installs; rely entirely on `pip install -e '.[dev]'` or a pinned requirements file. If a dev extras group doesn't exist yet, create one in pyproject.toml\\\"\\n      },\\n      {\\n        \\\"line\\\": 98,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"The workflow runs the test suite (step 99) but does not gate the commit/push step (119) on test results \u2014 a Claude run that exits 0 without running tests will still push\\\",\\n        \\\"suggestion\\\": \\\"Add a step between the Claude step and commit step that checks for test evidence (e.g. check pytest cache or exit code), or clarify in documentation that Claude is trusted to self-enforce the test requirement from the prompt\\\"\\n      },\\n      {\\n        \\\"line\\\": 113,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"git status -uall (uppercase U) lists untracked files as 'untracked' rather than showing their names, reducing diagnostic value\\\",\\n        \\\"suggestion\\\": \\\"Use `git status` (no flag) which shows untracked file names; `-uall` is only needed for a pager-less format that the workflow doesn't require\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Workflow is well-structured overall but installs overlapping/unpinned packages and lacks a test-gate between Claude execution and the commit/push step\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"scripts/ci/dispatch_pr_fixes.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 137,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"Bare except catches SystemExit, KeyboardInterrupt, and GeneratorExit alongside all other exceptions; the noqa comment is accurate but the suppression of those three classes is a latent hazard if the loop ever runs in an interactive interpreter\\\",\\n        \\\"suggestion\\\": \\\"Change to `except Exception as e:` (without catching BaseException) \u2014 currently the noqa already acknowledges BLE001, so the fix also removes the noqa and satisfies the linter\\\"\\n      },\\n      {\\n        \\\"line\\\": 96,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"dispatch_fix returns bool but the caller in main() ignores the return value on success and only checks it in the else branch; the True return is unused\\\",\\n        \\\"suggestion\\\": \\\"The function could return the subprocess result directly or return None on failure so the caller can distinguish 'dispatched ok' from 'dispatched and also logged' \u2014 currently the return value is functionally dead code\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Small script with a minor bare-except issue in the PR loop and an unused bool return from dispatch_fix\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"scripts/ci/fix_pr_comments.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 338,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"CLAUDE_TIMEOUT_SECONDS default value (2400) is embedded in production code with no validation \u2014 a typo like '240O' (letter O) or negative value would be accepted and produce nonsensical behavior\\\",\\n        \\\"suggestion\\\": \\\"Validate after parsing: raise ValueError or return 1 if timeout <= 0. The same applies to CLAUDE_MAX_TURNS on line 339\\\"\\n      },\\n      {\\n        \\\"line\\\": 337,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"CLAUDE_MODEL falls back to a hardcoded string 'claude-sonnet-4-6'; if the model name changes (e.g. new default in the project) this fallback silently overrides without any signal to the operator\\\",\\n        \\\"suggestion\\\": \\\"Omit the hardcoded fallback entirely and let the subprocess fail with a clear 'model not found' error rather than silently defaulting \u2014 or log a warning when the fallback is used\\\"\\n      },\\n      {\\n        \\\"line\\\": 26,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"BOT_MARKERS is a tuple of literal string markers; if a future workflow uses a different marker format, this tuple will silently diverge and cause the bot-skip logic to miss it\\\",\\n        \\\"suggestion\\\": \\\"Consider loading markers from an environment variable or a shared constants module so all pipeline scripts read from one source of truth\\\"\\n      },\\n      {\\n        \\\"line\\\": 44,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"run_gh uses check=False and the caller inspects returncode manually, which is correct, but several callers log the error and break instead of returning an error sentinel \u2014 this makes it hard to distinguish a transient gh failure from a legitimately empty result\\\",\\n        \\\"suggestion\\\": \\\"Add a comment noting that empty lists ([]) are the canonical 'nothing found' signal, so callers that do `if result.returncode != 0: break` are intentionally collapsing gh errors and API-empty responses into the same outcome\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Script is solid; main concerns are unvalidated numeric env vars (timeout) and a hardcoded model default that masks configuration drift\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"scripts/ci/self_review_implementation.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 168,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"CLAUDE_TIMEOUT_SECONDS default (1800) and CLAUDE_MAX_TURNS default (100) have no validation \u2014 same concern as fix_pr_comments.py: a misconfigured environment variable bypasses the intent silently\\\",\\n        \\\"suggestion\\\": \\\"Validate timeout > 0 and max_turns > 0 after parsing; return 1 with a descriptive log if invalid\\\"\\n      },\\n      {\\n        \\\"line\\\": 168,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"CLAUDE_MODEL defaults to 'claude-sonnet-4-6'; unlike fix_pr_comments.py (which also defaults it), this creates two independent copies of the same default string \u2014 if the intended default ever changes, both files must be updated in sync\\\",\\n        \\\"suggestion\\\": \\\"Extract the default model name to a shared constant (e.g. in a shared constants.py or at minimum a single DEFAULT_MODEL variable at module level referenced by both scripts)\\\"\\n      },\\n      {\\n        \\\"line\\\": 177,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"The comment justifying bypassPermissions ('headless -p in CI has no UI for permission prompts') is accurate but the comment itself is fragile \u2014 future editors may remove it believing it to be noise\\\",\\n        \\\"suggestion\\\": \\\"Consider extracting the rationale into a shared helper constant or docstring explaining the permission-mode requirement, so the 'why' survives code cleanups\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Duplicates the same validation-gap pattern from fix_pr_comments.py; model default should be shared rather than copied\\\"\\n  }\\n]\",\"stop_reason\":\"end_turn\",\"session_id\":\"7827025a-b380-431d-a424-4e10f15f9dc9\",\"total_cost_usd\":0.26202060000000005,\"usage\":{\"input_tokens\":44816,\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":152992,\"output_tokens\":5445,\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":0,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"\",\"iterations\":[],\"speed\":\"standard\"},\"modelUsage\":{\"claude-sonnet-4-6\":{\"inputTokens\":44816,\"outputTokens\":5445,\"cacheReadInputTokens\":152992,\"cacheCreationInputTokens\":0,\"webSearchRequests\":0,\"costUSD\":0.26202060000000005,\"contextWindow\":200000,\"maxOutputTokens\":32000}},\"permission_denials\":[],\"terminal_reason\":\"completed\",\"fast_mode_state\":\"off\",\"uuid\":\"6828d848-bdf0-417c-93ce-decbd1b60c55\"}\n",
         "parsed": {
-          "filename": "alembic/versions/6a13a1cae89b_add_quotes_contracts_tables.py",
+          "filename": "scripts/ci/dispatch_pr_fixes.py",
           "issues": [
             {
-              "line": 26,
+              "line": 137,
+              "severity": "info",
+              "message": "Bare except catches SystemExit, KeyboardInterrupt, and GeneratorExit alongside all other exceptions; the noqa comment is accurate but the suppression of those three classes is a latent hazard if the loop ever runs in an interactive interpreter",
+              "suggestion": "Change to `except Exception as e:` (without catching BaseException) \u2014 currently the noqa already acknowledges BLE001, so the fix also removes the noqa and satisfies the linter"
+            },
+            {
+              "line": 96,
               "severity": "warning",
-              "message": "contracts.quote_id column has neither a ForeignKey constraint nor an index, yet ContractService.create_contract_from_quote queries this column to detect duplicate conversions \u2014 will cause an N+1/full-scan on every call (Rule 84).",
-              "suggestion": "Add op.create_index(op.f('ix_contracts_quote_id'), 'contracts', ['quote_id']) after line 40, and consider op.add_column('quote_id', sa.ForeignKeyConstraint(['quote_id'], ['quotes.id'])) in a follow-up migration."
+              "message": "dispatch_fix returns bool but the caller in main() ignores the return value on success and only checks it in the else branch; the True return is unused",
+              "suggestion": "The function could return the subprocess result directly or return None on failure so the caller can distinguish 'dispatched ok' from 'dispatched and also logged' \u2014 currently the return value is functionally dead code"
+            }
+          ],
+          "summary": "Small script with a minor bare-except issue in the PR loop and an unused bool return from dispatch_fix"
+        }
+      },
+      {
+        "file": "scripts/ci/fix_pr_comments.py",
+        "returncode": 0,
+        "output": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"api_error_status\":null,\"duration_ms\":108140,\"duration_api_ms\":108056,\"num_turns\":8,\"result\":\"\\n\\n[\\n  {\\n    \\\"filename\\\": \\\".github/workflows/fix-pr-comments.yml\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 80,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"pip install fallback chain is fragile and repeats work \u2014 if -e '.[dev]' succeeds it already includes ruff/pytest; the subsequent pip install lines are dead code in that path and confusing in the failure path\\\",\\n        \\\"suggestion\\\": \\\"Consolidate into one install step: first try `pip install -e '.[dev]'` with a clear error if it fails, then fall back to pinned requirements.txt only if that file exists \u2014 never re-install individually named packages that may drift from the lock file\\\"\\n      },\\n      {\\n        \\\"line\\\": 81,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"Five packages are installed with no version pins; if the repo has a pyproject.toml or requirements.txt these will silently shadow or conflict with those definitions, producing non-reproducible CI runs\\\",\\n        \\\"suggestion\\\": \\\"Remove these explicit pip installs; rely entirely on `pip install -e '.[dev]'` or a pinned requirements file. If a dev extras group doesn't exist yet, create one in pyproject.toml\\\"\\n      },\\n      {\\n        \\\"line\\\": 98,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"The workflow runs the test suite (step 99) but does not gate the commit/push step (119) on test results \u2014 a Claude run that exits 0 without running tests will still push\\\",\\n        \\\"suggestion\\\": \\\"Add a step between the Claude step and commit step that checks for test evidence (e.g. check pytest cache or exit code), or clarify in documentation that Claude is trusted to self-enforce the test requirement from the prompt\\\"\\n      },\\n      {\\n        \\\"line\\\": 113,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"git status -uall (uppercase U) lists untracked files as 'untracked' rather than showing their names, reducing diagnostic value\\\",\\n        \\\"suggestion\\\": \\\"Use `git status` (no flag) which shows untracked file names; `-uall` is only needed for a pager-less format that the workflow doesn't require\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Workflow is well-structured overall but installs overlapping/unpinned packages and lacks a test-gate between Claude execution and the commit/push step\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"scripts/ci/dispatch_pr_fixes.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 137,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"Bare except catches SystemExit, KeyboardInterrupt, and GeneratorExit alongside all other exceptions; the noqa comment is accurate but the suppression of those three classes is a latent hazard if the loop ever runs in an interactive interpreter\\\",\\n        \\\"suggestion\\\": \\\"Change to `except Exception as e:` (without catching BaseException) \u2014 currently the noqa already acknowledges BLE001, so the fix also removes the noqa and satisfies the linter\\\"\\n      },\\n      {\\n        \\\"line\\\": 96,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"dispatch_fix returns bool but the caller in main() ignores the return value on success and only checks it in the else branch; the True return is unused\\\",\\n        \\\"suggestion\\\": \\\"The function could return the subprocess result directly or return None on failure so the caller can distinguish 'dispatched ok' from 'dispatched and also logged' \u2014 currently the return value is functionally dead code\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Small script with a minor bare-except issue in the PR loop and an unused bool return from dispatch_fix\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"scripts/ci/fix_pr_comments.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 338,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"CLAUDE_TIMEOUT_SECONDS default value (2400) is embedded in production code with no validation \u2014 a typo like '240O' (letter O) or negative value would be accepted and produce nonsensical behavior\\\",\\n        \\\"suggestion\\\": \\\"Validate after parsing: raise ValueError or return 1 if timeout <= 0. The same applies to CLAUDE_MAX_TURNS on line 339\\\"\\n      },\\n      {\\n        \\\"line\\\": 337,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"CLAUDE_MODEL falls back to a hardcoded string 'claude-sonnet-4-6'; if the model name changes (e.g. new default in the project) this fallback silently overrides without any signal to the operator\\\",\\n        \\\"suggestion\\\": \\\"Omit the hardcoded fallback entirely and let the subprocess fail with a clear 'model not found' error rather than silently defaulting \u2014 or log a warning when the fallback is used\\\"\\n      },\\n      {\\n        \\\"line\\\": 26,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"BOT_MARKERS is a tuple of literal string markers; if a future workflow uses a different marker format, this tuple will silently diverge and cause the bot-skip logic to miss it\\\",\\n        \\\"suggestion\\\": \\\"Consider loading markers from an environment variable or a shared constants module so all pipeline scripts read from one source of truth\\\"\\n      },\\n      {\\n        \\\"line\\\": 44,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"run_gh uses check=False and the caller inspects returncode manually, which is correct, but several callers log the error and break instead of returning an error sentinel \u2014 this makes it hard to distinguish a transient gh failure from a legitimately empty result\\\",\\n        \\\"suggestion\\\": \\\"Add a comment noting that empty lists ([]) are the canonical 'nothing found' signal, so callers that do `if result.returncode != 0: break` are intentionally collapsing gh errors and API-empty responses into the same outcome\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Script is solid; main concerns are unvalidated numeric env vars (timeout) and a hardcoded model default that masks configuration drift\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"scripts/ci/self_review_implementation.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 168,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"CLAUDE_TIMEOUT_SECONDS default (1800) and CLAUDE_MAX_TURNS default (100) have no validation \u2014 same concern as fix_pr_comments.py: a misconfigured environment variable bypasses the intent silently\\\",\\n        \\\"suggestion\\\": \\\"Validate timeout > 0 and max_turns > 0 after parsing; return 1 with a descriptive log if invalid\\\"\\n      },\\n      {\\n        \\\"line\\\": 168,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"CLAUDE_MODEL defaults to 'claude-sonnet-4-6'; unlike fix_pr_comments.py (which also defaults it), this creates two independent copies of the same default string \u2014 if the intended default ever changes, both files must be updated in sync\\\",\\n        \\\"suggestion\\\": \\\"Extract the default model name to a shared constant (e.g. in a shared constants.py or at minimum a single DEFAULT_MODEL variable at module level referenced by both scripts)\\\"\\n      },\\n      {\\n        \\\"line\\\": 177,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"The comment justifying bypassPermissions ('headless -p in CI has no UI for permission prompts') is accurate but the comment itself is fragile \u2014 future editors may remove it believing it to be noise\\\",\\n        \\\"suggestion\\\": \\\"Consider extracting the rationale into a shared helper constant or docstring explaining the permission-mode requirement, so the 'why' survives code cleanups\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Duplicates the same validation-gap pattern from fix_pr_comments.py; model default should be shared rather than copied\\\"\\n  }\\n]\",\"stop_reason\":\"end_turn\",\"session_id\":\"7827025a-b380-431d-a424-4e10f15f9dc9\",\"total_cost_usd\":0.26202060000000005,\"usage\":{\"input_tokens\":44816,\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":152992,\"output_tokens\":5445,\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":0,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"\",\"iterations\":[],\"speed\":\"standard\"},\"modelUsage\":{\"claude-sonnet-4-6\":{\"inputTokens\":44816,\"outputTokens\":5445,\"cacheReadInputTokens\":152992,\"cacheCreationInputTokens\":0,\"webSearchRequests\":0,\"costUSD\":0.26202060000000005,\"contextWindow\":200000,\"maxOutputTokens\":32000}},\"permission_denials\":[],\"terminal_reason\":\"completed\",\"fast_mode_state\":\"off\",\"uuid\":\"6828d848-bdf0-417c-93ce-decbd1b60c55\"}\n",
+        "parsed": {
+          "filename": "scripts/ci/fix_pr_comments.py",
+          "issues": [
+            {
+              "line": 338,
+              "severity": "warning",
+              "message": "CLAUDE_TIMEOUT_SECONDS default value (2400) is embedded in production code with no validation \u2014 a typo like '240O' (letter O) or negative value would be accepted and produce nonsensical behavior",
+              "suggestion": "Validate after parsing: raise ValueError or return 1 if timeout <= 0. The same applies to CLAUDE_MAX_TURNS on line 339"
+            },
+            {
+              "line": 337,
+              "severity": "info",
+              "message": "CLAUDE_MODEL falls back to a hardcoded string 'claude-sonnet-4-6'; if the model name changes (e.g. new default in the project) this fallback silently overrides without any signal to the operator",
+              "suggestion": "Omit the hardcoded fallback entirely and let the subprocess fail with a clear 'model not found' error rather than silently defaulting \u2014 or log a warning when the fallback is used"
+            },
+            {
+              "line": 26,
+              "severity": "info",
+              "message": "BOT_MARKERS is a tuple of literal string markers; if a future workflow uses a different marker format, this tuple will silently diverge and cause the bot-skip logic to miss it",
+              "suggestion": "Consider loading markers from an environment variable or a shared constants module so all pipeline scripts read from one source of truth"
             },
             {
               "line": 44,
-              "severity": "warning",
-              "message": "quotes.opportunity_id column has no index; QuoteService.list_quotes filters by opportunity_id, and the plan (step 1) explicitly specifies this column should be indexed.",
-              "suggestion": "Add op.create_index(op.f('ix_quotes_opportunity_id'), 'quotes', ['opportunity_id']) after line 57."
-            }
-          ],
-          "summary": "Migration correctly creates all three tables with tenant_id indexes but omits a quote_id index on contracts (needed for the duplicate-conversion check) and an opportunity_id index on quotes (needed for list filtering)."
-        }
-      },
-      {
-        "file": "src/db/models/__init__.py",
-        "returncode": 0,
-        "output": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"api_error_status\":null,\"duration_ms\":67818,\"duration_api_ms\":67741,\"num_turns\":8,\"result\":\"[\\n  {\\n    \\\"filename\\\": \\\".plans/issue-72.md\\\",\\n    \\\"issues\\\": [],\\n    \\\"summary\\\": \\\"Implementation plan is thorough and follows project conventions, correctly identifying all files to create/modify, multi-tenancy requirements, and the service/router patterns.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"alembic/env.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 48,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"Hardcoded fallback DATABASE_URL contains plaintext credentials (postgres:postgres), violating Rule 51 (secrets never hardcoded); if the env var is unset in production the migration silently connects to an unintended database.\\\",\\n        \\\"suggestion\\\": \\\"Remove the fallback default; require DATABASE_URL to be set explicitly, or raise a clear error if it is absent rather than silently falling back.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Alembic environment is correctly configured for async SQLAlchemy with all models imported for autogenerate, but contains a hardcoded credential fallback that is a critical security issue.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"alembic/versions/6a13a1cae89b_add_quotes_contracts_tables.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 26,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"contracts.quote_id column has neither a ForeignKey constraint nor an index, yet ContractService.create_contract_from_quote queries this column to detect duplicate conversions \u2014 will cause an N+1/full-scan on every call (Rule 84).\\\",\\n        \\\"suggestion\\\": \\\"Add op.create_index(op.f('ix_contracts_quote_id'), 'contracts', ['quote_id']) after line 40, and consider op.add_column('quote_id', sa.ForeignKeyConstraint(['quote_id'], ['quotes.id'])) in a follow-up migration.\\\"\\n      },\\n      {\\n        \\\"line\\\": 44,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"quotes.opportunity_id column has no index; QuoteService.list_quotes filters by opportunity_id, and the plan (step 1) explicitly specifies this column should be indexed.\\\",\\n        \\\"suggestion\\\": \\\"Add op.create_index(op.f('ix_quotes_opportunity_id'), 'quotes', ['opportunity_id']) after line 57.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Migration correctly creates all three tables with tenant_id indexes but omits a quote_id index on contracts (needed for the duplicate-conversion check) and an opportunity_id index on quotes (needed for list filtering).\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"src/db/models/__init__.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 19,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"opportunity_id on QuoteModel has no index=True (line 19 of quote.py), but QuoteService.list_quotes filters by opportunity_id and the migration does not add this index \u2014 the ORM and DB will drift.\\\",\\n        \\\"suggestion\\\": \\\"Add index=True to the opportunity_id mapped_column in quote.py and update the migration to include op.create_index(op.f('ix_quotes_opportunity_id'), 'quotes', ['opportunity_id']).\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Exports and __all__ are complete and correct; no structural issues, but the opportunity_id index mismatch between the ORM model and the migration needs to be resolved.\\\"\\n  }\\n]\",\"stop_reason\":\"end_turn\",\"session_id\":\"68ba375d-26ab-4fd5-823a-ef2b1b5cde03\",\"total_cost_usd\":0.30681135,\"usage\":{\"input_tokens\":41527,\"cache_creation_input_tokens\":30719,\"cache_read_input_tokens\":74547,\"output_tokens\":2978,\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":0,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"\",\"iterations\":[],\"speed\":\"standard\"},\"modelUsage\":{\"claude-sonnet-4-6\":{\"inputTokens\":41527,\"outputTokens\":2978,\"cacheReadInputTokens\":74547,\"cacheCreationInputTokens\":30719,\"webSearchRequests\":0,\"costUSD\":0.30681135,\"contextWindow\":200000,\"maxOutputTokens\":32000}},\"permission_denials\":[],\"terminal_reason\":\"completed\",\"fast_mode_state\":\"off\",\"uuid\":\"ec886df9-6b0c-468e-a7e2-6277a7462d15\"}\n",
-        "parsed": {
-          "filename": "src/db/models/__init__.py",
-          "issues": [
-            {
-              "line": 19,
-              "severity": "warning",
-              "message": "opportunity_id on QuoteModel has no index=True (line 19 of quote.py), but QuoteService.list_quotes filters by opportunity_id and the migration does not add this index \u2014 the ORM and DB will drift.",
-              "suggestion": "Add index=True to the opportunity_id mapped_column in quote.py and update the migration to include op.create_index(op.f('ix_quotes_opportunity_id'), 'quotes', ['opportunity_id'])."
-            }
-          ],
-          "summary": "Exports and __all__ are complete and correct; no structural issues, but the opportunity_id index mismatch between the ORM model and the migration needs to be resolved."
-        }
-      },
-      {
-        "file": "src/db/models/contract.py",
-        "returncode": 0,
-        "output": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"api_error_status\":null,\"duration_ms\":40346,\"duration_api_ms\":40253,\"num_turns\":5,\"result\":\"\\n\\n[\\n  {\\n    \\\"filename\\\": \\\"src/db/models/contract.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 19,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"quote_id has no ForeignKey constraint, risking referential integrity violations at the DB level.\\\",\\n        \\\"suggestion\\\": \\\"Add ForeignKey(\\\\\\\"quotes.id\\\\\\\", ondelete=\\\\\\\"SET NULL\\\\\\\") to the mapped_column call for quote_id.\\\"\\n      },\\n      {\\n        \\\"line\\\": 20,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"customer_id has no ForeignKey constraint, risking orphaned/invalid references.\\\",\\n        \\\"suggestion\\\": \\\"Add ForeignKey(\\\\\\\"customers.id\\\\\\\", ondelete=\\\\\\\"SET NULL\\\\\\\") to the mapped_column call for customer_id.\\\"\\n      },\\n      {\\n        \\\"line\\\": 0,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"Status values 'draft'/'sent'/'viewed'/'signed'/'expired' are magic strings with no enum or constant.\\\",\\n        \\\"suggestion\\\": \\\"Define a ContractStatus enum in src/models/contract.py and reference it in both the ORM default and the Pydantic schema pattern.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"ORM model is structurally sound but missing FK constraints on quote_id and customer_id, risking data integrity issues.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"src/db/models/quote.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 19,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"opportunity_id has no ForeignKey constraint, risking orphaned/invalid references.\\\",\\n        \\\"suggestion\\\": \\\"Add ForeignKey(\\\\\\\"opportunities.id\\\\\\\", ondelete=\\\\\\\"SET NULL\\\\\\\") to the mapped_column call for opportunity_id.\\\"\\n      },\\n      {\\n        \\\"line\\\": 20,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"customer_id has no ForeignKey constraint, risking orphaned/invalid references.\\\",\\n        \\\"suggestion\\\": \\\"Add ForeignKey(\\\\\\\"customers.id\\\\\\\", ondelete=\\\\\\\"SET NULL\\\\\\\") to the mapped_column call for customer_id.\\\"\\n      },\\n      {\\n        \\\"line\\\": 0,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"Status values 'draft' and discount_type values 'percentage'/'fixed'/'none' are magic strings with no enum.\\\",\\n        \\\"suggestion\\\": \\\"Define QuoteStatus and DiscountType enums in src/models/quote.py and reference them consistently in both ORM defaults and Pydantic schemas.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"QuoteModel and QuoteItemModel are well-structured with proper relationship and cascade; missing FK constraints on opportunity_id and customer_id.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"src/models/contract.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 13,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"ContractSendForSignature.signer_email has no email format validation, allowing invalid addresses.\\\",\\n        \\\"suggestion\\\": \\\"Use Field(..., validation_alias=BeforeValidator(parse_obj_as(EmailStr))) or upgrade to Pydantic v2 email validation with Field(..., validators=[...]).\\\"\\n      },\\n      {\\n        \\\"line\\\": 0,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"No response schema (e.g. ContractResponse) is defined, requiring routers to manually construct response dicts.\\\",\\n        \\\"suggestion\\\": \\\"Add a ContractResponse schema referencing the existing ORM to_dict output shape for consistency.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Request schemas are minimal and mostly well-validated but lack email validation and a response schema.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"src/models/quote.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 26,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"QuoteCreate.opportunity_id and QuoteCreate.notes fields exist but no corresponding QuoteUpdate includes a status or amount field \u2014 services cannot set initial status or amount.\\\",\\n        \\\"suggestion\\\": \\\"Ensure the service layer can set default status='draft' and amount on quote creation; if amount requires computation from items, consider adding an explicit field or documenting the behavior.\\\"\\n      },\\n      {\\n        \\\"line\\\": 0,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"No response schema (e.g. QuoteResponse, QuoteItemResponse) is defined.\\\",\\n        \\\"suggestion\\\": \\\"Add QuoteResponse and QuoteItemResponse schemas mirroring the ORM to_dict output shape for consistent router serialization.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Schemas are well-validated with proper constraints; missing response schemas and a gap in quote creation fields (status/amount).\\\"\\n  }\\n]\",\"stop_reason\":\"end_turn\",\"session_id\":\"3835d537-eee7-476b-af0c-7f5881253e72\",\"total_cost_usd\":0.1318884,\"usage\":{\"input_tokens\":33413,\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":30848,\"output_tokens\":1493,\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":0,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"\",\"iterations\":[],\"speed\":\"standard\"},\"modelUsage\":{\"claude-sonnet-4-6\":{\"inputTokens\":33413,\"outputTokens\":1493,\"cacheReadInputTokens\":30848,\"cacheCreationInputTokens\":0,\"webSearchRequests\":0,\"costUSD\":0.1318884,\"contextWindow\":200000,\"maxOutputTokens\":32000}},\"permission_denials\":[],\"terminal_reason\":\"completed\",\"fast_mode_state\":\"off\",\"uuid\":\"ed7b5cfa-752c-450a-b8eb-bc39a3a271e5\"}\n",
-        "parsed": {
-          "filename": "src/db/models/contract.py",
-          "issues": [
-            {
-              "line": 19,
-              "severity": "critical",
-              "message": "quote_id has no ForeignKey constraint, risking referential integrity violations at the DB level.",
-              "suggestion": "Add ForeignKey(\"quotes.id\", ondelete=\"SET NULL\") to the mapped_column call for quote_id."
-            },
-            {
-              "line": 20,
-              "severity": "critical",
-              "message": "customer_id has no ForeignKey constraint, risking orphaned/invalid references.",
-              "suggestion": "Add ForeignKey(\"customers.id\", ondelete=\"SET NULL\") to the mapped_column call for customer_id."
-            },
-            {
-              "line": 0,
               "severity": "info",
-              "message": "Status values 'draft'/'sent'/'viewed'/'signed'/'expired' are magic strings with no enum or constant.",
-              "suggestion": "Define a ContractStatus enum in src/models/contract.py and reference it in both the ORM default and the Pydantic schema pattern."
+              "message": "run_gh uses check=False and the caller inspects returncode manually, which is correct, but several callers log the error and break instead of returning an error sentinel \u2014 this makes it hard to distinguish a transient gh failure from a legitimately empty result",
+              "suggestion": "Add a comment noting that empty lists ([]) are the canonical 'nothing found' signal, so callers that do `if result.returncode != 0: break` are intentionally collapsing gh errors and API-empty responses into the same outcome"
             }
           ],
-          "summary": "ORM model is structurally sound but missing FK constraints on quote_id and customer_id, risking data integrity issues."
+          "summary": "Script is solid; main concerns are unvalidated numeric env vars (timeout) and a hardcoded model default that masks configuration drift"
         }
       },
       {
-        "file": "src/db/models/quote.py",
+        "file": "scripts/ci/self_review_implementation.py",
         "returncode": 0,
-        "output": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"api_error_status\":null,\"duration_ms\":40346,\"duration_api_ms\":40253,\"num_turns\":5,\"result\":\"\\n\\n[\\n  {\\n    \\\"filename\\\": \\\"src/db/models/contract.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 19,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"quote_id has no ForeignKey constraint, risking referential integrity violations at the DB level.\\\",\\n        \\\"suggestion\\\": \\\"Add ForeignKey(\\\\\\\"quotes.id\\\\\\\", ondelete=\\\\\\\"SET NULL\\\\\\\") to the mapped_column call for quote_id.\\\"\\n      },\\n      {\\n        \\\"line\\\": 20,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"customer_id has no ForeignKey constraint, risking orphaned/invalid references.\\\",\\n        \\\"suggestion\\\": \\\"Add ForeignKey(\\\\\\\"customers.id\\\\\\\", ondelete=\\\\\\\"SET NULL\\\\\\\") to the mapped_column call for customer_id.\\\"\\n      },\\n      {\\n        \\\"line\\\": 0,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"Status values 'draft'/'sent'/'viewed'/'signed'/'expired' are magic strings with no enum or constant.\\\",\\n        \\\"suggestion\\\": \\\"Define a ContractStatus enum in src/models/contract.py and reference it in both the ORM default and the Pydantic schema pattern.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"ORM model is structurally sound but missing FK constraints on quote_id and customer_id, risking data integrity issues.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"src/db/models/quote.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 19,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"opportunity_id has no ForeignKey constraint, risking orphaned/invalid references.\\\",\\n        \\\"suggestion\\\": \\\"Add ForeignKey(\\\\\\\"opportunities.id\\\\\\\", ondelete=\\\\\\\"SET NULL\\\\\\\") to the mapped_column call for opportunity_id.\\\"\\n      },\\n      {\\n        \\\"line\\\": 20,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"customer_id has no ForeignKey constraint, risking orphaned/invalid references.\\\",\\n        \\\"suggestion\\\": \\\"Add ForeignKey(\\\\\\\"customers.id\\\\\\\", ondelete=\\\\\\\"SET NULL\\\\\\\") to the mapped_column call for customer_id.\\\"\\n      },\\n      {\\n        \\\"line\\\": 0,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"Status values 'draft' and discount_type values 'percentage'/'fixed'/'none' are magic strings with no enum.\\\",\\n        \\\"suggestion\\\": \\\"Define QuoteStatus and DiscountType enums in src/models/quote.py and reference them consistently in both ORM defaults and Pydantic schemas.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"QuoteModel and QuoteItemModel are well-structured with proper relationship and cascade; missing FK constraints on opportunity_id and customer_id.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"src/models/contract.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 13,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"ContractSendForSignature.signer_email has no email format validation, allowing invalid addresses.\\\",\\n        \\\"suggestion\\\": \\\"Use Field(..., validation_alias=BeforeValidator(parse_obj_as(EmailStr))) or upgrade to Pydantic v2 email validation with Field(..., validators=[...]).\\\"\\n      },\\n      {\\n        \\\"line\\\": 0,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"No response schema (e.g. ContractResponse) is defined, requiring routers to manually construct response dicts.\\\",\\n        \\\"suggestion\\\": \\\"Add a ContractResponse schema referencing the existing ORM to_dict output shape for consistency.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Request schemas are minimal and mostly well-validated but lack email validation and a response schema.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"src/models/quote.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 26,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"QuoteCreate.opportunity_id and QuoteCreate.notes fields exist but no corresponding QuoteUpdate includes a status or amount field \u2014 services cannot set initial status or amount.\\\",\\n        \\\"suggestion\\\": \\\"Ensure the service layer can set default status='draft' and amount on quote creation; if amount requires computation from items, consider adding an explicit field or documenting the behavior.\\\"\\n      },\\n      {\\n        \\\"line\\\": 0,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"No response schema (e.g. QuoteResponse, QuoteItemResponse) is defined.\\\",\\n        \\\"suggestion\\\": \\\"Add QuoteResponse and QuoteItemResponse schemas mirroring the ORM to_dict output shape for consistent router serialization.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Schemas are well-validated with proper constraints; missing response schemas and a gap in quote creation fields (status/amount).\\\"\\n  }\\n]\",\"stop_reason\":\"end_turn\",\"session_id\":\"3835d537-eee7-476b-af0c-7f5881253e72\",\"total_cost_usd\":0.1318884,\"usage\":{\"input_tokens\":33413,\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":30848,\"output_tokens\":1493,\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":0,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"\",\"iterations\":[],\"speed\":\"standard\"},\"modelUsage\":{\"claude-sonnet-4-6\":{\"inputTokens\":33413,\"outputTokens\":1493,\"cacheReadInputTokens\":30848,\"cacheCreationInputTokens\":0,\"webSearchRequests\":0,\"costUSD\":0.1318884,\"contextWindow\":200000,\"maxOutputTokens\":32000}},\"permission_denials\":[],\"terminal_reason\":\"completed\",\"fast_mode_state\":\"off\",\"uuid\":\"ed7b5cfa-752c-450a-b8eb-bc39a3a271e5\"}\n",
+        "output": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"api_error_status\":null,\"duration_ms\":108140,\"duration_api_ms\":108056,\"num_turns\":8,\"result\":\"\\n\\n[\\n  {\\n    \\\"filename\\\": \\\".github/workflows/fix-pr-comments.yml\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 80,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"pip install fallback chain is fragile and repeats work \u2014 if -e '.[dev]' succeeds it already includes ruff/pytest; the subsequent pip install lines are dead code in that path and confusing in the failure path\\\",\\n        \\\"suggestion\\\": \\\"Consolidate into one install step: first try `pip install -e '.[dev]'` with a clear error if it fails, then fall back to pinned requirements.txt only if that file exists \u2014 never re-install individually named packages that may drift from the lock file\\\"\\n      },\\n      {\\n        \\\"line\\\": 81,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"Five packages are installed with no version pins; if the repo has a pyproject.toml or requirements.txt these will silently shadow or conflict with those definitions, producing non-reproducible CI runs\\\",\\n        \\\"suggestion\\\": \\\"Remove these explicit pip installs; rely entirely on `pip install -e '.[dev]'` or a pinned requirements file. If a dev extras group doesn't exist yet, create one in pyproject.toml\\\"\\n      },\\n      {\\n        \\\"line\\\": 98,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"The workflow runs the test suite (step 99) but does not gate the commit/push step (119) on test results \u2014 a Claude run that exits 0 without running tests will still push\\\",\\n        \\\"suggestion\\\": \\\"Add a step between the Claude step and commit step that checks for test evidence (e.g. check pytest cache or exit code), or clarify in documentation that Claude is trusted to self-enforce the test requirement from the prompt\\\"\\n      },\\n      {\\n        \\\"line\\\": 113,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"git status -uall (uppercase U) lists untracked files as 'untracked' rather than showing their names, reducing diagnostic value\\\",\\n        \\\"suggestion\\\": \\\"Use `git status` (no flag) which shows untracked file names; `-uall` is only needed for a pager-less format that the workflow doesn't require\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Workflow is well-structured overall but installs overlapping/unpinned packages and lacks a test-gate between Claude execution and the commit/push step\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"scripts/ci/dispatch_pr_fixes.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 137,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"Bare except catches SystemExit, KeyboardInterrupt, and GeneratorExit alongside all other exceptions; the noqa comment is accurate but the suppression of those three classes is a latent hazard if the loop ever runs in an interactive interpreter\\\",\\n        \\\"suggestion\\\": \\\"Change to `except Exception as e:` (without catching BaseException) \u2014 currently the noqa already acknowledges BLE001, so the fix also removes the noqa and satisfies the linter\\\"\\n      },\\n      {\\n        \\\"line\\\": 96,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"dispatch_fix returns bool but the caller in main() ignores the return value on success and only checks it in the else branch; the True return is unused\\\",\\n        \\\"suggestion\\\": \\\"The function could return the subprocess result directly or return None on failure so the caller can distinguish 'dispatched ok' from 'dispatched and also logged' \u2014 currently the return value is functionally dead code\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Small script with a minor bare-except issue in the PR loop and an unused bool return from dispatch_fix\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"scripts/ci/fix_pr_comments.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 338,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"CLAUDE_TIMEOUT_SECONDS default value (2400) is embedded in production code with no validation \u2014 a typo like '240O' (letter O) or negative value would be accepted and produce nonsensical behavior\\\",\\n        \\\"suggestion\\\": \\\"Validate after parsing: raise ValueError or return 1 if timeout <= 0. The same applies to CLAUDE_MAX_TURNS on line 339\\\"\\n      },\\n      {\\n        \\\"line\\\": 337,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"CLAUDE_MODEL falls back to a hardcoded string 'claude-sonnet-4-6'; if the model name changes (e.g. new default in the project) this fallback silently overrides without any signal to the operator\\\",\\n        \\\"suggestion\\\": \\\"Omit the hardcoded fallback entirely and let the subprocess fail with a clear 'model not found' error rather than silently defaulting \u2014 or log a warning when the fallback is used\\\"\\n      },\\n      {\\n        \\\"line\\\": 26,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"BOT_MARKERS is a tuple of literal string markers; if a future workflow uses a different marker format, this tuple will silently diverge and cause the bot-skip logic to miss it\\\",\\n        \\\"suggestion\\\": \\\"Consider loading markers from an environment variable or a shared constants module so all pipeline scripts read from one source of truth\\\"\\n      },\\n      {\\n        \\\"line\\\": 44,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"run_gh uses check=False and the caller inspects returncode manually, which is correct, but several callers log the error and break instead of returning an error sentinel \u2014 this makes it hard to distinguish a transient gh failure from a legitimately empty result\\\",\\n        \\\"suggestion\\\": \\\"Add a comment noting that empty lists ([]) are the canonical 'nothing found' signal, so callers that do `if result.returncode != 0: break` are intentionally collapsing gh errors and API-empty responses into the same outcome\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Script is solid; main concerns are unvalidated numeric env vars (timeout) and a hardcoded model default that masks configuration drift\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"scripts/ci/self_review_implementation.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 168,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"CLAUDE_TIMEOUT_SECONDS default (1800) and CLAUDE_MAX_TURNS default (100) have no validation \u2014 same concern as fix_pr_comments.py: a misconfigured environment variable bypasses the intent silently\\\",\\n        \\\"suggestion\\\": \\\"Validate timeout > 0 and max_turns > 0 after parsing; return 1 with a descriptive log if invalid\\\"\\n      },\\n      {\\n        \\\"line\\\": 168,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"CLAUDE_MODEL defaults to 'claude-sonnet-4-6'; unlike fix_pr_comments.py (which also defaults it), this creates two independent copies of the same default string \u2014 if the intended default ever changes, both files must be updated in sync\\\",\\n        \\\"suggestion\\\": \\\"Extract the default model name to a shared constant (e.g. in a shared constants.py or at minimum a single DEFAULT_MODEL variable at module level referenced by both scripts)\\\"\\n      },\\n      {\\n        \\\"line\\\": 177,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"The comment justifying bypassPermissions ('headless -p in CI has no UI for permission prompts') is accurate but the comment itself is fragile \u2014 future editors may remove it believing it to be noise\\\",\\n        \\\"suggestion\\\": \\\"Consider extracting the rationale into a shared helper constant or docstring explaining the permission-mode requirement, so the 'why' survives code cleanups\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Duplicates the same validation-gap pattern from fix_pr_comments.py; model default should be shared rather than copied\\\"\\n  }\\n]\",\"stop_reason\":\"end_turn\",\"session_id\":\"7827025a-b380-431d-a424-4e10f15f9dc9\",\"total_cost_usd\":0.26202060000000005,\"usage\":{\"input_tokens\":44816,\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":152992,\"output_tokens\":5445,\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":0,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"\",\"iterations\":[],\"speed\":\"standard\"},\"modelUsage\":{\"claude-sonnet-4-6\":{\"inputTokens\":44816,\"outputTokens\":5445,\"cacheReadInputTokens\":152992,\"cacheCreationInputTokens\":0,\"webSearchRequests\":0,\"costUSD\":0.26202060000000005,\"contextWindow\":200000,\"maxOutputTokens\":32000}},\"permission_denials\":[],\"terminal_reason\":\"completed\",\"fast_mode_state\":\"off\",\"uuid\":\"6828d848-bdf0-417c-93ce-decbd1b60c55\"}\n",
         "parsed": {
-          "filename": "src/db/models/quote.py",
+          "filename": "scripts/ci/self_review_implementation.py",
           "issues": [
             {
-              "line": 19,
-              "severity": "critical",
-              "message": "opportunity_id has no ForeignKey constraint, risking orphaned/invalid references.",
-              "suggestion": "Add ForeignKey(\"opportunities.id\", ondelete=\"SET NULL\") to the mapped_column call for opportunity_id."
-            },
-            {
-              "line": 20,
-              "severity": "critical",
-              "message": "customer_id has no ForeignKey constraint, risking orphaned/invalid references.",
-              "suggestion": "Add ForeignKey(\"customers.id\", ondelete=\"SET NULL\") to the mapped_column call for customer_id."
-            },
-            {
-              "line": 0,
-              "severity": "info",
-              "message": "Status values 'draft' and discount_type values 'percentage'/'fixed'/'none' are magic strings with no enum.",
-              "suggestion": "Define QuoteStatus and DiscountType enums in src/models/quote.py and reference them consistently in both ORM defaults and Pydantic schemas."
-            }
-          ],
-          "summary": "QuoteModel and QuoteItemModel are well-structured with proper relationship and cascade; missing FK constraints on opportunity_id and customer_id."
-        }
-      },
-      {
-        "file": "src/models/contract.py",
-        "returncode": 0,
-        "output": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"api_error_status\":null,\"duration_ms\":40346,\"duration_api_ms\":40253,\"num_turns\":5,\"result\":\"\\n\\n[\\n  {\\n    \\\"filename\\\": \\\"src/db/models/contract.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 19,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"quote_id has no ForeignKey constraint, risking referential integrity violations at the DB level.\\\",\\n        \\\"suggestion\\\": \\\"Add ForeignKey(\\\\\\\"quotes.id\\\\\\\", ondelete=\\\\\\\"SET NULL\\\\\\\") to the mapped_column call for quote_id.\\\"\\n      },\\n      {\\n        \\\"line\\\": 20,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"customer_id has no ForeignKey constraint, risking orphaned/invalid references.\\\",\\n        \\\"suggestion\\\": \\\"Add ForeignKey(\\\\\\\"customers.id\\\\\\\", ondelete=\\\\\\\"SET NULL\\\\\\\") to the mapped_column call for customer_id.\\\"\\n      },\\n      {\\n        \\\"line\\\": 0,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"Status values 'draft'/'sent'/'viewed'/'signed'/'expired' are magic strings with no enum or constant.\\\",\\n        \\\"suggestion\\\": \\\"Define a ContractStatus enum in src/models/contract.py and reference it in both the ORM default and the Pydantic schema pattern.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"ORM model is structurally sound but missing FK constraints on quote_id and customer_id, risking data integrity issues.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"src/db/models/quote.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 19,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"opportunity_id has no ForeignKey constraint, risking orphaned/invalid references.\\\",\\n        \\\"suggestion\\\": \\\"Add ForeignKey(\\\\\\\"opportunities.id\\\\\\\", ondelete=\\\\\\\"SET NULL\\\\\\\") to the mapped_column call for opportunity_id.\\\"\\n      },\\n      {\\n        \\\"line\\\": 20,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"customer_id has no ForeignKey constraint, risking orphaned/invalid references.\\\",\\n        \\\"suggestion\\\": \\\"Add ForeignKey(\\\\\\\"customers.id\\\\\\\", ondelete=\\\\\\\"SET NULL\\\\\\\") to the mapped_column call for customer_id.\\\"\\n      },\\n      {\\n        \\\"line\\\": 0,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"Status values 'draft' and discount_type values 'percentage'/'fixed'/'none' are magic strings with no enum.\\\",\\n        \\\"suggestion\\\": \\\"Define QuoteStatus and DiscountType enums in src/models/quote.py and reference them consistently in both ORM defaults and Pydantic schemas.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"QuoteModel and QuoteItemModel are well-structured with proper relationship and cascade; missing FK constraints on opportunity_id and customer_id.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"src/models/contract.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 13,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"ContractSendForSignature.signer_email has no email format validation, allowing invalid addresses.\\\",\\n        \\\"suggestion\\\": \\\"Use Field(..., validation_alias=BeforeValidator(parse_obj_as(EmailStr))) or upgrade to Pydantic v2 email validation with Field(..., validators=[...]).\\\"\\n      },\\n      {\\n        \\\"line\\\": 0,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"No response schema (e.g. ContractResponse) is defined, requiring routers to manually construct response dicts.\\\",\\n        \\\"suggestion\\\": \\\"Add a ContractResponse schema referencing the existing ORM to_dict output shape for consistency.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Request schemas are minimal and mostly well-validated but lack email validation and a response schema.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"src/models/quote.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 26,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"QuoteCreate.opportunity_id and QuoteCreate.notes fields exist but no corresponding QuoteUpdate includes a status or amount field \u2014 services cannot set initial status or amount.\\\",\\n        \\\"suggestion\\\": \\\"Ensure the service layer can set default status='draft' and amount on quote creation; if amount requires computation from items, consider adding an explicit field or documenting the behavior.\\\"\\n      },\\n      {\\n        \\\"line\\\": 0,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"No response schema (e.g. QuoteResponse, QuoteItemResponse) is defined.\\\",\\n        \\\"suggestion\\\": \\\"Add QuoteResponse and QuoteItemResponse schemas mirroring the ORM to_dict output shape for consistent router serialization.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Schemas are well-validated with proper constraints; missing response schemas and a gap in quote creation fields (status/amount).\\\"\\n  }\\n]\",\"stop_reason\":\"end_turn\",\"session_id\":\"3835d537-eee7-476b-af0c-7f5881253e72\",\"total_cost_usd\":0.1318884,\"usage\":{\"input_tokens\":33413,\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":30848,\"output_tokens\":1493,\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":0,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"\",\"iterations\":[],\"speed\":\"standard\"},\"modelUsage\":{\"claude-sonnet-4-6\":{\"inputTokens\":33413,\"outputTokens\":1493,\"cacheReadInputTokens\":30848,\"cacheCreationInputTokens\":0,\"webSearchRequests\":0,\"costUSD\":0.1318884,\"contextWindow\":200000,\"maxOutputTokens\":32000}},\"permission_denials\":[],\"terminal_reason\":\"completed\",\"fast_mode_state\":\"off\",\"uuid\":\"ed7b5cfa-752c-450a-b8eb-bc39a3a271e5\"}\n",
-        "parsed": {
-          "filename": "src/models/contract.py",
-          "issues": [
-            {
-              "line": 13,
+              "line": 168,
               "severity": "warning",
-              "message": "ContractSendForSignature.signer_email has no email format validation, allowing invalid addresses.",
-              "suggestion": "Use Field(..., validation_alias=BeforeValidator(parse_obj_as(EmailStr))) or upgrade to Pydantic v2 email validation with Field(..., validators=[...])."
+              "message": "CLAUDE_TIMEOUT_SECONDS default (1800) and CLAUDE_MAX_TURNS default (100) have no validation \u2014 same concern as fix_pr_comments.py: a misconfigured environment variable bypasses the intent silently",
+              "suggestion": "Validate timeout > 0 and max_turns > 0 after parsing; return 1 with a descriptive log if invalid"
             },
             {
-              "line": 0,
+              "line": 168,
               "severity": "info",
-              "message": "No response schema (e.g. ContractResponse) is defined, requiring routers to manually construct response dicts.",
-              "suggestion": "Add a ContractResponse schema referencing the existing ORM to_dict output shape for consistency."
-            }
-          ],
-          "summary": "Request schemas are minimal and mostly well-validated but lack email validation and a response schema."
-        }
-      },
-      {
-        "file": "src/models/quote.py",
-        "returncode": 0,
-        "output": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"api_error_status\":null,\"duration_ms\":40346,\"duration_api_ms\":40253,\"num_turns\":5,\"result\":\"\\n\\n[\\n  {\\n    \\\"filename\\\": \\\"src/db/models/contract.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 19,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"quote_id has no ForeignKey constraint, risking referential integrity violations at the DB level.\\\",\\n        \\\"suggestion\\\": \\\"Add ForeignKey(\\\\\\\"quotes.id\\\\\\\", ondelete=\\\\\\\"SET NULL\\\\\\\") to the mapped_column call for quote_id.\\\"\\n      },\\n      {\\n        \\\"line\\\": 20,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"customer_id has no ForeignKey constraint, risking orphaned/invalid references.\\\",\\n        \\\"suggestion\\\": \\\"Add ForeignKey(\\\\\\\"customers.id\\\\\\\", ondelete=\\\\\\\"SET NULL\\\\\\\") to the mapped_column call for customer_id.\\\"\\n      },\\n      {\\n        \\\"line\\\": 0,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"Status values 'draft'/'sent'/'viewed'/'signed'/'expired' are magic strings with no enum or constant.\\\",\\n        \\\"suggestion\\\": \\\"Define a ContractStatus enum in src/models/contract.py and reference it in both the ORM default and the Pydantic schema pattern.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"ORM model is structurally sound but missing FK constraints on quote_id and customer_id, risking data integrity issues.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"src/db/models/quote.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 19,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"opportunity_id has no ForeignKey constraint, risking orphaned/invalid references.\\\",\\n        \\\"suggestion\\\": \\\"Add ForeignKey(\\\\\\\"opportunities.id\\\\\\\", ondelete=\\\\\\\"SET NULL\\\\\\\") to the mapped_column call for opportunity_id.\\\"\\n      },\\n      {\\n        \\\"line\\\": 20,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"customer_id has no ForeignKey constraint, risking orphaned/invalid references.\\\",\\n        \\\"suggestion\\\": \\\"Add ForeignKey(\\\\\\\"customers.id\\\\\\\", ondelete=\\\\\\\"SET NULL\\\\\\\") to the mapped_column call for customer_id.\\\"\\n      },\\n      {\\n        \\\"line\\\": 0,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"Status values 'draft' and discount_type values 'percentage'/'fixed'/'none' are magic strings with no enum.\\\",\\n        \\\"suggestion\\\": \\\"Define QuoteStatus and DiscountType enums in src/models/quote.py and reference them consistently in both ORM defaults and Pydantic schemas.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"QuoteModel and QuoteItemModel are well-structured with proper relationship and cascade; missing FK constraints on opportunity_id and customer_id.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"src/models/contract.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 13,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"ContractSendForSignature.signer_email has no email format validation, allowing invalid addresses.\\\",\\n        \\\"suggestion\\\": \\\"Use Field(..., validation_alias=BeforeValidator(parse_obj_as(EmailStr))) or upgrade to Pydantic v2 email validation with Field(..., validators=[...]).\\\"\\n      },\\n      {\\n        \\\"line\\\": 0,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"No response schema (e.g. ContractResponse) is defined, requiring routers to manually construct response dicts.\\\",\\n        \\\"suggestion\\\": \\\"Add a ContractResponse schema referencing the existing ORM to_dict output shape for consistency.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Request schemas are minimal and mostly well-validated but lack email validation and a response schema.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"src/models/quote.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 26,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"QuoteCreate.opportunity_id and QuoteCreate.notes fields exist but no corresponding QuoteUpdate includes a status or amount field \u2014 services cannot set initial status or amount.\\\",\\n        \\\"suggestion\\\": \\\"Ensure the service layer can set default status='draft' and amount on quote creation; if amount requires computation from items, consider adding an explicit field or documenting the behavior.\\\"\\n      },\\n      {\\n        \\\"line\\\": 0,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"No response schema (e.g. QuoteResponse, QuoteItemResponse) is defined.\\\",\\n        \\\"suggestion\\\": \\\"Add QuoteResponse and QuoteItemResponse schemas mirroring the ORM to_dict output shape for consistent router serialization.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Schemas are well-validated with proper constraints; missing response schemas and a gap in quote creation fields (status/amount).\\\"\\n  }\\n]\",\"stop_reason\":\"end_turn\",\"session_id\":\"3835d537-eee7-476b-af0c-7f5881253e72\",\"total_cost_usd\":0.1318884,\"usage\":{\"input_tokens\":33413,\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":30848,\"output_tokens\":1493,\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":0,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"\",\"iterations\":[],\"speed\":\"standard\"},\"modelUsage\":{\"claude-sonnet-4-6\":{\"inputTokens\":33413,\"outputTokens\":1493,\"cacheReadInputTokens\":30848,\"cacheCreationInputTokens\":0,\"webSearchRequests\":0,\"costUSD\":0.1318884,\"contextWindow\":200000,\"maxOutputTokens\":32000}},\"permission_denials\":[],\"terminal_reason\":\"completed\",\"fast_mode_state\":\"off\",\"uuid\":\"ed7b5cfa-752c-450a-b8eb-bc39a3a271e5\"}\n",
-        "parsed": {
-          "filename": "src/models/quote.py",
-          "issues": [
-            {
-              "line": 26,
-              "severity": "warning",
-              "message": "QuoteCreate.opportunity_id and QuoteCreate.notes fields exist but no corresponding QuoteUpdate includes a status or amount field \u2014 services cannot set initial status or amount.",
-              "suggestion": "Ensure the service layer can set default status='draft' and amount on quote creation; if amount requires computation from items, consider adding an explicit field or documenting the behavior."
+              "message": "CLAUDE_MODEL defaults to 'claude-sonnet-4-6'; unlike fix_pr_comments.py (which also defaults it), this creates two independent copies of the same default string \u2014 if the intended default ever changes, both files must be updated in sync",
+              "suggestion": "Extract the default model name to a shared constant (e.g. in a shared constants.py or at minimum a single DEFAULT_MODEL variable at module level referenced by both scripts)"
             },
             {
-              "line": 0,
+              "line": 177,
               "severity": "info",
-              "message": "No response schema (e.g. QuoteResponse, QuoteItemResponse) is defined.",
-              "suggestion": "Add QuoteResponse and QuoteItemResponse schemas mirroring the ORM to_dict output shape for consistent router serialization."
+              "message": "The comment justifying bypassPermissions ('headless -p in CI has no UI for permission prompts') is accurate but the comment itself is fragile \u2014 future editors may remove it believing it to be noise",
+              "suggestion": "Consider extracting the rationale into a shared helper constant or docstring explaining the permission-mode requirement, so the 'why' survives code cleanups"
             }
           ],
-          "summary": "Schemas are well-validated with proper constraints; missing response schemas and a gap in quote creation fields (status/amount)."
-        }
-      },
-      {
-        "file": "src/services/contract_service.py",
-        "returncode": 0,
-        "output": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"api_error_status\":null,\"duration_ms\":350123,\"duration_api_ms\":349933,\"num_turns\":13,\"result\":\"\\n\\n```json\\n[\\n  {\\n    \\\"filename\\\": \\\"src/services/contract_service.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 50,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"Duplicate-contract check does not filter by tenant_id \u2014 tenant A's quote could find tenant B's contract via direct contract_id or quote_id enumeration (Rule 6)\\\",\\n        \\\"suggestion\\\": \\\"Add tenant_id to the duplicate check: select(ContractModel).where(and_(ContractModel.quote_id == quote_id, ContractModel.tenant_id == tenant_id))\\\"\\n      },\\n      {\\n        \\\"line\\\": 166,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"update_expiry() has no tenant_id parameter and applies no tenant filter \u2014 it would expire contracts across all tenants (Rule 6)\\\",\\n        \\\"suggestion\\\": \\\"Add tenant_id: int parameter and filter by ContractModel.tenant_id == tenant_id in the WHERE clause, or add tenant_id as an optional parameter and default to restricting to a specific tenant\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Core contract CRUD and status-transition methods follow patterns correctly, but update_expiry() is unsafe for multi-tenant use and the duplicate-contract guard lacks tenant isolation.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"src/services/quote_service.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 278,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"apply_discount() calls _calc_amount() which flushes, but then calls session.refresh(quote) without an explicit flush immediately before it \u2014 the refresh will succeed but the call chain is non-obvious (Rule 123)\\\",\\n        \\\"suggestion\\\": \\\"Add an explicit await self.session.flush() before the refresh to make the lifecycle explicit, even though _calc_amount already flushes \u2014 this prevents future bugs if _calc_amount is refactored\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Quote CRUD, line items, amount calculation, and discount logic are well-structured. Minor lifecycle clarity issue in apply_discount but no critical bugs.\\\"\\n  }\\n]\\n```\",\"stop_reason\":\"end_turn\",\"session_id\":\"6355bf54-0e05-40dd-9914-29129e52ef8a\",\"total_cost_usd\":0.46862550000000003,\"usage\":{\"input_tokens\":51007,\"cache_creation_input_tokens\":30728,\"cache_read_input_tokens\":315315,\"output_tokens\":7052,\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":0,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"\",\"iterations\":[],\"speed\":\"standard\"},\"modelUsage\":{\"claude-sonnet-4-6\":{\"inputTokens\":51007,\"outputTokens\":7052,\"cacheReadInputTokens\":315315,\"cacheCreationInputTokens\":30728,\"webSearchRequests\":0,\"costUSD\":0.46862550000000003,\"contextWindow\":200000,\"maxOutputTokens\":32000}},\"permission_denials\":[],\"terminal_reason\":\"completed\",\"fast_mode_state\":\"off\",\"uuid\":\"8568197c-d5bf-4f23-99f1-7f5d8c270a2a\"}\n",
-        "parsed": {
-          "filename": "src/services/contract_service.py",
-          "issues": [
-            {
-              "line": 50,
-              "severity": "critical",
-              "message": "Duplicate-contract check does not filter by tenant_id \u2014 tenant A's quote could find tenant B's contract via direct contract_id or quote_id enumeration (Rule 6)",
-              "suggestion": "Add tenant_id to the duplicate check: select(ContractModel).where(and_(ContractModel.quote_id == quote_id, ContractModel.tenant_id == tenant_id))"
-            },
-            {
-              "line": 166,
-              "severity": "critical",
-              "message": "update_expiry() has no tenant_id parameter and applies no tenant filter \u2014 it would expire contracts across all tenants (Rule 6)",
-              "suggestion": "Add tenant_id: int parameter and filter by ContractModel.tenant_id == tenant_id in the WHERE clause, or add tenant_id as an optional parameter and default to restricting to a specific tenant"
-            }
-          ],
-          "summary": "Core contract CRUD and status-transition methods follow patterns correctly, but update_expiry() is unsafe for multi-tenant use and the duplicate-contract guard lacks tenant isolation."
-        }
-      },
-      {
-        "file": "src/services/quote_service.py",
-        "returncode": 0,
-        "output": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"api_error_status\":null,\"duration_ms\":350123,\"duration_api_ms\":349933,\"num_turns\":13,\"result\":\"\\n\\n```json\\n[\\n  {\\n    \\\"filename\\\": \\\"src/services/contract_service.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 50,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"Duplicate-contract check does not filter by tenant_id \u2014 tenant A's quote could find tenant B's contract via direct contract_id or quote_id enumeration (Rule 6)\\\",\\n        \\\"suggestion\\\": \\\"Add tenant_id to the duplicate check: select(ContractModel).where(and_(ContractModel.quote_id == quote_id, ContractModel.tenant_id == tenant_id))\\\"\\n      },\\n      {\\n        \\\"line\\\": 166,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"update_expiry() has no tenant_id parameter and applies no tenant filter \u2014 it would expire contracts across all tenants (Rule 6)\\\",\\n        \\\"suggestion\\\": \\\"Add tenant_id: int parameter and filter by ContractModel.tenant_id == tenant_id in the WHERE clause, or add tenant_id as an optional parameter and default to restricting to a specific tenant\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Core contract CRUD and status-transition methods follow patterns correctly, but update_expiry() is unsafe for multi-tenant use and the duplicate-contract guard lacks tenant isolation.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"src/services/quote_service.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 278,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"apply_discount() calls _calc_amount() which flushes, but then calls session.refresh(quote) without an explicit flush immediately before it \u2014 the refresh will succeed but the call chain is non-obvious (Rule 123)\\\",\\n        \\\"suggestion\\\": \\\"Add an explicit await self.session.flush() before the refresh to make the lifecycle explicit, even though _calc_amount already flushes \u2014 this prevents future bugs if _calc_amount is refactored\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Quote CRUD, line items, amount calculation, and discount logic are well-structured. Minor lifecycle clarity issue in apply_discount but no critical bugs.\\\"\\n  }\\n]\\n```\",\"stop_reason\":\"end_turn\",\"session_id\":\"6355bf54-0e05-40dd-9914-29129e52ef8a\",\"total_cost_usd\":0.46862550000000003,\"usage\":{\"input_tokens\":51007,\"cache_creation_input_tokens\":30728,\"cache_read_input_tokens\":315315,\"output_tokens\":7052,\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":0,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"\",\"iterations\":[],\"speed\":\"standard\"},\"modelUsage\":{\"claude-sonnet-4-6\":{\"inputTokens\":51007,\"outputTokens\":7052,\"cacheReadInputTokens\":315315,\"cacheCreationInputTokens\":30728,\"webSearchRequests\":0,\"costUSD\":0.46862550000000003,\"contextWindow\":200000,\"maxOutputTokens\":32000}},\"permission_denials\":[],\"terminal_reason\":\"completed\",\"fast_mode_state\":\"off\",\"uuid\":\"8568197c-d5bf-4f23-99f1-7f5d8c270a2a\"}\n",
-        "parsed": {
-          "filename": "src/services/quote_service.py",
-          "issues": [
-            {
-              "line": 278,
-              "severity": "warning",
-              "message": "apply_discount() calls _calc_amount() which flushes, but then calls session.refresh(quote) without an explicit flush immediately before it \u2014 the refresh will succeed but the call chain is non-obvious (Rule 123)",
-              "suggestion": "Add an explicit await self.session.flush() before the refresh to make the lifecycle explicit, even though _calc_amount already flushes \u2014 this prevents future bugs if _calc_amount is refactored"
-            }
-          ],
-          "summary": "Quote CRUD, line items, amount calculation, and discount logic are well-structured. Minor lifecycle clarity issue in apply_discount but no critical bugs."
+          "summary": "Duplicates the same validation-gap pattern from fix_pr_comments.py; model default should be shared rather than copied"
         }
       }
     ]
