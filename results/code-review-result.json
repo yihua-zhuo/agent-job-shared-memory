@@ -3,149 +3,177 @@
   "verdict": "fail",
   "critical_issues": [
     {
-      "file": "scripts/ci/execute_implementation.py",
-      "line": 189,
+      "file": "src/services/customer_service.py",
+      "line": 18,
       "severity": "critical",
-      "msg": "GITHUB_OUTPUT values are written without the `<<` delimiter syntax \u2014 multiline values (e.g. plan text) will corrupt the output file and cause workflow steps to misread or reject subsequent outputs.",
-      "suggestion": "In `write_outputs`, for each value use: `f.write(f\"{k}<<{v}\\n\")` \u2014 or use `shlex.join` on the file write, or follow the delimited-heredoc pattern GitHub Actions requires for multi-line values."
+      "msg": "VALID_STATUSES includes statuses (partner, prospect, active, blocked) not defined in CustomerStatus enum, causing ValueError at runtime for count_by_status and change_status with those values.",
+      "suggestion": "Align VALID_STATUSES with CustomerStatus enum values: {\"lead\", \"opportunity\", \"customer\", \"inactive\"}. Alternatively, derive it dynamically: VALID_STATUSES = {s.value for s in CustomerStatus}."
     },
     {
-      "file": "scripts/ci/execute_implementation.py",
-      "line": 193,
+      "file": "src/services/customer_service.py",
+      "line": 139,
       "severity": "critical",
-      "msg": "Same GITHUB_OUTPUT delimiter issue as above \u2014 `f.write(f\"{k}={v}\\n\")` is the raw format, which breaks for values containing newlines.",
-      "suggestion": "Append `<<` after each value: `f.write(f\"{k}={v}\\n<<\\n\")` to mark the end of the delimited value block per GitHub Actions convention."
+      "msg": "count_by_status constructs CustomerStatus from raw DB string values without guarding against unknown statuses, so any DB row with a status outside the enum raises ValueError.",
+      "suggestion": "Add a guard: if row[0] not in {s.value for s in CustomerStatus}: continue. Or catch ValueError per row and skip unknown statuses."
+    },
+    {
+      "file": "src/services/customer_service.py",
+      "line": 148,
+      "severity": "critical",
+      "msg": "search_customers has no max page_size or offset cap; returning up to 100 rows per query is reasonable but the hardcoded limit is undocumented and not configurable, unlike list_customers which uses pagination.",
+      "suggestion": "Add explicit pagination parameters (page, page_size) matching list_customers signature, with a server-side cap to prevent unbounded result sets."
     }
   ],
   "suggestions": [
     {
-      "file": ".github/workflows/implement-ready-issues.yml",
-      "line": 0,
+      "file": "src/services/customer_service.py",
+      "line": 6,
       "severity": "warning",
-      "msg": "Step output 'branch' is read in a subsequent shell block (line 79: git checkout -b \"${{ steps.plan.outputs.branch }}\") without delimiter quoting \u2014 if branch name contains newlines or special chars, it can corrupt git command syntax.",
-      "suggestion": "Use delimiter quoting in the step output: add `branch=${{ steps.plan.outputs.branch }}<<` to `write_outputs` in `scripts/ci/claim_and_plan_issue.py` (see that file's issue), so the workflow reading it is protected automatically."
+      "msg": "Import `delete` from sqlalchemy is unused.",
+      "suggestion": "Remove `delete` from the import line: `from sqlalchemy import and_, func, or_, select`."
     },
     {
-      "file": "scripts/ci/execute_implementation.py",
-      "line": 80,
-      "severity": "warning",
-      "msg": "subprocess.Popen with `bufsize=1` (unbuffered) on a pipe is not portable across platforms \u2014 Python requires `bufsize=-1` (fully buffered) or `bufsize=0` (unbuffered, requires binary mode) for pipe streams; `1` maps to fully buffered on some POSIX and is ignored on others.",
-      "suggestion": "Change `bufsize=1` to `bufsize=0` and keep `text=True` \u2014 Python will handle line buffering automatically when writing to a TTY, or rely on explicit `out.flush()` calls already present (line 122)."
-    },
-    {
-      "file": "scripts/ci/execute_implementation.py",
-      "line": 88,
+      "file": "src/services/customer_service.py",
+      "line": 49,
       "severity": "info",
-      "msg": "No retry logic for transient failures (network timeouts, rate limits, Claude API errors). A single transient error causes the entire 60-min workflow to abort and requeue the issue, wasting CI minutes.",
-      "suggestion": "Wrap the `stream_claude` call in a retry loop (3 attempts, exponential backoff) for return codes that may be transient."
+      "msg": "create_customer defaults missing name to \"Customer\" silently rather than raising ValidationException, masking incomplete input.",
+      "suggestion": "Raise ValidationException if name is absent: `if not d.get(\"name\"): raise ValidationException(\"name is required\")`."
+    },
+    {
+      "file": "src/services/customer_service.py",
+      "line": 54,
+      "severity": "info",
+      "msg": "owner_id default of 0 creates a customer assigned to a non-existent owner without validation that the owner exists and belongs to the tenant.",
+      "suggestion": "Accept owner_id=None as default and raise ValidationException if a non-null owner_id is provided but does not correspond to a valid tenant user."
+    },
+    {
+      "file": "src/services/customer_service.py",
+      "line": 160,
+      "severity": "info",
+      "msg": "bulk_import flushes but never refreshes inserted rows, so callers receive no auto-generated IDs \u2014 callers must re-query to get IDs, which is inefficient.",
+      "suggestion": "After the flush loop, add `await self.session.refresh(next(obj for obj in session.new))` in a loop or use `await session.run_sync()` to retrieve IDs, if callers need them."
     }
   ],
-  "summary": "Reviewed 2 file(s) between origin/master and origin/develop.",
+  "summary": "Reviewed 1 file(s) between origin/master and origin/issue-271-customer-dto.",
   "details": {
     "llm_parsed": {
       "verdict": "fail",
       "critical": [
         {
-          "file": "scripts/ci/execute_implementation.py",
-          "line": 189,
+          "file": "src/services/customer_service.py",
+          "line": 18,
           "severity": "critical",
-          "msg": "GITHUB_OUTPUT values are written without the `<<` delimiter syntax \u2014 multiline values (e.g. plan text) will corrupt the output file and cause workflow steps to misread or reject subsequent outputs.",
-          "suggestion": "In `write_outputs`, for each value use: `f.write(f\"{k}<<{v}\\n\")` \u2014 or use `shlex.join` on the file write, or follow the delimited-heredoc pattern GitHub Actions requires for multi-line values."
+          "msg": "VALID_STATUSES includes statuses (partner, prospect, active, blocked) not defined in CustomerStatus enum, causing ValueError at runtime for count_by_status and change_status with those values.",
+          "suggestion": "Align VALID_STATUSES with CustomerStatus enum values: {\"lead\", \"opportunity\", \"customer\", \"inactive\"}. Alternatively, derive it dynamically: VALID_STATUSES = {s.value for s in CustomerStatus}."
         },
         {
-          "file": "scripts/ci/execute_implementation.py",
-          "line": 193,
+          "file": "src/services/customer_service.py",
+          "line": 139,
           "severity": "critical",
-          "msg": "Same GITHUB_OUTPUT delimiter issue as above \u2014 `f.write(f\"{k}={v}\\n\")` is the raw format, which breaks for values containing newlines.",
-          "suggestion": "Append `<<` after each value: `f.write(f\"{k}={v}\\n<<\\n\")` to mark the end of the delimited value block per GitHub Actions convention."
+          "msg": "count_by_status constructs CustomerStatus from raw DB string values without guarding against unknown statuses, so any DB row with a status outside the enum raises ValueError.",
+          "suggestion": "Add a guard: if row[0] not in {s.value for s in CustomerStatus}: continue. Or catch ValueError per row and skip unknown statuses."
+        },
+        {
+          "file": "src/services/customer_service.py",
+          "line": 148,
+          "severity": "critical",
+          "msg": "search_customers has no max page_size or offset cap; returning up to 100 rows per query is reasonable but the hardcoded limit is undocumented and not configurable, unlike list_customers which uses pagination.",
+          "suggestion": "Add explicit pagination parameters (page, page_size) matching list_customers signature, with a server-side cap to prevent unbounded result sets."
         }
       ],
       "warnings": [
         {
-          "file": ".github/workflows/implement-ready-issues.yml",
-          "line": 0,
+          "file": "src/services/customer_service.py",
+          "line": 6,
           "severity": "warning",
-          "msg": "Step output 'branch' is read in a subsequent shell block (line 79: git checkout -b \"${{ steps.plan.outputs.branch }}\") without delimiter quoting \u2014 if branch name contains newlines or special chars, it can corrupt git command syntax.",
-          "suggestion": "Use delimiter quoting in the step output: add `branch=${{ steps.plan.outputs.branch }}<<` to `write_outputs` in `scripts/ci/claim_and_plan_issue.py` (see that file's issue), so the workflow reading it is protected automatically."
+          "msg": "Import `delete` from sqlalchemy is unused.",
+          "suggestion": "Remove `delete` from the import line: `from sqlalchemy import and_, func, or_, select`."
         },
         {
-          "file": "scripts/ci/execute_implementation.py",
-          "line": 80,
-          "severity": "warning",
-          "msg": "subprocess.Popen with `bufsize=1` (unbuffered) on a pipe is not portable across platforms \u2014 Python requires `bufsize=-1` (fully buffered) or `bufsize=0` (unbuffered, requires binary mode) for pipe streams; `1` maps to fully buffered on some POSIX and is ignored on others.",
-          "suggestion": "Change `bufsize=1` to `bufsize=0` and keep `text=True` \u2014 Python will handle line buffering automatically when writing to a TTY, or rely on explicit `out.flush()` calls already present (line 122)."
-        },
-        {
-          "file": "scripts/ci/execute_implementation.py",
-          "line": 88,
+          "file": "src/services/customer_service.py",
+          "line": 49,
           "severity": "info",
-          "msg": "No retry logic for transient failures (network timeouts, rate limits, Claude API errors). A single transient error causes the entire 60-min workflow to abort and requeue the issue, wasting CI minutes.",
-          "suggestion": "Wrap the `stream_claude` call in a retry loop (3 attempts, exponential backoff) for return codes that may be transient."
+          "msg": "create_customer defaults missing name to \"Customer\" silently rather than raising ValidationException, masking incomplete input.",
+          "suggestion": "Raise ValidationException if name is absent: `if not d.get(\"name\"): raise ValidationException(\"name is required\")`."
+        },
+        {
+          "file": "src/services/customer_service.py",
+          "line": 54,
+          "severity": "info",
+          "msg": "owner_id default of 0 creates a customer assigned to a non-existent owner without validation that the owner exists and belongs to the tenant.",
+          "suggestion": "Accept owner_id=None as default and raise ValidationException if a non-null owner_id is provided but does not correspond to a valid tenant user."
+        },
+        {
+          "file": "src/services/customer_service.py",
+          "line": 160,
+          "severity": "info",
+          "msg": "bulk_import flushes but never refreshes inserted rows, so callers receive no auto-generated IDs \u2014 callers must re-query to get IDs, which is inefficient.",
+          "suggestion": "After the flush loop, add `await self.session.refresh(next(obj for obj in session.new))` in a loop or use `await session.run_sync()` to retrieve IDs, if callers need them."
         }
       ],
-      "summary": "Reviewed 2 file(s) between origin/master and origin/develop."
+      "summary": "Reviewed 1 file(s) between origin/master and origin/issue-271-customer-dto."
     },
     "reviewed_refs": {
-      "base": "337a134bfad8e842fb9a6a0a06b3a66f935ef7ce",
-      "head": "f0c08510f9ce347737d02b45fb7c69a512de45d2",
+      "base": "ad61e5be9cdd83693cd5a071c4760a7d4c168f41",
+      "head": "97464c7cd45188ade0375ea91bff629855f31cb7",
       "base_label": "origin/master",
-      "head_label": "origin/develop"
+      "head_label": "origin/issue-271-customer-dto"
     },
     "reviewed_files": [
-      ".github/workflows/implement-ready-issues.yml",
-      "scripts/ci/execute_implementation.py"
+      "src/services/customer_service.py"
     ],
     "per_file_reviews": [
       {
-        "file": ".github/workflows/implement-ready-issues.yml",
+        "file": "src/services/customer_service.py",
         "returncode": 0,
-        "output": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"api_error_status\":null,\"duration_ms\":125131,\"duration_api_ms\":124999,\"num_turns\":10,\"result\":\"\\n\\n```json\\n[\\n  {\\n    \\\"filename\\\": \\\".github/workflows/implement-ready-issues.yml\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 0,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"Step output 'branch' is read in a subsequent shell block (line 79: git checkout -b \\\\\\\"${{ steps.plan.outputs.branch }}\\\\\\\") without delimiter quoting \u2014 if branch name contains newlines or special chars, it can corrupt git command syntax.\\\",\\n        \\\"suggestion\\\": \\\"Use delimiter quoting in the step output: add `branch=${{ steps.plan.outputs.branch }}<<` to `write_outputs` in `scripts/ci/claim_and_plan_issue.py` (see that file's issue), so the workflow reading it is protected automatically.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Well-structured CI pipeline with proper concurrency control, retry loops, and staged gates; minor GITHUB_OUTPUT quoting risk is inherited from the script.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"scripts/ci/execute_implementation.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 189,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"GITHUB_OUTPUT values are written without the `<<` delimiter syntax \u2014 multiline values (e.g. plan text) will corrupt the output file and cause workflow steps to misread or reject subsequent outputs.\\\",\\n        \\\"suggestion\\\": \\\"In `write_outputs`, for each value use: `f.write(f\\\\\\\"{k}<<{v}\\\\\\\\n\\\\\\\")` \u2014 or use `shlex.join` on the file write, or follow the delimited-heredoc pattern GitHub Actions requires for multi-line values.\\\"\\n      },\\n      {\\n        \\\"line\\\": 193,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"Same GITHUB_OUTPUT delimiter issue as above \u2014 `f.write(f\\\\\\\"{k}={v}\\\\\\\\n\\\\\\\")` is the raw format, which breaks for values containing newlines.\\\",\\n        \\\"suggestion\\\": \\\"Append `<<` after each value: `f.write(f\\\\\\\"{k}={v}\\\\\\\\n<<\\\\\\\\n\\\\\\\")` to mark the end of the delimited value block per GitHub Actions convention.\\\"\\n      },\\n      {\\n        \\\"line\\\": 80,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"subprocess.Popen with `bufsize=1` (unbuffered) on a pipe is not portable across platforms \u2014 Python requires `bufsize=-1` (fully buffered) or `bufsize=0` (unbuffered, requires binary mode) for pipe streams; `1` maps to fully buffered on some POSIX and is ignored on others.\\\",\\n        \\\"suggestion\\\": \\\"Change `bufsize=1` to `bufsize=0` and keep `text=True` \u2014 Python will handle line buffering automatically when writing to a TTY, or rely on explicit `out.flush()` calls already present (line 122).\\\"\\n      },\\n      {\\n        \\\"line\\\": 88,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"No retry logic for transient failures (network timeouts, rate limits, Claude API errors). A single transient error causes the entire 60-min workflow to abort and requeue the issue, wasting CI minutes.\\\",\\n        \\\"suggestion\\\": \\\"Wrap the `stream_claude` call in a retry loop (3 attempts, exponential backoff) for return codes that may be transient.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Solid design with real-time streaming and proper timeout handling; GITHUB_OUTPUT delimiter fix is critical and `bufsize=1` may cause portability issues on some systems.\\\"\\n  }\\n]\\n```\",\"stop_reason\":\"end_turn\",\"session_id\":\"d4c6a282-a943-4d05-b6ca-fc865f028f81\",\"total_cost_usd\":0.34748280000000004,\"usage\":{\"input_tokens\":39981,\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":292416,\"output_tokens\":9321,\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":0,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"\",\"iterations\":[],\"speed\":\"standard\"},\"modelUsage\":{\"claude-sonnet-4-6\":{\"inputTokens\":39981,\"outputTokens\":9321,\"cacheReadInputTokens\":292416,\"cacheCreationInputTokens\":0,\"webSearchRequests\":0,\"costUSD\":0.34748280000000004,\"contextWindow\":200000,\"maxOutputTokens\":32000}},\"permission_denials\":[],\"terminal_reason\":\"completed\",\"fast_mode_state\":\"off\",\"uuid\":\"b392eb81-162d-4181-972b-3fbc196429e0\"}\n",
+        "output": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"api_error_status\":null,\"duration_ms\":83891,\"duration_api_ms\":83807,\"num_turns\":5,\"result\":\"\\n\\nNow I have enough context to analyze the file thoroughly.\\n\\n```json\\n[\\n  {\\n    \\\"filename\\\": \\\"src/services/customer_service.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 18,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"VALID_STATUSES includes statuses (partner, prospect, active, blocked) not defined in CustomerStatus enum, causing ValueError at runtime for count_by_status and change_status with those values.\\\",\\n        \\\"suggestion\\\": \\\"Align VALID_STATUSES with CustomerStatus enum values: {\\\\\\\"lead\\\\\\\", \\\\\\\"opportunity\\\\\\\", \\\\\\\"customer\\\\\\\", \\\\\\\"inactive\\\\\\\"}. Alternatively, derive it dynamically: VALID_STATUSES = {s.value for s in CustomerStatus}.\\\"\\n      },\\n      {\\n        \\\"line\\\": 139,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"count_by_status constructs CustomerStatus from raw DB string values without guarding against unknown statuses, so any DB row with a status outside the enum raises ValueError.\\\",\\n        \\\"suggestion\\\": \\\"Add a guard: if row[0] not in {s.value for s in CustomerStatus}: continue. Or catch ValueError per row and skip unknown statuses.\\\"\\n      },\\n      {\\n        \\\"line\\\": 148,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"search_customers has no max page_size or offset cap; returning up to 100 rows per query is reasonable but the hardcoded limit is undocumented and not configurable, unlike list_customers which uses pagination.\\\",\\n        \\\"suggestion\\\": \\\"Add explicit pagination parameters (page, page_size) matching list_customers signature, with a server-side cap to prevent unbounded result sets.\\\"\\n      },\\n      {\\n        \\\"line\\\": 6,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"Import `delete` from sqlalchemy is unused.\\\",\\n        \\\"suggestion\\\": \\\"Remove `delete` from the import line: `from sqlalchemy import and_, func, or_, select`.\\\"\\n      },\\n      {\\n        \\\"line\\\": 49,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"create_customer defaults missing name to \\\\\\\"Customer\\\\\\\" silently rather than raising ValidationException, masking incomplete input.\\\",\\n        \\\"suggestion\\\": \\\"Raise ValidationException if name is absent: `if not d.get(\\\\\\\"name\\\\\\\"): raise ValidationException(\\\\\\\"name is required\\\\\\\")`.\\\"\\n      },\\n      {\\n        \\\"line\\\": 54,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"owner_id default of 0 creates a customer assigned to a non-existent owner without validation that the owner exists and belongs to the tenant.\\\",\\n        \\\"suggestion\\\": \\\"Accept owner_id=None as default and raise ValidationException if a non-null owner_id is provided but does not correspond to a valid tenant user.\\\"\\n      },\\n      {\\n        \\\"line\\\": 160,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"bulk_import flushes but never refreshes inserted rows, so callers receive no auto-generated IDs \u2014 callers must re-query to get IDs, which is inefficient.\\\",\\n        \\\"suggestion\\\": \\\"After the flush loop, add `await self.session.refresh(next(obj for obj in session.new))` in a loop or use `await session.run_sync()` to retrieve IDs, if callers need them.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"The file follows the service pattern correctly (flush-only, no commit, raises AppExceptions) but has a critical enum/set mismatch between VALID_STATUSES and CustomerStatus that will cause runtime ValueErrors for several valid statuses, plus an unbounded search result set.\\\"\\n  }\\n]\\n```\",\"stop_reason\":\"end_turn\",\"session_id\":\"f04f6be8-3368-41b5-a42b-b9ed7ba90f19\",\"total_cost_usd\":0.182601,\"usage\":{\"input_tokens\":32036,\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":132160,\"output_tokens\":3123,\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":0,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"\",\"iterations\":[],\"speed\":\"standard\"},\"modelUsage\":{\"claude-sonnet-4-6\":{\"inputTokens\":32036,\"outputTokens\":3123,\"cacheReadInputTokens\":132160,\"cacheCreationInputTokens\":0,\"webSearchRequests\":0,\"costUSD\":0.182601,\"contextWindow\":200000,\"maxOutputTokens\":32000}},\"permission_denials\":[],\"terminal_reason\":\"completed\",\"fast_mode_state\":\"off\",\"uuid\":\"04cab370-1bcb-470c-836c-67f850df4597\"}\n",
         "parsed": {
-          "filename": ".github/workflows/implement-ready-issues.yml",
+          "filename": "src/services/customer_service.py",
           "issues": [
             {
-              "line": 0,
-              "severity": "warning",
-              "message": "Step output 'branch' is read in a subsequent shell block (line 79: git checkout -b \"${{ steps.plan.outputs.branch }}\") without delimiter quoting \u2014 if branch name contains newlines or special chars, it can corrupt git command syntax.",
-              "suggestion": "Use delimiter quoting in the step output: add `branch=${{ steps.plan.outputs.branch }}<<` to `write_outputs` in `scripts/ci/claim_and_plan_issue.py` (see that file's issue), so the workflow reading it is protected automatically."
-            }
-          ],
-          "summary": "Well-structured CI pipeline with proper concurrency control, retry loops, and staged gates; minor GITHUB_OUTPUT quoting risk is inherited from the script."
-        }
-      },
-      {
-        "file": "scripts/ci/execute_implementation.py",
-        "returncode": 0,
-        "output": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"api_error_status\":null,\"duration_ms\":125131,\"duration_api_ms\":124999,\"num_turns\":10,\"result\":\"\\n\\n```json\\n[\\n  {\\n    \\\"filename\\\": \\\".github/workflows/implement-ready-issues.yml\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 0,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"Step output 'branch' is read in a subsequent shell block (line 79: git checkout -b \\\\\\\"${{ steps.plan.outputs.branch }}\\\\\\\") without delimiter quoting \u2014 if branch name contains newlines or special chars, it can corrupt git command syntax.\\\",\\n        \\\"suggestion\\\": \\\"Use delimiter quoting in the step output: add `branch=${{ steps.plan.outputs.branch }}<<` to `write_outputs` in `scripts/ci/claim_and_plan_issue.py` (see that file's issue), so the workflow reading it is protected automatically.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Well-structured CI pipeline with proper concurrency control, retry loops, and staged gates; minor GITHUB_OUTPUT quoting risk is inherited from the script.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"scripts/ci/execute_implementation.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 189,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"GITHUB_OUTPUT values are written without the `<<` delimiter syntax \u2014 multiline values (e.g. plan text) will corrupt the output file and cause workflow steps to misread or reject subsequent outputs.\\\",\\n        \\\"suggestion\\\": \\\"In `write_outputs`, for each value use: `f.write(f\\\\\\\"{k}<<{v}\\\\\\\\n\\\\\\\")` \u2014 or use `shlex.join` on the file write, or follow the delimited-heredoc pattern GitHub Actions requires for multi-line values.\\\"\\n      },\\n      {\\n        \\\"line\\\": 193,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"Same GITHUB_OUTPUT delimiter issue as above \u2014 `f.write(f\\\\\\\"{k}={v}\\\\\\\\n\\\\\\\")` is the raw format, which breaks for values containing newlines.\\\",\\n        \\\"suggestion\\\": \\\"Append `<<` after each value: `f.write(f\\\\\\\"{k}={v}\\\\\\\\n<<\\\\\\\\n\\\\\\\")` to mark the end of the delimited value block per GitHub Actions convention.\\\"\\n      },\\n      {\\n        \\\"line\\\": 80,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"subprocess.Popen with `bufsize=1` (unbuffered) on a pipe is not portable across platforms \u2014 Python requires `bufsize=-1` (fully buffered) or `bufsize=0` (unbuffered, requires binary mode) for pipe streams; `1` maps to fully buffered on some POSIX and is ignored on others.\\\",\\n        \\\"suggestion\\\": \\\"Change `bufsize=1` to `bufsize=0` and keep `text=True` \u2014 Python will handle line buffering automatically when writing to a TTY, or rely on explicit `out.flush()` calls already present (line 122).\\\"\\n      },\\n      {\\n        \\\"line\\\": 88,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"No retry logic for transient failures (network timeouts, rate limits, Claude API errors). A single transient error causes the entire 60-min workflow to abort and requeue the issue, wasting CI minutes.\\\",\\n        \\\"suggestion\\\": \\\"Wrap the `stream_claude` call in a retry loop (3 attempts, exponential backoff) for return codes that may be transient.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Solid design with real-time streaming and proper timeout handling; GITHUB_OUTPUT delimiter fix is critical and `bufsize=1` may cause portability issues on some systems.\\\"\\n  }\\n]\\n```\",\"stop_reason\":\"end_turn\",\"session_id\":\"d4c6a282-a943-4d05-b6ca-fc865f028f81\",\"total_cost_usd\":0.34748280000000004,\"usage\":{\"input_tokens\":39981,\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":292416,\"output_tokens\":9321,\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":0,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"\",\"iterations\":[],\"speed\":\"standard\"},\"modelUsage\":{\"claude-sonnet-4-6\":{\"inputTokens\":39981,\"outputTokens\":9321,\"cacheReadInputTokens\":292416,\"cacheCreationInputTokens\":0,\"webSearchRequests\":0,\"costUSD\":0.34748280000000004,\"contextWindow\":200000,\"maxOutputTokens\":32000}},\"permission_denials\":[],\"terminal_reason\":\"completed\",\"fast_mode_state\":\"off\",\"uuid\":\"b392eb81-162d-4181-972b-3fbc196429e0\"}\n",
-        "parsed": {
-          "filename": "scripts/ci/execute_implementation.py",
-          "issues": [
-            {
-              "line": 189,
+              "line": 18,
               "severity": "critical",
-              "message": "GITHUB_OUTPUT values are written without the `<<` delimiter syntax \u2014 multiline values (e.g. plan text) will corrupt the output file and cause workflow steps to misread or reject subsequent outputs.",
-              "suggestion": "In `write_outputs`, for each value use: `f.write(f\"{k}<<{v}\\n\")` \u2014 or use `shlex.join` on the file write, or follow the delimited-heredoc pattern GitHub Actions requires for multi-line values."
+              "message": "VALID_STATUSES includes statuses (partner, prospect, active, blocked) not defined in CustomerStatus enum, causing ValueError at runtime for count_by_status and change_status with those values.",
+              "suggestion": "Align VALID_STATUSES with CustomerStatus enum values: {\"lead\", \"opportunity\", \"customer\", \"inactive\"}. Alternatively, derive it dynamically: VALID_STATUSES = {s.value for s in CustomerStatus}."
             },
             {
-              "line": 193,
+              "line": 139,
               "severity": "critical",
-              "message": "Same GITHUB_OUTPUT delimiter issue as above \u2014 `f.write(f\"{k}={v}\\n\")` is the raw format, which breaks for values containing newlines.",
-              "suggestion": "Append `<<` after each value: `f.write(f\"{k}={v}\\n<<\\n\")` to mark the end of the delimited value block per GitHub Actions convention."
+              "message": "count_by_status constructs CustomerStatus from raw DB string values without guarding against unknown statuses, so any DB row with a status outside the enum raises ValueError.",
+              "suggestion": "Add a guard: if row[0] not in {s.value for s in CustomerStatus}: continue. Or catch ValueError per row and skip unknown statuses."
             },
             {
-              "line": 80,
+              "line": 148,
+              "severity": "critical",
+              "message": "search_customers has no max page_size or offset cap; returning up to 100 rows per query is reasonable but the hardcoded limit is undocumented and not configurable, unlike list_customers which uses pagination.",
+              "suggestion": "Add explicit pagination parameters (page, page_size) matching list_customers signature, with a server-side cap to prevent unbounded result sets."
+            },
+            {
+              "line": 6,
               "severity": "warning",
-              "message": "subprocess.Popen with `bufsize=1` (unbuffered) on a pipe is not portable across platforms \u2014 Python requires `bufsize=-1` (fully buffered) or `bufsize=0` (unbuffered, requires binary mode) for pipe streams; `1` maps to fully buffered on some POSIX and is ignored on others.",
-              "suggestion": "Change `bufsize=1` to `bufsize=0` and keep `text=True` \u2014 Python will handle line buffering automatically when writing to a TTY, or rely on explicit `out.flush()` calls already present (line 122)."
+              "message": "Import `delete` from sqlalchemy is unused.",
+              "suggestion": "Remove `delete` from the import line: `from sqlalchemy import and_, func, or_, select`."
             },
             {
-              "line": 88,
+              "line": 49,
               "severity": "info",
-              "message": "No retry logic for transient failures (network timeouts, rate limits, Claude API errors). A single transient error causes the entire 60-min workflow to abort and requeue the issue, wasting CI minutes.",
-              "suggestion": "Wrap the `stream_claude` call in a retry loop (3 attempts, exponential backoff) for return codes that may be transient."
+              "message": "create_customer defaults missing name to \"Customer\" silently rather than raising ValidationException, masking incomplete input.",
+              "suggestion": "Raise ValidationException if name is absent: `if not d.get(\"name\"): raise ValidationException(\"name is required\")`."
+            },
+            {
+              "line": 54,
+              "severity": "info",
+              "message": "owner_id default of 0 creates a customer assigned to a non-existent owner without validation that the owner exists and belongs to the tenant.",
+              "suggestion": "Accept owner_id=None as default and raise ValidationException if a non-null owner_id is provided but does not correspond to a valid tenant user."
+            },
+            {
+              "line": 160,
+              "severity": "info",
+              "message": "bulk_import flushes but never refreshes inserted rows, so callers receive no auto-generated IDs \u2014 callers must re-query to get IDs, which is inefficient.",
+              "suggestion": "After the flush loop, add `await self.session.refresh(next(obj for obj in session.new))` in a loop or use `await session.run_sync()` to retrieve IDs, if callers need them."
             }
           ],
-          "summary": "Solid design with real-time streaming and proper timeout handling; GITHUB_OUTPUT delimiter fix is critical and `bufsize=1` may cause portability issues on some systems."
+          "summary": "The file follows the service pattern correctly (flush-only, no commit, raises AppExceptions) but has a critical enum/set mismatch between VALID_STATUSES and CustomerStatus that will cause runtime ValueErrors for several valid statuses, plus an unbounded search result set."
         }
       }
     ]
