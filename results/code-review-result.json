@@ -1,799 +1,204 @@
 {
-  "status": "fail",
-  "verdict": "fail",
-  "critical_issues": [
-    {
-      "file": "src/api/routers/auth.py",
-      "line": 236,
-      "severity": "critical",
-      "msg": "logout endpoint has no auth dependency \u2014 any party with the HttpOnly cookie can call it, enabling denial-of-service logout or user coercion without any credentials.",
-      "suggestion": "Add current_user: AuthContext = Depends(get_current_user) to the logout signature, consistent with logout_all."
-    },
-    {
-      "file": "src/services/auth/device_trust_service.py",
-      "line": 155,
-      "severity": "critical",
-      "msg": "`location` parameter is accepted but never used \u2014 geo-change detection is unimplemented (rule 111: hidden coupling).",
-      "suggestion": "Remove `location` from the signature if geo-change detection is not implemented, or add the comparison: after the IP check, add `if location and device.last_location and location != device.last_location: reasons.append(SuspiciousActivityReason.GEO_CHANGE)`."
-    },
-    {
-      "file": "src/services/auth/webauthn_service.py",
-      "line": 228,
-      "severity": "critical",
-      "msg": "finish_registration accepts any origin from the client without validating it matches rp_id \u2014 a malicious client could register with an arbitrary origin.",
-      "suggestion": "Validate that origin is https and matches the expected rp_id (e.g., origin must be https://<rp_id> or https://<rp_id>:<port>). Remove the TODO comment and add actual validation."
-    },
-    {
-      "file": "src/services/auth/webauthn_service.py",
-      "line": 326,
-      "severity": "critical",
-      "msg": "verify_assertion accepts any origin without validation \u2014 same attack surface as finish_registration.",
-      "suggestion": "Add origin validation matching the expected rp_id before accepting the assertion."
-    }
-  ],
+  "status": "pass",
+  "verdict": "pass",
+  "critical_issues": [],
   "suggestions": [
     {
-      "file": "alembic/versions/9d8e7f6a5b3c_add_auth_tables.py",
-      "line": 54,
-      "severity": "warning",
-      "msg": "transports column uses sa.String(length=100) but JSON-encoded transport arrays (e.g. '[\"usb\",\"nfc\",\"ble\",\"internal\"]') regularly exceed 100 chars.",
-      "suggestion": "Change sa.String(length=100) to sa.Text() or sa.String(length=255) for the transports column."
-    },
-    {
-      "file": "alembic/versions/9d8e7f6a5b3c_add_auth_tables.py",
-      "line": 81,
-      "severity": "warning",
-      "msg": "ix_device_trust_user_id indexes user_id but not the frequently-used WHERE clause pair (user_id, trusted), and device_trust has no unique constraint on (user_id, device_fingerprint), allowing duplicate fingerprints for the same user.",
-      "suggestion": "Consider a composite unique constraint on (user_id, device_fingerprint) in device_trust, or at minimum add a covering index including trusted for efficient lookups."
-    },
-    {
-      "file": "src/api/__init__.py",
+      "file": ".github/workflows/implement-ready-issues.yml",
       "line": "",
       "severity": "info",
-      "msg": "Central router aggregator \u2014 imports and re-exports all feature routers cleanly; no issues."
+      "msg": "Workflow is well-structured with proper concurrency controls, timeout, permissions, and environment-specific handling."
     },
     {
-      "file": "src/api/routers/auth.py",
-      "line": 11,
-      "severity": "warning",
-      "msg": "import math is unused (line 11).",
-      "suggestion": "Remove the import."
-    },
-    {
-      "file": "src/api/routers/auth.py",
-      "line": 13,
-      "severity": "warning",
-      "msg": "Cookie imported but only used as a FastAPI dependency class; the alias= parameter on the Cookie(...) default is redundant since the parameter is already named refresh_token.",
-      "suggestion": "Remove Cookie from the import or the alias parameter."
-    },
-    {
-      "file": "src/api/routers/auth.py",
-      "line": 115,
-      "severity": "warning",
-      "msg": "Bare default argument 'request: Request = None' violates the project rule against bare None defaults (Rule 22).",
-      "suggestion": "Change to request: Request | None = None."
-    },
-    {
-      "file": "src/api/routers/auth.py",
-      "line": 10,
+      "file": "scripts/ci/claim_and_plan_issue.py",
+      "line": 29,
       "severity": "info",
-      "msg": "typing.Any is imported but only used in WebAuthnRegisterStartResponse.public_key_options; acceptable but could be replaced with a more specific type if the shape is stable.",
-      "suggestion": "Consider using a typed TypedDict or Pydantic model instead of dict[str, Any] for public_key_options."
+      "msg": "run_gh captures stderr in failure logs but not in success paths \u2014 when debugging a silent failure, stdout is lost.",
+      "suggestion": "Log r.stdout in the success path or make stdout available for post-mortem diagnosis."
     },
     {
-      "file": "src/configs/settings.py",
-      "line": 22,
-      "severity": "warning",
-      "msg": "secret_key field is validated in the runtime check on line 46 but is never referenced anywhere in the reviewed files \u2014 it is dead code unless used by other parts of the codebase not under review.",
-      "suggestion": "Remove secret_key if it is unused, or replace jwt_secret usages with secret_key if it is the intended field."
-    },
-    {
-      "file": "src/db/models/__init__.py",
-      "line": "",
+      "file": "scripts/ci/claim_and_plan_issue.py",
+      "line": 167,
       "severity": "info",
-      "msg": "Clean re-export file, no issues."
+      "msg": "OSError is the right exception for a missing binary, but it is also raised for other OS-level errors (permissions, ENOMEM, etc.) that may warrant different handling.",
+      "suggestion": "Catch FileNotFoundError specifically for the missing-binary case and re-raise or handle other OSError differently."
     },
     {
-      "file": "src/db/models/device_trust.py",
-      "line": 25,
-      "severity": "warning",
-      "msg": "Boolean column uses Python-side default= True instead of server_default to guarantee the DB default when rows are inserted outside the ORM.",
-      "suggestion": "Change to: mapped_column(Boolean, server_default=True, nullable=False)"
-    },
-    {
-      "file": "src/db/models/device_trust.py",
-      "line": 0,
-      "severity": "warning",
-      "msg": "to_dict() omits updated_at, creating an asymmetry with created_at and making the field unusable by API consumers.",
-      "suggestion": "Add 'updated_at': self.updated_at.isoformat() if self.updated_at else None to to_dict() return dict"
-    },
-    {
-      "file": "src/db/models/refresh_token.py",
-      "line": 0,
-      "severity": "warning",
-      "msg": "to_dict() omits token_hash, user_agent, ip_address, and device_fingerprint \u2014 ip_address in particular is useful for audit/Sheet and is safe to include (only the token hash itself must be hidden).",
-      "suggestion": "Consider including ip_address and device_fingerprint in to_dict() for debugging/audit purposes: 'ip_address': self.ip_address, 'device_fingerprint': self.device_fingerprint"
-    },
-    {
-      "file": "src/db/models/user_credential.py",
-      "line": 25,
-      "severity": "warning",
-      "msg": "Integer column uses Python-side default=0 instead of server_default, risking NULL or 0 inconsistency if rows are inserted via raw SQL.",
-      "suggestion": "Change to: mapped_column(Integer, server_default=text('0'), nullable=False)"
-    },
-    {
-      "file": "src/db/models/user_credential.py",
-      "line": 26,
+      "file": "scripts/ci/execute_implementation.py",
+      "line": 124,
       "severity": "info",
-      "msg": "String column uses default='fido2' without a callable \u2014 while immutable strings don't suffer from the mutable-default-argument bug, server_default is the established pattern used elsewhere in this file (e.g. created_at).",
-      "suggestion": "Change to: mapped_column(String(20), server_default='fido2', nullable=False)"
+      "msg": "When the select-loop timeout fires and proc.kill() is called, the subsequent proc.wait(timeout=\u2026) may have a negative remaining value; max(1, negative) defaults to 1 s instead of propagating the timeout signal.",
+      "suggestion": "Guard with: remaining = timeout - elapsed; if remaining <= 0: proc.kill(); proc.wait(); return None before the final wait call."
     },
     {
-      "file": "src/db/models/user_credential.py",
-      "line": 27,
-      "severity": "warning",
-      "msg": "String(100) may be too short for WebAuthn transports field \u2014 transports is a JSON array serialized as a string (e.g. ['usb','ble','nfc'] plus other metadata) and commonly exceeds 100 chars.",
-      "suggestion": "Increase to String(255) or Text to avoid truncation of transport metadata."
-    },
-    {
-      "file": "src/db/models/webauthn_challenge.py",
-      "line": "",
+      "file": "scripts/ci/execute_implementation.py",
+      "line": 166,
       "severity": "info",
-      "msg": "Clean ORM model with proper column definitions, indexes, and server-side defaults. to_dict() intentionally omits the challenge field for security, which is correct per the router-layer serialization pattern."
+      "msg": "OSError is broad for the missing-binary case \u2014 also catches unrelated OS errors that may deserve different handling or logging.",
+      "suggestion": "Catch FileNotFoundError specifically; let other OSError propagate or log with higher severity."
     },
     {
-      "file": "src/main.py",
-      "line": 0,
-      "severity": "warning",
-      "msg": "No rate limiting middleware is configured on any auth endpoints (rule 59).",
-      "suggestion": "Add a rate limiting middleware (e.g. slowapi) scoped to auth routes, especially the WebAuthn and login endpoints, to prevent brute-force abuse."
-    },
-    {
-      "file": "src/services/auth/__init__.py",
-      "line": "",
+      "file": "scripts/ci/self_review_implementation.py",
+      "line": 123,
       "severity": "info",
-      "msg": "Clean package init that re-exports all auth service public types and the device fingerprint helper. No issues."
+      "msg": "Same timeout edge case as execute_implementation.py: if the select loop exhausts remaining time and proc.kill() fires, the final proc.wait(timeout=\u2026) receives a negative remaining value clamped to 1 s.",
+      "suggestion": "Guard the final wait call with an elapsed-time check so negative remaining time is handled explicitly."
     },
     {
-      "file": "src/services/auth/device_trust_service.py",
-      "line": 98,
-      "severity": "warning",
-      "msg": "`trust_device` does not update `last_used_at` when re-trusting an existing device (rule 90).",
-      "suggestion": "Add `model.last_used_at = datetime.now(UTC)` in the `else` branch at line 98 to keep the timestamp current, ensuring `get_trusted_devices` ordering remains accurate."
-    },
-    {
-      "file": "src/services/auth/token_service.py",
-      "line": 120,
-      "severity": "warning",
-      "msg": "Access token tenant_id is baked into JWT at creation and not updated on tenant context change \u2014 stale tenant_id persists in the token for its full lifetime.",
-      "suggestion": "Treat access token as issued for a specific tenant context; re-issue token on tenant switch if multi-tenancy is active."
-    },
-    {
-      "file": "src/services/auth/token_service.py",
-      "line": 114,
+      "file": "scripts/ci/self_review_implementation.py",
+      "line": 157,
       "severity": "info",
-      "msg": "Multiple queries lack tenant_id filtering, relying on implicit user_id scoping \u2014 confirm this satisfies the multi-tenancy requirement for refresh tokens.",
-      "suggestion": "Add tenant_id to WHERE clauses on all RefreshTokenModel queries if multi-tenant isolation is required."
-    },
-    {
-      "file": "src/services/auth/token_service.py",
-      "line": 192,
-      "severity": "info",
-      "msg": "rotate_refresh_token truncates remaining TTL to whole days \u2014 a user with 8 days left gets 8 days on rotation, preserving most of the original window, but the logic could be clearer.",
-      "suggestion": "Document or refactor the TTL rounding logic so the minimum-granted TTL is explicit."
-    },
-    {
-      "file": "src/services/auth/token_service.py",
-      "line": 67,
-      "severity": "info",
-      "msg": "verify_access_token swallows jwt.ExpiredSignatureError and jwt.InvalidTokenError identically, returning None \u2014 this is safe but makes debugging harder.",
-      "suggestion": "Log (but not expose) the specific failure reason for operational visibility without changing behavior."
-    },
-    {
-      "file": "src/services/auth/webauthn_service.py",
-      "line": 245,
-      "severity": "warning",
-      "msg": "Bare except: clause silently falls back to using the raw attestation object string as the public key \u2014 this could store an unusable credential without any error signal.",
-      "suggestion": "Catch specific exceptions (base64.b64decode.DecodeError, json.JSONDecodeError) and raise ValidationException; only fallback for known-safe formats."
-    },
-    {
-      "file": "src/services/auth/webauthn_service.py",
-      "line": 358,
-      "severity": "warning",
-      "msg": "Bare except: clause silently ignores all exceptions in sign count parsing \u2014 parsing errors are invisible and sign_count stays 0.",
-      "suggestion": "Catch specific exceptions (ValueError, IndexError, struct.error) and handle them explicitly rather than using a bare except."
-    },
-    {
-      "file": "src/services/auth/webauthn_service.py",
-      "line": 350,
-      "severity": "info",
-      "msg": "Sign count byte offset (37) and length (4) are magic numbers \u2014 the structure is documented only in a comment.",
-      "suggestion": "Define named constants (AUTHENTICATOR_DATA_SIGN_COUNT_OFFSET, AUTHENTICATOR_DATA_SIGN_COUNT_LENGTH) or parse from a structured AuthenticatorData class."
-    },
-    {
-      "file": "src/services/auth/webauthn_service.py",
-      "line": 103,
-      "severity": "info",
-      "msg": "_consume_challenge is not atomic \u2014 concurrent requests could consume the same challenge between the SELECT and the consume update within a single request.",
-      "suggestion": "Use SELECT ... FOR UPDATE or an atomic UPDATE ... WHERE consumed=False RETURNING to eliminate the race window."
-    },
-    {
-      "file": "src/services/auth/webauthn_service.py",
-      "line": 234,
-      "severity": "info",
-      "msg": "The 256-byte threshold for choosing decode_credential_id vs base64.b64decode is arbitrary and undocumented \u2014 unclear why 256 bytes distinguishes the encoding scheme.",
-      "suggestion": "Document the threshold rationale or refactor to always attempt url-safe decode first, then fallback to standard base64."
+      "msg": "OSError is broad \u2014 FileNotFoundError is the specific case for a missing binary; other OS errors (ENOMEM, EPERM) may warrant different treatment.",
+      "suggestion": "Catch FileNotFoundError explicitly for the missing-binary case; log or re-raise other OSError variants differently."
     }
   ],
-  "summary": "Reviewed 14 file(s) between origin/master and origin/feature/163-webauthn-auth-refactor.",
+  "summary": "Reviewed 4 file(s) between origin/master and origin/develop.",
   "details": {
     "llm_parsed": {
-      "verdict": "fail",
-      "critical": [
-        {
-          "file": "src/api/routers/auth.py",
-          "line": 236,
-          "severity": "critical",
-          "msg": "logout endpoint has no auth dependency \u2014 any party with the HttpOnly cookie can call it, enabling denial-of-service logout or user coercion without any credentials.",
-          "suggestion": "Add current_user: AuthContext = Depends(get_current_user) to the logout signature, consistent with logout_all."
-        },
-        {
-          "file": "src/services/auth/device_trust_service.py",
-          "line": 155,
-          "severity": "critical",
-          "msg": "`location` parameter is accepted but never used \u2014 geo-change detection is unimplemented (rule 111: hidden coupling).",
-          "suggestion": "Remove `location` from the signature if geo-change detection is not implemented, or add the comparison: after the IP check, add `if location and device.last_location and location != device.last_location: reasons.append(SuspiciousActivityReason.GEO_CHANGE)`."
-        },
-        {
-          "file": "src/services/auth/webauthn_service.py",
-          "line": 228,
-          "severity": "critical",
-          "msg": "finish_registration accepts any origin from the client without validating it matches rp_id \u2014 a malicious client could register with an arbitrary origin.",
-          "suggestion": "Validate that origin is https and matches the expected rp_id (e.g., origin must be https://<rp_id> or https://<rp_id>:<port>). Remove the TODO comment and add actual validation."
-        },
-        {
-          "file": "src/services/auth/webauthn_service.py",
-          "line": 326,
-          "severity": "critical",
-          "msg": "verify_assertion accepts any origin without validation \u2014 same attack surface as finish_registration.",
-          "suggestion": "Add origin validation matching the expected rp_id before accepting the assertion."
-        }
-      ],
+      "verdict": "pass",
+      "critical": [],
       "warnings": [
         {
-          "file": "alembic/versions/9d8e7f6a5b3c_add_auth_tables.py",
-          "line": 54,
-          "severity": "warning",
-          "msg": "transports column uses sa.String(length=100) but JSON-encoded transport arrays (e.g. '[\"usb\",\"nfc\",\"ble\",\"internal\"]') regularly exceed 100 chars.",
-          "suggestion": "Change sa.String(length=100) to sa.Text() or sa.String(length=255) for the transports column."
-        },
-        {
-          "file": "alembic/versions/9d8e7f6a5b3c_add_auth_tables.py",
-          "line": 81,
-          "severity": "warning",
-          "msg": "ix_device_trust_user_id indexes user_id but not the frequently-used WHERE clause pair (user_id, trusted), and device_trust has no unique constraint on (user_id, device_fingerprint), allowing duplicate fingerprints for the same user.",
-          "suggestion": "Consider a composite unique constraint on (user_id, device_fingerprint) in device_trust, or at minimum add a covering index including trusted for efficient lookups."
-        },
-        {
-          "file": "src/api/__init__.py",
+          "file": ".github/workflows/implement-ready-issues.yml",
           "line": "",
           "severity": "info",
-          "msg": "Central router aggregator \u2014 imports and re-exports all feature routers cleanly; no issues."
+          "msg": "Workflow is well-structured with proper concurrency controls, timeout, permissions, and environment-specific handling."
         },
         {
-          "file": "src/api/routers/auth.py",
-          "line": 11,
-          "severity": "warning",
-          "msg": "import math is unused (line 11).",
-          "suggestion": "Remove the import."
-        },
-        {
-          "file": "src/api/routers/auth.py",
-          "line": 13,
-          "severity": "warning",
-          "msg": "Cookie imported but only used as a FastAPI dependency class; the alias= parameter on the Cookie(...) default is redundant since the parameter is already named refresh_token.",
-          "suggestion": "Remove Cookie from the import or the alias parameter."
-        },
-        {
-          "file": "src/api/routers/auth.py",
-          "line": 115,
-          "severity": "warning",
-          "msg": "Bare default argument 'request: Request = None' violates the project rule against bare None defaults (Rule 22).",
-          "suggestion": "Change to request: Request | None = None."
-        },
-        {
-          "file": "src/api/routers/auth.py",
-          "line": 10,
+          "file": "scripts/ci/claim_and_plan_issue.py",
+          "line": 29,
           "severity": "info",
-          "msg": "typing.Any is imported but only used in WebAuthnRegisterStartResponse.public_key_options; acceptable but could be replaced with a more specific type if the shape is stable.",
-          "suggestion": "Consider using a typed TypedDict or Pydantic model instead of dict[str, Any] for public_key_options."
+          "msg": "run_gh captures stderr in failure logs but not in success paths \u2014 when debugging a silent failure, stdout is lost.",
+          "suggestion": "Log r.stdout in the success path or make stdout available for post-mortem diagnosis."
         },
         {
-          "file": "src/configs/settings.py",
-          "line": 22,
-          "severity": "warning",
-          "msg": "secret_key field is validated in the runtime check on line 46 but is never referenced anywhere in the reviewed files \u2014 it is dead code unless used by other parts of the codebase not under review.",
-          "suggestion": "Remove secret_key if it is unused, or replace jwt_secret usages with secret_key if it is the intended field."
-        },
-        {
-          "file": "src/db/models/__init__.py",
-          "line": "",
+          "file": "scripts/ci/claim_and_plan_issue.py",
+          "line": 167,
           "severity": "info",
-          "msg": "Clean re-export file, no issues."
+          "msg": "OSError is the right exception for a missing binary, but it is also raised for other OS-level errors (permissions, ENOMEM, etc.) that may warrant different handling.",
+          "suggestion": "Catch FileNotFoundError specifically for the missing-binary case and re-raise or handle other OSError differently."
         },
         {
-          "file": "src/db/models/device_trust.py",
-          "line": 25,
-          "severity": "warning",
-          "msg": "Boolean column uses Python-side default= True instead of server_default to guarantee the DB default when rows are inserted outside the ORM.",
-          "suggestion": "Change to: mapped_column(Boolean, server_default=True, nullable=False)"
-        },
-        {
-          "file": "src/db/models/device_trust.py",
-          "line": 0,
-          "severity": "warning",
-          "msg": "to_dict() omits updated_at, creating an asymmetry with created_at and making the field unusable by API consumers.",
-          "suggestion": "Add 'updated_at': self.updated_at.isoformat() if self.updated_at else None to to_dict() return dict"
-        },
-        {
-          "file": "src/db/models/refresh_token.py",
-          "line": 0,
-          "severity": "warning",
-          "msg": "to_dict() omits token_hash, user_agent, ip_address, and device_fingerprint \u2014 ip_address in particular is useful for audit/Sheet and is safe to include (only the token hash itself must be hidden).",
-          "suggestion": "Consider including ip_address and device_fingerprint in to_dict() for debugging/audit purposes: 'ip_address': self.ip_address, 'device_fingerprint': self.device_fingerprint"
-        },
-        {
-          "file": "src/db/models/user_credential.py",
-          "line": 25,
-          "severity": "warning",
-          "msg": "Integer column uses Python-side default=0 instead of server_default, risking NULL or 0 inconsistency if rows are inserted via raw SQL.",
-          "suggestion": "Change to: mapped_column(Integer, server_default=text('0'), nullable=False)"
-        },
-        {
-          "file": "src/db/models/user_credential.py",
-          "line": 26,
+          "file": "scripts/ci/execute_implementation.py",
+          "line": 124,
           "severity": "info",
-          "msg": "String column uses default='fido2' without a callable \u2014 while immutable strings don't suffer from the mutable-default-argument bug, server_default is the established pattern used elsewhere in this file (e.g. created_at).",
-          "suggestion": "Change to: mapped_column(String(20), server_default='fido2', nullable=False)"
+          "msg": "When the select-loop timeout fires and proc.kill() is called, the subsequent proc.wait(timeout=\u2026) may have a negative remaining value; max(1, negative) defaults to 1 s instead of propagating the timeout signal.",
+          "suggestion": "Guard with: remaining = timeout - elapsed; if remaining <= 0: proc.kill(); proc.wait(); return None before the final wait call."
         },
         {
-          "file": "src/db/models/user_credential.py",
-          "line": 27,
-          "severity": "warning",
-          "msg": "String(100) may be too short for WebAuthn transports field \u2014 transports is a JSON array serialized as a string (e.g. ['usb','ble','nfc'] plus other metadata) and commonly exceeds 100 chars.",
-          "suggestion": "Increase to String(255) or Text to avoid truncation of transport metadata."
-        },
-        {
-          "file": "src/db/models/webauthn_challenge.py",
-          "line": "",
+          "file": "scripts/ci/execute_implementation.py",
+          "line": 166,
           "severity": "info",
-          "msg": "Clean ORM model with proper column definitions, indexes, and server-side defaults. to_dict() intentionally omits the challenge field for security, which is correct per the router-layer serialization pattern."
+          "msg": "OSError is broad for the missing-binary case \u2014 also catches unrelated OS errors that may deserve different handling or logging.",
+          "suggestion": "Catch FileNotFoundError specifically; let other OSError propagate or log with higher severity."
         },
         {
-          "file": "src/main.py",
-          "line": 0,
-          "severity": "warning",
-          "msg": "No rate limiting middleware is configured on any auth endpoints (rule 59).",
-          "suggestion": "Add a rate limiting middleware (e.g. slowapi) scoped to auth routes, especially the WebAuthn and login endpoints, to prevent brute-force abuse."
-        },
-        {
-          "file": "src/services/auth/__init__.py",
-          "line": "",
+          "file": "scripts/ci/self_review_implementation.py",
+          "line": 123,
           "severity": "info",
-          "msg": "Clean package init that re-exports all auth service public types and the device fingerprint helper. No issues."
+          "msg": "Same timeout edge case as execute_implementation.py: if the select loop exhausts remaining time and proc.kill() fires, the final proc.wait(timeout=\u2026) receives a negative remaining value clamped to 1 s.",
+          "suggestion": "Guard the final wait call with an elapsed-time check so negative remaining time is handled explicitly."
         },
         {
-          "file": "src/services/auth/device_trust_service.py",
-          "line": 98,
-          "severity": "warning",
-          "msg": "`trust_device` does not update `last_used_at` when re-trusting an existing device (rule 90).",
-          "suggestion": "Add `model.last_used_at = datetime.now(UTC)` in the `else` branch at line 98 to keep the timestamp current, ensuring `get_trusted_devices` ordering remains accurate."
-        },
-        {
-          "file": "src/services/auth/token_service.py",
-          "line": 120,
-          "severity": "warning",
-          "msg": "Access token tenant_id is baked into JWT at creation and not updated on tenant context change \u2014 stale tenant_id persists in the token for its full lifetime.",
-          "suggestion": "Treat access token as issued for a specific tenant context; re-issue token on tenant switch if multi-tenancy is active."
-        },
-        {
-          "file": "src/services/auth/token_service.py",
-          "line": 114,
+          "file": "scripts/ci/self_review_implementation.py",
+          "line": 157,
           "severity": "info",
-          "msg": "Multiple queries lack tenant_id filtering, relying on implicit user_id scoping \u2014 confirm this satisfies the multi-tenancy requirement for refresh tokens.",
-          "suggestion": "Add tenant_id to WHERE clauses on all RefreshTokenModel queries if multi-tenant isolation is required."
-        },
-        {
-          "file": "src/services/auth/token_service.py",
-          "line": 192,
-          "severity": "info",
-          "msg": "rotate_refresh_token truncates remaining TTL to whole days \u2014 a user with 8 days left gets 8 days on rotation, preserving most of the original window, but the logic could be clearer.",
-          "suggestion": "Document or refactor the TTL rounding logic so the minimum-granted TTL is explicit."
-        },
-        {
-          "file": "src/services/auth/token_service.py",
-          "line": 67,
-          "severity": "info",
-          "msg": "verify_access_token swallows jwt.ExpiredSignatureError and jwt.InvalidTokenError identically, returning None \u2014 this is safe but makes debugging harder.",
-          "suggestion": "Log (but not expose) the specific failure reason for operational visibility without changing behavior."
-        },
-        {
-          "file": "src/services/auth/webauthn_service.py",
-          "line": 245,
-          "severity": "warning",
-          "msg": "Bare except: clause silently falls back to using the raw attestation object string as the public key \u2014 this could store an unusable credential without any error signal.",
-          "suggestion": "Catch specific exceptions (base64.b64decode.DecodeError, json.JSONDecodeError) and raise ValidationException; only fallback for known-safe formats."
-        },
-        {
-          "file": "src/services/auth/webauthn_service.py",
-          "line": 358,
-          "severity": "warning",
-          "msg": "Bare except: clause silently ignores all exceptions in sign count parsing \u2014 parsing errors are invisible and sign_count stays 0.",
-          "suggestion": "Catch specific exceptions (ValueError, IndexError, struct.error) and handle them explicitly rather than using a bare except."
-        },
-        {
-          "file": "src/services/auth/webauthn_service.py",
-          "line": 350,
-          "severity": "info",
-          "msg": "Sign count byte offset (37) and length (4) are magic numbers \u2014 the structure is documented only in a comment.",
-          "suggestion": "Define named constants (AUTHENTICATOR_DATA_SIGN_COUNT_OFFSET, AUTHENTICATOR_DATA_SIGN_COUNT_LENGTH) or parse from a structured AuthenticatorData class."
-        },
-        {
-          "file": "src/services/auth/webauthn_service.py",
-          "line": 103,
-          "severity": "info",
-          "msg": "_consume_challenge is not atomic \u2014 concurrent requests could consume the same challenge between the SELECT and the consume update within a single request.",
-          "suggestion": "Use SELECT ... FOR UPDATE or an atomic UPDATE ... WHERE consumed=False RETURNING to eliminate the race window."
-        },
-        {
-          "file": "src/services/auth/webauthn_service.py",
-          "line": 234,
-          "severity": "info",
-          "msg": "The 256-byte threshold for choosing decode_credential_id vs base64.b64decode is arbitrary and undocumented \u2014 unclear why 256 bytes distinguishes the encoding scheme.",
-          "suggestion": "Document the threshold rationale or refactor to always attempt url-safe decode first, then fallback to standard base64."
+          "msg": "OSError is broad \u2014 FileNotFoundError is the specific case for a missing binary; other OS errors (ENOMEM, EPERM) may warrant different treatment.",
+          "suggestion": "Catch FileNotFoundError explicitly for the missing-binary case; log or re-raise other OSError variants differently."
         }
       ],
-      "summary": "Reviewed 14 file(s) between origin/master and origin/feature/163-webauthn-auth-refactor."
+      "summary": "Reviewed 4 file(s) between origin/master and origin/develop."
     },
     "reviewed_refs": {
       "base": "ad61e5be9cdd83693cd5a071c4760a7d4c168f41",
-      "head": "78d0d3e3e30dd7d980a3a10fd62416a0ca8be37d",
+      "head": "7d24330299a67507183e2161f573bce45c82230e",
       "base_label": "origin/master",
-      "head_label": "origin/feature/163-webauthn-auth-refactor"
+      "head_label": "origin/develop"
     },
     "reviewed_files": [
-      "alembic/versions/9d8e7f6a5b3c_add_auth_tables.py",
-      "src/api/__init__.py",
-      "src/api/routers/auth.py",
-      "src/configs/settings.py",
-      "src/db/models/__init__.py",
-      "src/db/models/device_trust.py",
-      "src/db/models/refresh_token.py",
-      "src/db/models/user_credential.py",
-      "src/db/models/webauthn_challenge.py",
-      "src/main.py",
-      "src/services/auth/__init__.py",
-      "src/services/auth/device_trust_service.py",
-      "src/services/auth/token_service.py",
-      "src/services/auth/webauthn_service.py"
+      ".github/workflows/implement-ready-issues.yml",
+      "scripts/ci/claim_and_plan_issue.py",
+      "scripts/ci/execute_implementation.py",
+      "scripts/ci/self_review_implementation.py"
     ],
     "per_file_reviews": [
       {
-        "file": "alembic/versions/9d8e7f6a5b3c_add_auth_tables.py",
+        "file": ".github/workflows/implement-ready-issues.yml",
         "returncode": 0,
-        "output": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"api_error_status\":null,\"duration_ms\":123268,\"duration_api_ms\":123207,\"num_turns\":5,\"result\":\"[\\n  {\\n    \\\"filename\\\": \\\"alembic/versions/9d8e7f6a5b3c_add_auth_tables.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 54,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"transports column uses sa.String(length=100) but JSON-encoded transport arrays (e.g. '[\\\\\\\"usb\\\\\\\",\\\\\\\"nfc\\\\\\\",\\\\\\\"ble\\\\\\\",\\\\\\\"internal\\\\\\\"]') regularly exceed 100 chars.\\\",\\n        \\\"suggestion\\\": \\\"Change sa.String(length=100) to sa.Text() or sa.String(length=255) for the transports column.\\\"\\n      },\\n      {\\n        \\\"line\\\": 81,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"ix_device_trust_user_id indexes user_id but not the frequently-used WHERE clause pair (user_id, trusted), and device_trust has no unique constraint on (user_id, device_fingerprint), allowing duplicate fingerprints for the same user.\\\",\\n        \\\"suggestion\\\": \\\"Consider a composite unique constraint on (user_id, device_fingerprint) in device_trust, or at minimum add a covering index including trusted for efficient lookups.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Migration creates four auth tables with correct FK cascades, indexes, and server defaults; minor concern about transports column width.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"src/api/__init__.py\\\",\\n    \\\"issues\\\": [],\\n    \\\"summary\\\": \\\"Central router aggregator \u2014 imports and re-exports all feature routers cleanly; no issues.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"src/api/routers/auth.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 236,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"logout endpoint has no auth dependency \u2014 any party with the HttpOnly cookie can call it, enabling denial-of-service logout or user coercion without any credentials.\\\",\\n        \\\"suggestion\\\": \\\"Add current_user: AuthContext = Depends(get_current_user) to the logout signature, consistent with logout_all.\\\"\\n      },\\n      {\\n        \\\"line\\\": 11,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"import math is unused (line 11).\\\",\\n        \\\"suggestion\\\": \\\"Remove the import.\\\"\\n      },\\n      {\\n        \\\"line\\\": 13,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"Cookie imported but only used as a FastAPI dependency class; the alias= parameter on the Cookie(...) default is redundant since the parameter is already named refresh_token.\\\",\\n        \\\"suggestion\\\": \\\"Remove Cookie from the import or the alias parameter.\\\"\\n      },\\n      {\\n        \\\"line\\\": 115,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"Bare default argument 'request: Request = None' violates the project rule against bare None defaults (Rule 22).\\\",\\n        \\\"suggestion\\\": \\\"Change to request: Request | None = None.\\\"\\n      },\\n      {\\n        \\\"line\\\": 10,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"typing.Any is imported but only used in WebAuthnRegisterStartResponse.public_key_options; acceptable but could be replaced with a more specific type if the shape is stable.\\\",\\n        \\\"suggestion\\\": \\\"Consider using a typed TypedDict or Pydantic model instead of dict[str, Any] for public_key_options.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Auth router implements login, refresh, logout, WebAuthn, and device management; critical gap is logout lacking authentication, plus unused import and bare None default.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"src/configs/settings.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 22,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"secret_key field is validated in the runtime check on line 46 but is never referenced anywhere in the reviewed files \u2014 it is dead code unless used by other parts of the codebase not under review.\\\",\\n        \\\"suggestion\\\": \\\"Remove secret_key if it is unused, or replace jwt_secret usages with secret_key if it is the intended field.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Settings loads config from .env via pydantic-settings; secret_key is declared and validated but appears unused, otherwise well-structured.\\\"\\n  }\\n]\",\"stop_reason\":\"end_turn\",\"session_id\":\"91d8424f-20be-4458-b7dc-d9fd6b7c9eb2\",\"total_cost_usd\":0.2282883,\"usage\":{\"input_tokens\":136,\"cache_creation_input_tokens\":30740,\"cache_read_input_tokens\":0,\"output_tokens\":191,\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":0,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"\",\"iterations\":[],\"speed\":\"standard\"},\"modelUsage\":{\"claude-sonnet-4-6\":{\"inputTokens\":13704,\"outputTokens\":4296,\"cacheReadInputTokens\":24871,\"cacheCreationInputTokens\":30740,\"webSearchRequests\":0,\"costUSD\":0.2282883,\"contextWindow\":200000,\"maxOutputTokens\":32000}},\"permission_denials\":[],\"terminal_reason\":\"completed\",\"fast_mode_state\":\"off\",\"uuid\":\"e0a5880b-31ef-4549-82cf-169c359f4866\"}\n",
+        "output": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"api_error_status\":null,\"duration_ms\":331871,\"duration_api_ms\":331825,\"num_turns\":5,\"result\":\"\\n\\n[\\n  {\\n    \\\"filename\\\": \\\".github/workflows/implement-ready-issues.yml\\\",\\n    \\\"issues\\\": [],\\n    \\\"summary\\\": \\\"Workflow is well-structured with proper concurrency controls, timeout, permissions, and environment-specific handling.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"scripts/ci/claim_and_plan_issue.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 29,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"run_gh captures stderr in failure logs but not in success paths \u2014 when debugging a silent failure, stdout is lost.\\\",\\n        \\\"suggestion\\\": \\\"Log r.stdout in the success path or make stdout available for post-mortem diagnosis.\\\"\\n      },\\n      {\\n        \\\"line\\\": 167,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"OSError is the right exception for a missing binary, but it is also raised for other OS-level errors (permissions, ENOMEM, etc.) that may warrant different handling.\\\",\\n        \\\"suggestion\\\": \\\"Catch FileNotFoundError specifically for the missing-binary case and re-raise or handle other OSError differently.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Script correctly handles targeted vs. FIFO issue selection, claims issues safely, and writes the plan file; no critical issues.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"scripts/ci/execute_implementation.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 124,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"When the select-loop timeout fires and proc.kill() is called, the subsequent proc.wait(timeout=\u2026) may have a negative remaining value; max(1, negative) defaults to 1 s instead of propagating the timeout signal.\\\",\\n        \\\"suggestion\\\": \\\"Guard with: remaining = timeout - elapsed; if remaining <= 0: proc.kill(); proc.wait(); return None before the final wait call.\\\"\\n      },\\n      {\\n        \\\"line\\\": 166,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"OSError is broad for the missing-binary case \u2014 also catches unrelated OS errors that may deserve different handling or logging.\\\",\\n        \\\"suggestion\\\": \\\"Catch FileNotFoundError specifically; let other OSError propagate or log with higher severity.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Streaming subprocess invocation is correctly structured; timeout, permission bypass, and prompt delivery are all sound.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"scripts/ci/self_review_implementation.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 123,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"Same timeout edge case as execute_implementation.py: if the select loop exhausts remaining time and proc.kill() fires, the final proc.wait(timeout=\u2026) receives a negative remaining value clamped to 1 s.\\\",\\n        \\\"suggestion\\\": \\\"Guard the final wait call with an elapsed-time check so negative remaining time is handled explicitly.\\\"\\n      },\\n      {\\n        \\\"line\\\": 157,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"OSError is broad \u2014 FileNotFoundError is the specific case for a missing binary; other OS errors (ENOMEM, EPERM) may warrant different treatment.\\\",\\n        \\\"suggestion\\\": \\\"Catch FileNotFoundError explicitly for the missing-binary case; log or re-raise other OSError variants differently.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Self-review prompt is thorough and well-scoped; streaming and timeout patterns match execute_implementation.py correctly.\\\"\\n  }\\n]\",\"stop_reason\":\"end_turn\",\"session_id\":\"be6563a7-6293-4910-a66b-26a50880fddc\",\"total_cost_usd\":0.1750728,\"usage\":{\"input_tokens\":37361,\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":33216,\"output_tokens\":3535,\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":0,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"\",\"iterations\":[],\"speed\":\"standard\"},\"modelUsage\":{\"claude-sonnet-4-6\":{\"inputTokens\":37361,\"outputTokens\":3535,\"cacheReadInputTokens\":33216,\"cacheCreationInputTokens\":0,\"webSearchRequests\":0,\"costUSD\":0.1750728,\"contextWindow\":200000,\"maxOutputTokens\":32000}},\"permission_denials\":[],\"terminal_reason\":\"completed\",\"fast_mode_state\":\"off\",\"uuid\":\"2dc8852a-b926-4ab2-a2c6-8336a1d22196\"}\n",
         "parsed": {
-          "filename": "alembic/versions/9d8e7f6a5b3c_add_auth_tables.py",
-          "issues": [
-            {
-              "line": 54,
-              "severity": "warning",
-              "message": "transports column uses sa.String(length=100) but JSON-encoded transport arrays (e.g. '[\"usb\",\"nfc\",\"ble\",\"internal\"]') regularly exceed 100 chars.",
-              "suggestion": "Change sa.String(length=100) to sa.Text() or sa.String(length=255) for the transports column."
-            },
-            {
-              "line": 81,
-              "severity": "warning",
-              "message": "ix_device_trust_user_id indexes user_id but not the frequently-used WHERE clause pair (user_id, trusted), and device_trust has no unique constraint on (user_id, device_fingerprint), allowing duplicate fingerprints for the same user.",
-              "suggestion": "Consider a composite unique constraint on (user_id, device_fingerprint) in device_trust, or at minimum add a covering index including trusted for efficient lookups."
-            }
-          ],
-          "summary": "Migration creates four auth tables with correct FK cascades, indexes, and server defaults; minor concern about transports column width."
-        }
-      },
-      {
-        "file": "src/api/__init__.py",
-        "returncode": 0,
-        "output": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"api_error_status\":null,\"duration_ms\":123268,\"duration_api_ms\":123207,\"num_turns\":5,\"result\":\"[\\n  {\\n    \\\"filename\\\": \\\"alembic/versions/9d8e7f6a5b3c_add_auth_tables.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 54,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"transports column uses sa.String(length=100) but JSON-encoded transport arrays (e.g. '[\\\\\\\"usb\\\\\\\",\\\\\\\"nfc\\\\\\\",\\\\\\\"ble\\\\\\\",\\\\\\\"internal\\\\\\\"]') regularly exceed 100 chars.\\\",\\n        \\\"suggestion\\\": \\\"Change sa.String(length=100) to sa.Text() or sa.String(length=255) for the transports column.\\\"\\n      },\\n      {\\n        \\\"line\\\": 81,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"ix_device_trust_user_id indexes user_id but not the frequently-used WHERE clause pair (user_id, trusted), and device_trust has no unique constraint on (user_id, device_fingerprint), allowing duplicate fingerprints for the same user.\\\",\\n        \\\"suggestion\\\": \\\"Consider a composite unique constraint on (user_id, device_fingerprint) in device_trust, or at minimum add a covering index including trusted for efficient lookups.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Migration creates four auth tables with correct FK cascades, indexes, and server defaults; minor concern about transports column width.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"src/api/__init__.py\\\",\\n    \\\"issues\\\": [],\\n    \\\"summary\\\": \\\"Central router aggregator \u2014 imports and re-exports all feature routers cleanly; no issues.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"src/api/routers/auth.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 236,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"logout endpoint has no auth dependency \u2014 any party with the HttpOnly cookie can call it, enabling denial-of-service logout or user coercion without any credentials.\\\",\\n        \\\"suggestion\\\": \\\"Add current_user: AuthContext = Depends(get_current_user) to the logout signature, consistent with logout_all.\\\"\\n      },\\n      {\\n        \\\"line\\\": 11,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"import math is unused (line 11).\\\",\\n        \\\"suggestion\\\": \\\"Remove the import.\\\"\\n      },\\n      {\\n        \\\"line\\\": 13,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"Cookie imported but only used as a FastAPI dependency class; the alias= parameter on the Cookie(...) default is redundant since the parameter is already named refresh_token.\\\",\\n        \\\"suggestion\\\": \\\"Remove Cookie from the import or the alias parameter.\\\"\\n      },\\n      {\\n        \\\"line\\\": 115,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"Bare default argument 'request: Request = None' violates the project rule against bare None defaults (Rule 22).\\\",\\n        \\\"suggestion\\\": \\\"Change to request: Request | None = None.\\\"\\n      },\\n      {\\n        \\\"line\\\": 10,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"typing.Any is imported but only used in WebAuthnRegisterStartResponse.public_key_options; acceptable but could be replaced with a more specific type if the shape is stable.\\\",\\n        \\\"suggestion\\\": \\\"Consider using a typed TypedDict or Pydantic model instead of dict[str, Any] for public_key_options.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Auth router implements login, refresh, logout, WebAuthn, and device management; critical gap is logout lacking authentication, plus unused import and bare None default.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"src/configs/settings.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 22,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"secret_key field is validated in the runtime check on line 46 but is never referenced anywhere in the reviewed files \u2014 it is dead code unless used by other parts of the codebase not under review.\\\",\\n        \\\"suggestion\\\": \\\"Remove secret_key if it is unused, or replace jwt_secret usages with secret_key if it is the intended field.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Settings loads config from .env via pydantic-settings; secret_key is declared and validated but appears unused, otherwise well-structured.\\\"\\n  }\\n]\",\"stop_reason\":\"end_turn\",\"session_id\":\"91d8424f-20be-4458-b7dc-d9fd6b7c9eb2\",\"total_cost_usd\":0.2282883,\"usage\":{\"input_tokens\":136,\"cache_creation_input_tokens\":30740,\"cache_read_input_tokens\":0,\"output_tokens\":191,\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":0,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"\",\"iterations\":[],\"speed\":\"standard\"},\"modelUsage\":{\"claude-sonnet-4-6\":{\"inputTokens\":13704,\"outputTokens\":4296,\"cacheReadInputTokens\":24871,\"cacheCreationInputTokens\":30740,\"webSearchRequests\":0,\"costUSD\":0.2282883,\"contextWindow\":200000,\"maxOutputTokens\":32000}},\"permission_denials\":[],\"terminal_reason\":\"completed\",\"fast_mode_state\":\"off\",\"uuid\":\"e0a5880b-31ef-4549-82cf-169c359f4866\"}\n",
-        "parsed": {
-          "filename": "src/api/__init__.py",
+          "filename": ".github/workflows/implement-ready-issues.yml",
           "issues": [],
-          "summary": "Central router aggregator \u2014 imports and re-exports all feature routers cleanly; no issues."
+          "summary": "Workflow is well-structured with proper concurrency controls, timeout, permissions, and environment-specific handling."
         }
       },
       {
-        "file": "src/api/routers/auth.py",
+        "file": "scripts/ci/claim_and_plan_issue.py",
         "returncode": 0,
-        "output": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"api_error_status\":null,\"duration_ms\":123268,\"duration_api_ms\":123207,\"num_turns\":5,\"result\":\"[\\n  {\\n    \\\"filename\\\": \\\"alembic/versions/9d8e7f6a5b3c_add_auth_tables.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 54,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"transports column uses sa.String(length=100) but JSON-encoded transport arrays (e.g. '[\\\\\\\"usb\\\\\\\",\\\\\\\"nfc\\\\\\\",\\\\\\\"ble\\\\\\\",\\\\\\\"internal\\\\\\\"]') regularly exceed 100 chars.\\\",\\n        \\\"suggestion\\\": \\\"Change sa.String(length=100) to sa.Text() or sa.String(length=255) for the transports column.\\\"\\n      },\\n      {\\n        \\\"line\\\": 81,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"ix_device_trust_user_id indexes user_id but not the frequently-used WHERE clause pair (user_id, trusted), and device_trust has no unique constraint on (user_id, device_fingerprint), allowing duplicate fingerprints for the same user.\\\",\\n        \\\"suggestion\\\": \\\"Consider a composite unique constraint on (user_id, device_fingerprint) in device_trust, or at minimum add a covering index including trusted for efficient lookups.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Migration creates four auth tables with correct FK cascades, indexes, and server defaults; minor concern about transports column width.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"src/api/__init__.py\\\",\\n    \\\"issues\\\": [],\\n    \\\"summary\\\": \\\"Central router aggregator \u2014 imports and re-exports all feature routers cleanly; no issues.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"src/api/routers/auth.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 236,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"logout endpoint has no auth dependency \u2014 any party with the HttpOnly cookie can call it, enabling denial-of-service logout or user coercion without any credentials.\\\",\\n        \\\"suggestion\\\": \\\"Add current_user: AuthContext = Depends(get_current_user) to the logout signature, consistent with logout_all.\\\"\\n      },\\n      {\\n        \\\"line\\\": 11,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"import math is unused (line 11).\\\",\\n        \\\"suggestion\\\": \\\"Remove the import.\\\"\\n      },\\n      {\\n        \\\"line\\\": 13,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"Cookie imported but only used as a FastAPI dependency class; the alias= parameter on the Cookie(...) default is redundant since the parameter is already named refresh_token.\\\",\\n        \\\"suggestion\\\": \\\"Remove Cookie from the import or the alias parameter.\\\"\\n      },\\n      {\\n        \\\"line\\\": 115,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"Bare default argument 'request: Request = None' violates the project rule against bare None defaults (Rule 22).\\\",\\n        \\\"suggestion\\\": \\\"Change to request: Request | None = None.\\\"\\n      },\\n      {\\n        \\\"line\\\": 10,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"typing.Any is imported but only used in WebAuthnRegisterStartResponse.public_key_options; acceptable but could be replaced with a more specific type if the shape is stable.\\\",\\n        \\\"suggestion\\\": \\\"Consider using a typed TypedDict or Pydantic model instead of dict[str, Any] for public_key_options.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Auth router implements login, refresh, logout, WebAuthn, and device management; critical gap is logout lacking authentication, plus unused import and bare None default.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"src/configs/settings.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 22,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"secret_key field is validated in the runtime check on line 46 but is never referenced anywhere in the reviewed files \u2014 it is dead code unless used by other parts of the codebase not under review.\\\",\\n        \\\"suggestion\\\": \\\"Remove secret_key if it is unused, or replace jwt_secret usages with secret_key if it is the intended field.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Settings loads config from .env via pydantic-settings; secret_key is declared and validated but appears unused, otherwise well-structured.\\\"\\n  }\\n]\",\"stop_reason\":\"end_turn\",\"session_id\":\"91d8424f-20be-4458-b7dc-d9fd6b7c9eb2\",\"total_cost_usd\":0.2282883,\"usage\":{\"input_tokens\":136,\"cache_creation_input_tokens\":30740,\"cache_read_input_tokens\":0,\"output_tokens\":191,\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":0,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"\",\"iterations\":[],\"speed\":\"standard\"},\"modelUsage\":{\"claude-sonnet-4-6\":{\"inputTokens\":13704,\"outputTokens\":4296,\"cacheReadInputTokens\":24871,\"cacheCreationInputTokens\":30740,\"webSearchRequests\":0,\"costUSD\":0.2282883,\"contextWindow\":200000,\"maxOutputTokens\":32000}},\"permission_denials\":[],\"terminal_reason\":\"completed\",\"fast_mode_state\":\"off\",\"uuid\":\"e0a5880b-31ef-4549-82cf-169c359f4866\"}\n",
+        "output": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"api_error_status\":null,\"duration_ms\":331871,\"duration_api_ms\":331825,\"num_turns\":5,\"result\":\"\\n\\n[\\n  {\\n    \\\"filename\\\": \\\".github/workflows/implement-ready-issues.yml\\\",\\n    \\\"issues\\\": [],\\n    \\\"summary\\\": \\\"Workflow is well-structured with proper concurrency controls, timeout, permissions, and environment-specific handling.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"scripts/ci/claim_and_plan_issue.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 29,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"run_gh captures stderr in failure logs but not in success paths \u2014 when debugging a silent failure, stdout is lost.\\\",\\n        \\\"suggestion\\\": \\\"Log r.stdout in the success path or make stdout available for post-mortem diagnosis.\\\"\\n      },\\n      {\\n        \\\"line\\\": 167,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"OSError is the right exception for a missing binary, but it is also raised for other OS-level errors (permissions, ENOMEM, etc.) that may warrant different handling.\\\",\\n        \\\"suggestion\\\": \\\"Catch FileNotFoundError specifically for the missing-binary case and re-raise or handle other OSError differently.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Script correctly handles targeted vs. FIFO issue selection, claims issues safely, and writes the plan file; no critical issues.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"scripts/ci/execute_implementation.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 124,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"When the select-loop timeout fires and proc.kill() is called, the subsequent proc.wait(timeout=\u2026) may have a negative remaining value; max(1, negative) defaults to 1 s instead of propagating the timeout signal.\\\",\\n        \\\"suggestion\\\": \\\"Guard with: remaining = timeout - elapsed; if remaining <= 0: proc.kill(); proc.wait(); return None before the final wait call.\\\"\\n      },\\n      {\\n        \\\"line\\\": 166,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"OSError is broad for the missing-binary case \u2014 also catches unrelated OS errors that may deserve different handling or logging.\\\",\\n        \\\"suggestion\\\": \\\"Catch FileNotFoundError specifically; let other OSError propagate or log with higher severity.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Streaming subprocess invocation is correctly structured; timeout, permission bypass, and prompt delivery are all sound.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"scripts/ci/self_review_implementation.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 123,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"Same timeout edge case as execute_implementation.py: if the select loop exhausts remaining time and proc.kill() fires, the final proc.wait(timeout=\u2026) receives a negative remaining value clamped to 1 s.\\\",\\n        \\\"suggestion\\\": \\\"Guard the final wait call with an elapsed-time check so negative remaining time is handled explicitly.\\\"\\n      },\\n      {\\n        \\\"line\\\": 157,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"OSError is broad \u2014 FileNotFoundError is the specific case for a missing binary; other OS errors (ENOMEM, EPERM) may warrant different treatment.\\\",\\n        \\\"suggestion\\\": \\\"Catch FileNotFoundError explicitly for the missing-binary case; log or re-raise other OSError variants differently.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Self-review prompt is thorough and well-scoped; streaming and timeout patterns match execute_implementation.py correctly.\\\"\\n  }\\n]\",\"stop_reason\":\"end_turn\",\"session_id\":\"be6563a7-6293-4910-a66b-26a50880fddc\",\"total_cost_usd\":0.1750728,\"usage\":{\"input_tokens\":37361,\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":33216,\"output_tokens\":3535,\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":0,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"\",\"iterations\":[],\"speed\":\"standard\"},\"modelUsage\":{\"claude-sonnet-4-6\":{\"inputTokens\":37361,\"outputTokens\":3535,\"cacheReadInputTokens\":33216,\"cacheCreationInputTokens\":0,\"webSearchRequests\":0,\"costUSD\":0.1750728,\"contextWindow\":200000,\"maxOutputTokens\":32000}},\"permission_denials\":[],\"terminal_reason\":\"completed\",\"fast_mode_state\":\"off\",\"uuid\":\"2dc8852a-b926-4ab2-a2c6-8336a1d22196\"}\n",
         "parsed": {
-          "filename": "src/api/routers/auth.py",
+          "filename": "scripts/ci/claim_and_plan_issue.py",
           "issues": [
             {
-              "line": 236,
-              "severity": "critical",
-              "message": "logout endpoint has no auth dependency \u2014 any party with the HttpOnly cookie can call it, enabling denial-of-service logout or user coercion without any credentials.",
-              "suggestion": "Add current_user: AuthContext = Depends(get_current_user) to the logout signature, consistent with logout_all."
-            },
-            {
-              "line": 11,
-              "severity": "warning",
-              "message": "import math is unused (line 11).",
-              "suggestion": "Remove the import."
-            },
-            {
-              "line": 13,
-              "severity": "warning",
-              "message": "Cookie imported but only used as a FastAPI dependency class; the alias= parameter on the Cookie(...) default is redundant since the parameter is already named refresh_token.",
-              "suggestion": "Remove Cookie from the import or the alias parameter."
-            },
-            {
-              "line": 115,
-              "severity": "warning",
-              "message": "Bare default argument 'request: Request = None' violates the project rule against bare None defaults (Rule 22).",
-              "suggestion": "Change to request: Request | None = None."
-            },
-            {
-              "line": 10,
+              "line": 29,
               "severity": "info",
-              "message": "typing.Any is imported but only used in WebAuthnRegisterStartResponse.public_key_options; acceptable but could be replaced with a more specific type if the shape is stable.",
-              "suggestion": "Consider using a typed TypedDict or Pydantic model instead of dict[str, Any] for public_key_options."
-            }
-          ],
-          "summary": "Auth router implements login, refresh, logout, WebAuthn, and device management; critical gap is logout lacking authentication, plus unused import and bare None default."
-        }
-      },
-      {
-        "file": "src/configs/settings.py",
-        "returncode": 0,
-        "output": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"api_error_status\":null,\"duration_ms\":123268,\"duration_api_ms\":123207,\"num_turns\":5,\"result\":\"[\\n  {\\n    \\\"filename\\\": \\\"alembic/versions/9d8e7f6a5b3c_add_auth_tables.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 54,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"transports column uses sa.String(length=100) but JSON-encoded transport arrays (e.g. '[\\\\\\\"usb\\\\\\\",\\\\\\\"nfc\\\\\\\",\\\\\\\"ble\\\\\\\",\\\\\\\"internal\\\\\\\"]') regularly exceed 100 chars.\\\",\\n        \\\"suggestion\\\": \\\"Change sa.String(length=100) to sa.Text() or sa.String(length=255) for the transports column.\\\"\\n      },\\n      {\\n        \\\"line\\\": 81,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"ix_device_trust_user_id indexes user_id but not the frequently-used WHERE clause pair (user_id, trusted), and device_trust has no unique constraint on (user_id, device_fingerprint), allowing duplicate fingerprints for the same user.\\\",\\n        \\\"suggestion\\\": \\\"Consider a composite unique constraint on (user_id, device_fingerprint) in device_trust, or at minimum add a covering index including trusted for efficient lookups.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Migration creates four auth tables with correct FK cascades, indexes, and server defaults; minor concern about transports column width.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"src/api/__init__.py\\\",\\n    \\\"issues\\\": [],\\n    \\\"summary\\\": \\\"Central router aggregator \u2014 imports and re-exports all feature routers cleanly; no issues.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"src/api/routers/auth.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 236,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"logout endpoint has no auth dependency \u2014 any party with the HttpOnly cookie can call it, enabling denial-of-service logout or user coercion without any credentials.\\\",\\n        \\\"suggestion\\\": \\\"Add current_user: AuthContext = Depends(get_current_user) to the logout signature, consistent with logout_all.\\\"\\n      },\\n      {\\n        \\\"line\\\": 11,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"import math is unused (line 11).\\\",\\n        \\\"suggestion\\\": \\\"Remove the import.\\\"\\n      },\\n      {\\n        \\\"line\\\": 13,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"Cookie imported but only used as a FastAPI dependency class; the alias= parameter on the Cookie(...) default is redundant since the parameter is already named refresh_token.\\\",\\n        \\\"suggestion\\\": \\\"Remove Cookie from the import or the alias parameter.\\\"\\n      },\\n      {\\n        \\\"line\\\": 115,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"Bare default argument 'request: Request = None' violates the project rule against bare None defaults (Rule 22).\\\",\\n        \\\"suggestion\\\": \\\"Change to request: Request | None = None.\\\"\\n      },\\n      {\\n        \\\"line\\\": 10,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"typing.Any is imported but only used in WebAuthnRegisterStartResponse.public_key_options; acceptable but could be replaced with a more specific type if the shape is stable.\\\",\\n        \\\"suggestion\\\": \\\"Consider using a typed TypedDict or Pydantic model instead of dict[str, Any] for public_key_options.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Auth router implements login, refresh, logout, WebAuthn, and device management; critical gap is logout lacking authentication, plus unused import and bare None default.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"src/configs/settings.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 22,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"secret_key field is validated in the runtime check on line 46 but is never referenced anywhere in the reviewed files \u2014 it is dead code unless used by other parts of the codebase not under review.\\\",\\n        \\\"suggestion\\\": \\\"Remove secret_key if it is unused, or replace jwt_secret usages with secret_key if it is the intended field.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Settings loads config from .env via pydantic-settings; secret_key is declared and validated but appears unused, otherwise well-structured.\\\"\\n  }\\n]\",\"stop_reason\":\"end_turn\",\"session_id\":\"91d8424f-20be-4458-b7dc-d9fd6b7c9eb2\",\"total_cost_usd\":0.2282883,\"usage\":{\"input_tokens\":136,\"cache_creation_input_tokens\":30740,\"cache_read_input_tokens\":0,\"output_tokens\":191,\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":0,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"\",\"iterations\":[],\"speed\":\"standard\"},\"modelUsage\":{\"claude-sonnet-4-6\":{\"inputTokens\":13704,\"outputTokens\":4296,\"cacheReadInputTokens\":24871,\"cacheCreationInputTokens\":30740,\"webSearchRequests\":0,\"costUSD\":0.2282883,\"contextWindow\":200000,\"maxOutputTokens\":32000}},\"permission_denials\":[],\"terminal_reason\":\"completed\",\"fast_mode_state\":\"off\",\"uuid\":\"e0a5880b-31ef-4549-82cf-169c359f4866\"}\n",
-        "parsed": {
-          "filename": "src/configs/settings.py",
-          "issues": [
-            {
-              "line": 22,
-              "severity": "warning",
-              "message": "secret_key field is validated in the runtime check on line 46 but is never referenced anywhere in the reviewed files \u2014 it is dead code unless used by other parts of the codebase not under review.",
-              "suggestion": "Remove secret_key if it is unused, or replace jwt_secret usages with secret_key if it is the intended field."
-            }
-          ],
-          "summary": "Settings loads config from .env via pydantic-settings; secret_key is declared and validated but appears unused, otherwise well-structured."
-        }
-      },
-      {
-        "file": "src/db/models/__init__.py",
-        "returncode": 0,
-        "output": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"api_error_status\":null,\"duration_ms\":67462,\"duration_api_ms\":67360,\"num_turns\":5,\"result\":\"\\n\\n[\\n  {\\n    \\\"filename\\\": \\\"src/db/models/__init__.py\\\",\\n    \\\"issues\\\": [],\\n    \\\"summary\\\": \\\"Clean re-export file, no issues.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"src/db/models/device_trust.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 25,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"Boolean column uses Python-side default= True instead of server_default to guarantee the DB default when rows are inserted outside the ORM.\\\",\\n        \\\"suggestion\\\": \\\"Change to: mapped_column(Boolean, server_default=True, nullable=False)\\\"\\n      },\\n      {\\n        \\\"line\\\": 0,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"to_dict() omits updated_at, creating an asymmetry with created_at and making the field unusable by API consumers.\\\",\\n        \\\"suggestion\\\": \\\"Add 'updated_at': self.updated_at.isoformat() if self.updated_at else None to to_dict() return dict\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Overall structure is sound; Python-side boolean default and missing updated_at in to_dict() are the main concerns.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"src/db/models/refresh_token.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 0,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"to_dict() omits token_hash, user_agent, ip_address, and device_fingerprint \u2014 ip_address in particular is useful for audit/Sheet and is safe to include (only the token hash itself must be hidden).\\\",\\n        \\\"suggestion\\\": \\\"Consider including ip_address and device_fingerprint in to_dict() for debugging/audit purposes: 'ip_address': self.ip_address, 'device_fingerprint': self.device_fingerprint\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Model is well-structured; to_dict() is overly restrictive \u2014 ip_address and device_fingerprint should be returned for operational visibility.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"src/db/models/user_credential.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 25,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"Integer column uses Python-side default=0 instead of server_default, risking NULL or 0 inconsistency if rows are inserted via raw SQL.\\\",\\n        \\\"suggestion\\\": \\\"Change to: mapped_column(Integer, server_default=text('0'), nullable=False)\\\"\\n      },\\n      {\\n        \\\"line\\\": 26,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"String column uses default='fido2' without a callable \u2014 while immutable strings don't suffer from the mutable-default-argument bug, server_default is the established pattern used elsewhere in this file (e.g. created_at).\\\",\\n        \\\"suggestion\\\": \\\"Change to: mapped_column(String(20), server_default='fido2', nullable=False)\\\"\\n      },\\n      {\\n        \\\"line\\\": 27,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"String(100) may be too short for WebAuthn transports field \u2014 transports is a JSON array serialized as a string (e.g. ['usb','ble','nfc'] plus other metadata) and commonly exceeds 100 chars.\\\",\\n        \\\"suggestion\\\": \\\"Increase to String(255) or Text to avoid truncation of transport metadata.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Model is well-structured; sign_count and authenticator_type use Python-side defaults where server_default is more robust, and the transports column has a tight length limit.\\\"\\n  }\\n]\",\"stop_reason\":\"end_turn\",\"session_id\":\"ff444a23-05f0-42e2-8a7c-bff0abfd3516\",\"total_cost_usd\":0.1288668,\"usage\":{\"input_tokens\":31019,\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":33216,\"output_tokens\":1723,\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":0,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"\",\"iterations\":[],\"speed\":\"standard\"},\"modelUsage\":{\"claude-sonnet-4-6\":{\"inputTokens\":31019,\"outputTokens\":1723,\"cacheReadInputTokens\":33216,\"cacheCreationInputTokens\":0,\"webSearchRequests\":0,\"costUSD\":0.1288668,\"contextWindow\":200000,\"maxOutputTokens\":32000}},\"permission_denials\":[],\"terminal_reason\":\"completed\",\"fast_mode_state\":\"off\",\"uuid\":\"374a368c-662d-4835-be09-b4967158ee26\"}\n",
-        "parsed": {
-          "filename": "src/db/models/__init__.py",
-          "issues": [],
-          "summary": "Clean re-export file, no issues."
-        }
-      },
-      {
-        "file": "src/db/models/device_trust.py",
-        "returncode": 0,
-        "output": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"api_error_status\":null,\"duration_ms\":67462,\"duration_api_ms\":67360,\"num_turns\":5,\"result\":\"\\n\\n[\\n  {\\n    \\\"filename\\\": \\\"src/db/models/__init__.py\\\",\\n    \\\"issues\\\": [],\\n    \\\"summary\\\": \\\"Clean re-export file, no issues.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"src/db/models/device_trust.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 25,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"Boolean column uses Python-side default= True instead of server_default to guarantee the DB default when rows are inserted outside the ORM.\\\",\\n        \\\"suggestion\\\": \\\"Change to: mapped_column(Boolean, server_default=True, nullable=False)\\\"\\n      },\\n      {\\n        \\\"line\\\": 0,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"to_dict() omits updated_at, creating an asymmetry with created_at and making the field unusable by API consumers.\\\",\\n        \\\"suggestion\\\": \\\"Add 'updated_at': self.updated_at.isoformat() if self.updated_at else None to to_dict() return dict\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Overall structure is sound; Python-side boolean default and missing updated_at in to_dict() are the main concerns.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"src/db/models/refresh_token.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 0,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"to_dict() omits token_hash, user_agent, ip_address, and device_fingerprint \u2014 ip_address in particular is useful for audit/Sheet and is safe to include (only the token hash itself must be hidden).\\\",\\n        \\\"suggestion\\\": \\\"Consider including ip_address and device_fingerprint in to_dict() for debugging/audit purposes: 'ip_address': self.ip_address, 'device_fingerprint': self.device_fingerprint\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Model is well-structured; to_dict() is overly restrictive \u2014 ip_address and device_fingerprint should be returned for operational visibility.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"src/db/models/user_credential.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 25,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"Integer column uses Python-side default=0 instead of server_default, risking NULL or 0 inconsistency if rows are inserted via raw SQL.\\\",\\n        \\\"suggestion\\\": \\\"Change to: mapped_column(Integer, server_default=text('0'), nullable=False)\\\"\\n      },\\n      {\\n        \\\"line\\\": 26,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"String column uses default='fido2' without a callable \u2014 while immutable strings don't suffer from the mutable-default-argument bug, server_default is the established pattern used elsewhere in this file (e.g. created_at).\\\",\\n        \\\"suggestion\\\": \\\"Change to: mapped_column(String(20), server_default='fido2', nullable=False)\\\"\\n      },\\n      {\\n        \\\"line\\\": 27,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"String(100) may be too short for WebAuthn transports field \u2014 transports is a JSON array serialized as a string (e.g. ['usb','ble','nfc'] plus other metadata) and commonly exceeds 100 chars.\\\",\\n        \\\"suggestion\\\": \\\"Increase to String(255) or Text to avoid truncation of transport metadata.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Model is well-structured; sign_count and authenticator_type use Python-side defaults where server_default is more robust, and the transports column has a tight length limit.\\\"\\n  }\\n]\",\"stop_reason\":\"end_turn\",\"session_id\":\"ff444a23-05f0-42e2-8a7c-bff0abfd3516\",\"total_cost_usd\":0.1288668,\"usage\":{\"input_tokens\":31019,\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":33216,\"output_tokens\":1723,\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":0,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"\",\"iterations\":[],\"speed\":\"standard\"},\"modelUsage\":{\"claude-sonnet-4-6\":{\"inputTokens\":31019,\"outputTokens\":1723,\"cacheReadInputTokens\":33216,\"cacheCreationInputTokens\":0,\"webSearchRequests\":0,\"costUSD\":0.1288668,\"contextWindow\":200000,\"maxOutputTokens\":32000}},\"permission_denials\":[],\"terminal_reason\":\"completed\",\"fast_mode_state\":\"off\",\"uuid\":\"374a368c-662d-4835-be09-b4967158ee26\"}\n",
-        "parsed": {
-          "filename": "src/db/models/device_trust.py",
-          "issues": [
-            {
-              "line": 25,
-              "severity": "warning",
-              "message": "Boolean column uses Python-side default= True instead of server_default to guarantee the DB default when rows are inserted outside the ORM.",
-              "suggestion": "Change to: mapped_column(Boolean, server_default=True, nullable=False)"
+              "message": "run_gh captures stderr in failure logs but not in success paths \u2014 when debugging a silent failure, stdout is lost.",
+              "suggestion": "Log r.stdout in the success path or make stdout available for post-mortem diagnosis."
             },
             {
-              "line": 0,
-              "severity": "warning",
-              "message": "to_dict() omits updated_at, creating an asymmetry with created_at and making the field unusable by API consumers.",
-              "suggestion": "Add 'updated_at': self.updated_at.isoformat() if self.updated_at else None to to_dict() return dict"
-            }
-          ],
-          "summary": "Overall structure is sound; Python-side boolean default and missing updated_at in to_dict() are the main concerns."
-        }
-      },
-      {
-        "file": "src/db/models/refresh_token.py",
-        "returncode": 0,
-        "output": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"api_error_status\":null,\"duration_ms\":67462,\"duration_api_ms\":67360,\"num_turns\":5,\"result\":\"\\n\\n[\\n  {\\n    \\\"filename\\\": \\\"src/db/models/__init__.py\\\",\\n    \\\"issues\\\": [],\\n    \\\"summary\\\": \\\"Clean re-export file, no issues.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"src/db/models/device_trust.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 25,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"Boolean column uses Python-side default= True instead of server_default to guarantee the DB default when rows are inserted outside the ORM.\\\",\\n        \\\"suggestion\\\": \\\"Change to: mapped_column(Boolean, server_default=True, nullable=False)\\\"\\n      },\\n      {\\n        \\\"line\\\": 0,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"to_dict() omits updated_at, creating an asymmetry with created_at and making the field unusable by API consumers.\\\",\\n        \\\"suggestion\\\": \\\"Add 'updated_at': self.updated_at.isoformat() if self.updated_at else None to to_dict() return dict\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Overall structure is sound; Python-side boolean default and missing updated_at in to_dict() are the main concerns.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"src/db/models/refresh_token.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 0,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"to_dict() omits token_hash, user_agent, ip_address, and device_fingerprint \u2014 ip_address in particular is useful for audit/Sheet and is safe to include (only the token hash itself must be hidden).\\\",\\n        \\\"suggestion\\\": \\\"Consider including ip_address and device_fingerprint in to_dict() for debugging/audit purposes: 'ip_address': self.ip_address, 'device_fingerprint': self.device_fingerprint\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Model is well-structured; to_dict() is overly restrictive \u2014 ip_address and device_fingerprint should be returned for operational visibility.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"src/db/models/user_credential.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 25,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"Integer column uses Python-side default=0 instead of server_default, risking NULL or 0 inconsistency if rows are inserted via raw SQL.\\\",\\n        \\\"suggestion\\\": \\\"Change to: mapped_column(Integer, server_default=text('0'), nullable=False)\\\"\\n      },\\n      {\\n        \\\"line\\\": 26,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"String column uses default='fido2' without a callable \u2014 while immutable strings don't suffer from the mutable-default-argument bug, server_default is the established pattern used elsewhere in this file (e.g. created_at).\\\",\\n        \\\"suggestion\\\": \\\"Change to: mapped_column(String(20), server_default='fido2', nullable=False)\\\"\\n      },\\n      {\\n        \\\"line\\\": 27,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"String(100) may be too short for WebAuthn transports field \u2014 transports is a JSON array serialized as a string (e.g. ['usb','ble','nfc'] plus other metadata) and commonly exceeds 100 chars.\\\",\\n        \\\"suggestion\\\": \\\"Increase to String(255) or Text to avoid truncation of transport metadata.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Model is well-structured; sign_count and authenticator_type use Python-side defaults where server_default is more robust, and the transports column has a tight length limit.\\\"\\n  }\\n]\",\"stop_reason\":\"end_turn\",\"session_id\":\"ff444a23-05f0-42e2-8a7c-bff0abfd3516\",\"total_cost_usd\":0.1288668,\"usage\":{\"input_tokens\":31019,\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":33216,\"output_tokens\":1723,\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":0,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"\",\"iterations\":[],\"speed\":\"standard\"},\"modelUsage\":{\"claude-sonnet-4-6\":{\"inputTokens\":31019,\"outputTokens\":1723,\"cacheReadInputTokens\":33216,\"cacheCreationInputTokens\":0,\"webSearchRequests\":0,\"costUSD\":0.1288668,\"contextWindow\":200000,\"maxOutputTokens\":32000}},\"permission_denials\":[],\"terminal_reason\":\"completed\",\"fast_mode_state\":\"off\",\"uuid\":\"374a368c-662d-4835-be09-b4967158ee26\"}\n",
-        "parsed": {
-          "filename": "src/db/models/refresh_token.py",
-          "issues": [
-            {
-              "line": 0,
-              "severity": "warning",
-              "message": "to_dict() omits token_hash, user_agent, ip_address, and device_fingerprint \u2014 ip_address in particular is useful for audit/Sheet and is safe to include (only the token hash itself must be hidden).",
-              "suggestion": "Consider including ip_address and device_fingerprint in to_dict() for debugging/audit purposes: 'ip_address': self.ip_address, 'device_fingerprint': self.device_fingerprint"
-            }
-          ],
-          "summary": "Model is well-structured; to_dict() is overly restrictive \u2014 ip_address and device_fingerprint should be returned for operational visibility."
-        }
-      },
-      {
-        "file": "src/db/models/user_credential.py",
-        "returncode": 0,
-        "output": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"api_error_status\":null,\"duration_ms\":67462,\"duration_api_ms\":67360,\"num_turns\":5,\"result\":\"\\n\\n[\\n  {\\n    \\\"filename\\\": \\\"src/db/models/__init__.py\\\",\\n    \\\"issues\\\": [],\\n    \\\"summary\\\": \\\"Clean re-export file, no issues.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"src/db/models/device_trust.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 25,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"Boolean column uses Python-side default= True instead of server_default to guarantee the DB default when rows are inserted outside the ORM.\\\",\\n        \\\"suggestion\\\": \\\"Change to: mapped_column(Boolean, server_default=True, nullable=False)\\\"\\n      },\\n      {\\n        \\\"line\\\": 0,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"to_dict() omits updated_at, creating an asymmetry with created_at and making the field unusable by API consumers.\\\",\\n        \\\"suggestion\\\": \\\"Add 'updated_at': self.updated_at.isoformat() if self.updated_at else None to to_dict() return dict\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Overall structure is sound; Python-side boolean default and missing updated_at in to_dict() are the main concerns.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"src/db/models/refresh_token.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 0,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"to_dict() omits token_hash, user_agent, ip_address, and device_fingerprint \u2014 ip_address in particular is useful for audit/Sheet and is safe to include (only the token hash itself must be hidden).\\\",\\n        \\\"suggestion\\\": \\\"Consider including ip_address and device_fingerprint in to_dict() for debugging/audit purposes: 'ip_address': self.ip_address, 'device_fingerprint': self.device_fingerprint\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Model is well-structured; to_dict() is overly restrictive \u2014 ip_address and device_fingerprint should be returned for operational visibility.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"src/db/models/user_credential.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 25,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"Integer column uses Python-side default=0 instead of server_default, risking NULL or 0 inconsistency if rows are inserted via raw SQL.\\\",\\n        \\\"suggestion\\\": \\\"Change to: mapped_column(Integer, server_default=text('0'), nullable=False)\\\"\\n      },\\n      {\\n        \\\"line\\\": 26,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"String column uses default='fido2' without a callable \u2014 while immutable strings don't suffer from the mutable-default-argument bug, server_default is the established pattern used elsewhere in this file (e.g. created_at).\\\",\\n        \\\"suggestion\\\": \\\"Change to: mapped_column(String(20), server_default='fido2', nullable=False)\\\"\\n      },\\n      {\\n        \\\"line\\\": 27,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"String(100) may be too short for WebAuthn transports field \u2014 transports is a JSON array serialized as a string (e.g. ['usb','ble','nfc'] plus other metadata) and commonly exceeds 100 chars.\\\",\\n        \\\"suggestion\\\": \\\"Increase to String(255) or Text to avoid truncation of transport metadata.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Model is well-structured; sign_count and authenticator_type use Python-side defaults where server_default is more robust, and the transports column has a tight length limit.\\\"\\n  }\\n]\",\"stop_reason\":\"end_turn\",\"session_id\":\"ff444a23-05f0-42e2-8a7c-bff0abfd3516\",\"total_cost_usd\":0.1288668,\"usage\":{\"input_tokens\":31019,\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":33216,\"output_tokens\":1723,\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":0,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"\",\"iterations\":[],\"speed\":\"standard\"},\"modelUsage\":{\"claude-sonnet-4-6\":{\"inputTokens\":31019,\"outputTokens\":1723,\"cacheReadInputTokens\":33216,\"cacheCreationInputTokens\":0,\"webSearchRequests\":0,\"costUSD\":0.1288668,\"contextWindow\":200000,\"maxOutputTokens\":32000}},\"permission_denials\":[],\"terminal_reason\":\"completed\",\"fast_mode_state\":\"off\",\"uuid\":\"374a368c-662d-4835-be09-b4967158ee26\"}\n",
-        "parsed": {
-          "filename": "src/db/models/user_credential.py",
-          "issues": [
-            {
-              "line": 25,
-              "severity": "warning",
-              "message": "Integer column uses Python-side default=0 instead of server_default, risking NULL or 0 inconsistency if rows are inserted via raw SQL.",
-              "suggestion": "Change to: mapped_column(Integer, server_default=text('0'), nullable=False)"
-            },
-            {
-              "line": 26,
+              "line": 167,
               "severity": "info",
-              "message": "String column uses default='fido2' without a callable \u2014 while immutable strings don't suffer from the mutable-default-argument bug, server_default is the established pattern used elsewhere in this file (e.g. created_at).",
-              "suggestion": "Change to: mapped_column(String(20), server_default='fido2', nullable=False)"
-            },
-            {
-              "line": 27,
-              "severity": "warning",
-              "message": "String(100) may be too short for WebAuthn transports field \u2014 transports is a JSON array serialized as a string (e.g. ['usb','ble','nfc'] plus other metadata) and commonly exceeds 100 chars.",
-              "suggestion": "Increase to String(255) or Text to avoid truncation of transport metadata."
+              "message": "OSError is the right exception for a missing binary, but it is also raised for other OS-level errors (permissions, ENOMEM, etc.) that may warrant different handling.",
+              "suggestion": "Catch FileNotFoundError specifically for the missing-binary case and re-raise or handle other OSError differently."
             }
           ],
-          "summary": "Model is well-structured; sign_count and authenticator_type use Python-side defaults where server_default is more robust, and the transports column has a tight length limit."
+          "summary": "Script correctly handles targeted vs. FIFO issue selection, claims issues safely, and writes the plan file; no critical issues."
         }
       },
       {
-        "file": "src/db/models/webauthn_challenge.py",
+        "file": "scripts/ci/execute_implementation.py",
         "returncode": 0,
-        "output": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"api_error_status\":null,\"duration_ms\":155831,\"duration_api_ms\":155719,\"num_turns\":5,\"result\":\"\\n\\n```json\\n[\\n  {\\n    \\\"filename\\\": \\\"src/db/models/webauthn_challenge.py\\\",\\n    \\\"issues\\\": [],\\n    \\\"summary\\\": \\\"Clean ORM model with proper column definitions, indexes, and server-side defaults. to_dict() intentionally omits the challenge field for security, which is correct per the router-layer serialization pattern.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"src/main.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 0,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"No rate limiting middleware is configured on any auth endpoints (rule 59).\\\",\\n        \\\"suggestion\\\": \\\"Add a rate limiting middleware (e.g. slowapi) scoped to auth routes, especially the WebAuthn and login endpoints, to prevent brute-force abuse.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Well-structured FastAPI entry point with clean exception hierarchy, proper CORS handling, and router inclusion. No critical issues.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"src/services/auth/__init__.py\\\",\\n    \\\"issues\\\": [],\\n    \\\"summary\\\": \\\"Clean package init that re-exports all auth service public types and the device fingerprint helper. No issues.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"src/services/auth/device_trust_service.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 155,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"`location` parameter is accepted but never used \u2014 geo-change detection is unimplemented (rule 111: hidden coupling).\\\",\\n        \\\"suggestion\\\": \\\"Remove `location` from the signature if geo-change detection is not implemented, or add the comparison: after the IP check, add `if location and device.last_location and location != device.last_location: reasons.append(SuspiciousActivityReason.GEO_CHANGE)`.\\\"\\n      },\\n      {\\n        \\\"line\\\": 98,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"`trust_device` does not update `last_used_at` when re-trusting an existing device (rule 90).\\\",\\n        \\\"suggestion\\\": \\\"Add `model.last_used_at = datetime.now(UTC)` in the `else` branch at line 98 to keep the timestamp current, ensuring `get_trusted_devices` ordering remains accurate.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Service correctly uses flush() over commit per project rules. `is_device_trusted`, `distrust_device`, and `distrust_all_devices` are clean. Two issues: a stub parameter in check_suspicious_activity and a missing timestamp update in trust_device.\\\"\\n  }\\n]\\n```\",\"stop_reason\":\"end_turn\",\"session_id\":\"ec5bda1b-167b-476c-b524-a46ba1fcf48e\",\"total_cost_usd\":0.1597626,\"usage\":{\"input_tokens\":34568,\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":30912,\"output_tokens\":3119,\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":0,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"\",\"iterations\":[],\"speed\":\"standard\"},\"modelUsage\":{\"claude-sonnet-4-6\":{\"inputTokens\":34568,\"outputTokens\":3119,\"cacheReadInputTokens\":30912,\"cacheCreationInputTokens\":0,\"webSearchRequests\":0,\"costUSD\":0.1597626,\"contextWindow\":200000,\"maxOutputTokens\":32000}},\"permission_denials\":[],\"terminal_reason\":\"completed\",\"fast_mode_state\":\"off\",\"uuid\":\"48c4d324-03f3-4da1-b7df-73b2e1b08da7\"}\n",
+        "output": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"api_error_status\":null,\"duration_ms\":331871,\"duration_api_ms\":331825,\"num_turns\":5,\"result\":\"\\n\\n[\\n  {\\n    \\\"filename\\\": \\\".github/workflows/implement-ready-issues.yml\\\",\\n    \\\"issues\\\": [],\\n    \\\"summary\\\": \\\"Workflow is well-structured with proper concurrency controls, timeout, permissions, and environment-specific handling.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"scripts/ci/claim_and_plan_issue.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 29,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"run_gh captures stderr in failure logs but not in success paths \u2014 when debugging a silent failure, stdout is lost.\\\",\\n        \\\"suggestion\\\": \\\"Log r.stdout in the success path or make stdout available for post-mortem diagnosis.\\\"\\n      },\\n      {\\n        \\\"line\\\": 167,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"OSError is the right exception for a missing binary, but it is also raised for other OS-level errors (permissions, ENOMEM, etc.) that may warrant different handling.\\\",\\n        \\\"suggestion\\\": \\\"Catch FileNotFoundError specifically for the missing-binary case and re-raise or handle other OSError differently.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Script correctly handles targeted vs. FIFO issue selection, claims issues safely, and writes the plan file; no critical issues.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"scripts/ci/execute_implementation.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 124,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"When the select-loop timeout fires and proc.kill() is called, the subsequent proc.wait(timeout=\u2026) may have a negative remaining value; max(1, negative) defaults to 1 s instead of propagating the timeout signal.\\\",\\n        \\\"suggestion\\\": \\\"Guard with: remaining = timeout - elapsed; if remaining <= 0: proc.kill(); proc.wait(); return None before the final wait call.\\\"\\n      },\\n      {\\n        \\\"line\\\": 166,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"OSError is broad for the missing-binary case \u2014 also catches unrelated OS errors that may deserve different handling or logging.\\\",\\n        \\\"suggestion\\\": \\\"Catch FileNotFoundError specifically; let other OSError propagate or log with higher severity.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Streaming subprocess invocation is correctly structured; timeout, permission bypass, and prompt delivery are all sound.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"scripts/ci/self_review_implementation.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 123,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"Same timeout edge case as execute_implementation.py: if the select loop exhausts remaining time and proc.kill() fires, the final proc.wait(timeout=\u2026) receives a negative remaining value clamped to 1 s.\\\",\\n        \\\"suggestion\\\": \\\"Guard the final wait call with an elapsed-time check so negative remaining time is handled explicitly.\\\"\\n      },\\n      {\\n        \\\"line\\\": 157,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"OSError is broad \u2014 FileNotFoundError is the specific case for a missing binary; other OS errors (ENOMEM, EPERM) may warrant different treatment.\\\",\\n        \\\"suggestion\\\": \\\"Catch FileNotFoundError explicitly for the missing-binary case; log or re-raise other OSError variants differently.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Self-review prompt is thorough and well-scoped; streaming and timeout patterns match execute_implementation.py correctly.\\\"\\n  }\\n]\",\"stop_reason\":\"end_turn\",\"session_id\":\"be6563a7-6293-4910-a66b-26a50880fddc\",\"total_cost_usd\":0.1750728,\"usage\":{\"input_tokens\":37361,\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":33216,\"output_tokens\":3535,\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":0,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"\",\"iterations\":[],\"speed\":\"standard\"},\"modelUsage\":{\"claude-sonnet-4-6\":{\"inputTokens\":37361,\"outputTokens\":3535,\"cacheReadInputTokens\":33216,\"cacheCreationInputTokens\":0,\"webSearchRequests\":0,\"costUSD\":0.1750728,\"contextWindow\":200000,\"maxOutputTokens\":32000}},\"permission_denials\":[],\"terminal_reason\":\"completed\",\"fast_mode_state\":\"off\",\"uuid\":\"2dc8852a-b926-4ab2-a2c6-8336a1d22196\"}\n",
         "parsed": {
-          "filename": "src/db/models/webauthn_challenge.py",
-          "issues": [],
-          "summary": "Clean ORM model with proper column definitions, indexes, and server-side defaults. to_dict() intentionally omits the challenge field for security, which is correct per the router-layer serialization pattern."
-        }
-      },
-      {
-        "file": "src/main.py",
-        "returncode": 0,
-        "output": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"api_error_status\":null,\"duration_ms\":155831,\"duration_api_ms\":155719,\"num_turns\":5,\"result\":\"\\n\\n```json\\n[\\n  {\\n    \\\"filename\\\": \\\"src/db/models/webauthn_challenge.py\\\",\\n    \\\"issues\\\": [],\\n    \\\"summary\\\": \\\"Clean ORM model with proper column definitions, indexes, and server-side defaults. to_dict() intentionally omits the challenge field for security, which is correct per the router-layer serialization pattern.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"src/main.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 0,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"No rate limiting middleware is configured on any auth endpoints (rule 59).\\\",\\n        \\\"suggestion\\\": \\\"Add a rate limiting middleware (e.g. slowapi) scoped to auth routes, especially the WebAuthn and login endpoints, to prevent brute-force abuse.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Well-structured FastAPI entry point with clean exception hierarchy, proper CORS handling, and router inclusion. No critical issues.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"src/services/auth/__init__.py\\\",\\n    \\\"issues\\\": [],\\n    \\\"summary\\\": \\\"Clean package init that re-exports all auth service public types and the device fingerprint helper. No issues.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"src/services/auth/device_trust_service.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 155,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"`location` parameter is accepted but never used \u2014 geo-change detection is unimplemented (rule 111: hidden coupling).\\\",\\n        \\\"suggestion\\\": \\\"Remove `location` from the signature if geo-change detection is not implemented, or add the comparison: after the IP check, add `if location and device.last_location and location != device.last_location: reasons.append(SuspiciousActivityReason.GEO_CHANGE)`.\\\"\\n      },\\n      {\\n        \\\"line\\\": 98,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"`trust_device` does not update `last_used_at` when re-trusting an existing device (rule 90).\\\",\\n        \\\"suggestion\\\": \\\"Add `model.last_used_at = datetime.now(UTC)` in the `else` branch at line 98 to keep the timestamp current, ensuring `get_trusted_devices` ordering remains accurate.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Service correctly uses flush() over commit per project rules. `is_device_trusted`, `distrust_device`, and `distrust_all_devices` are clean. Two issues: a stub parameter in check_suspicious_activity and a missing timestamp update in trust_device.\\\"\\n  }\\n]\\n```\",\"stop_reason\":\"end_turn\",\"session_id\":\"ec5bda1b-167b-476c-b524-a46ba1fcf48e\",\"total_cost_usd\":0.1597626,\"usage\":{\"input_tokens\":34568,\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":30912,\"output_tokens\":3119,\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":0,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"\",\"iterations\":[],\"speed\":\"standard\"},\"modelUsage\":{\"claude-sonnet-4-6\":{\"inputTokens\":34568,\"outputTokens\":3119,\"cacheReadInputTokens\":30912,\"cacheCreationInputTokens\":0,\"webSearchRequests\":0,\"costUSD\":0.1597626,\"contextWindow\":200000,\"maxOutputTokens\":32000}},\"permission_denials\":[],\"terminal_reason\":\"completed\",\"fast_mode_state\":\"off\",\"uuid\":\"48c4d324-03f3-4da1-b7df-73b2e1b08da7\"}\n",
-        "parsed": {
-          "filename": "src/main.py",
+          "filename": "scripts/ci/execute_implementation.py",
           "issues": [
             {
-              "line": 0,
-              "severity": "warning",
-              "message": "No rate limiting middleware is configured on any auth endpoints (rule 59).",
-              "suggestion": "Add a rate limiting middleware (e.g. slowapi) scoped to auth routes, especially the WebAuthn and login endpoints, to prevent brute-force abuse."
+              "line": 124,
+              "severity": "info",
+              "message": "When the select-loop timeout fires and proc.kill() is called, the subsequent proc.wait(timeout=\u2026) may have a negative remaining value; max(1, negative) defaults to 1 s instead of propagating the timeout signal.",
+              "suggestion": "Guard with: remaining = timeout - elapsed; if remaining <= 0: proc.kill(); proc.wait(); return None before the final wait call."
+            },
+            {
+              "line": 166,
+              "severity": "info",
+              "message": "OSError is broad for the missing-binary case \u2014 also catches unrelated OS errors that may deserve different handling or logging.",
+              "suggestion": "Catch FileNotFoundError specifically; let other OSError propagate or log with higher severity."
             }
           ],
-          "summary": "Well-structured FastAPI entry point with clean exception hierarchy, proper CORS handling, and router inclusion. No critical issues."
+          "summary": "Streaming subprocess invocation is correctly structured; timeout, permission bypass, and prompt delivery are all sound."
         }
       },
       {
-        "file": "src/services/auth/__init__.py",
+        "file": "scripts/ci/self_review_implementation.py",
         "returncode": 0,
-        "output": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"api_error_status\":null,\"duration_ms\":155831,\"duration_api_ms\":155719,\"num_turns\":5,\"result\":\"\\n\\n```json\\n[\\n  {\\n    \\\"filename\\\": \\\"src/db/models/webauthn_challenge.py\\\",\\n    \\\"issues\\\": [],\\n    \\\"summary\\\": \\\"Clean ORM model with proper column definitions, indexes, and server-side defaults. to_dict() intentionally omits the challenge field for security, which is correct per the router-layer serialization pattern.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"src/main.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 0,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"No rate limiting middleware is configured on any auth endpoints (rule 59).\\\",\\n        \\\"suggestion\\\": \\\"Add a rate limiting middleware (e.g. slowapi) scoped to auth routes, especially the WebAuthn and login endpoints, to prevent brute-force abuse.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Well-structured FastAPI entry point with clean exception hierarchy, proper CORS handling, and router inclusion. No critical issues.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"src/services/auth/__init__.py\\\",\\n    \\\"issues\\\": [],\\n    \\\"summary\\\": \\\"Clean package init that re-exports all auth service public types and the device fingerprint helper. No issues.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"src/services/auth/device_trust_service.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 155,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"`location` parameter is accepted but never used \u2014 geo-change detection is unimplemented (rule 111: hidden coupling).\\\",\\n        \\\"suggestion\\\": \\\"Remove `location` from the signature if geo-change detection is not implemented, or add the comparison: after the IP check, add `if location and device.last_location and location != device.last_location: reasons.append(SuspiciousActivityReason.GEO_CHANGE)`.\\\"\\n      },\\n      {\\n        \\\"line\\\": 98,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"`trust_device` does not update `last_used_at` when re-trusting an existing device (rule 90).\\\",\\n        \\\"suggestion\\\": \\\"Add `model.last_used_at = datetime.now(UTC)` in the `else` branch at line 98 to keep the timestamp current, ensuring `get_trusted_devices` ordering remains accurate.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Service correctly uses flush() over commit per project rules. `is_device_trusted`, `distrust_device`, and `distrust_all_devices` are clean. Two issues: a stub parameter in check_suspicious_activity and a missing timestamp update in trust_device.\\\"\\n  }\\n]\\n```\",\"stop_reason\":\"end_turn\",\"session_id\":\"ec5bda1b-167b-476c-b524-a46ba1fcf48e\",\"total_cost_usd\":0.1597626,\"usage\":{\"input_tokens\":34568,\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":30912,\"output_tokens\":3119,\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":0,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"\",\"iterations\":[],\"speed\":\"standard\"},\"modelUsage\":{\"claude-sonnet-4-6\":{\"inputTokens\":34568,\"outputTokens\":3119,\"cacheReadInputTokens\":30912,\"cacheCreationInputTokens\":0,\"webSearchRequests\":0,\"costUSD\":0.1597626,\"contextWindow\":200000,\"maxOutputTokens\":32000}},\"permission_denials\":[],\"terminal_reason\":\"completed\",\"fast_mode_state\":\"off\",\"uuid\":\"48c4d324-03f3-4da1-b7df-73b2e1b08da7\"}\n",
+        "output": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"api_error_status\":null,\"duration_ms\":331871,\"duration_api_ms\":331825,\"num_turns\":5,\"result\":\"\\n\\n[\\n  {\\n    \\\"filename\\\": \\\".github/workflows/implement-ready-issues.yml\\\",\\n    \\\"issues\\\": [],\\n    \\\"summary\\\": \\\"Workflow is well-structured with proper concurrency controls, timeout, permissions, and environment-specific handling.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"scripts/ci/claim_and_plan_issue.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 29,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"run_gh captures stderr in failure logs but not in success paths \u2014 when debugging a silent failure, stdout is lost.\\\",\\n        \\\"suggestion\\\": \\\"Log r.stdout in the success path or make stdout available for post-mortem diagnosis.\\\"\\n      },\\n      {\\n        \\\"line\\\": 167,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"OSError is the right exception for a missing binary, but it is also raised for other OS-level errors (permissions, ENOMEM, etc.) that may warrant different handling.\\\",\\n        \\\"suggestion\\\": \\\"Catch FileNotFoundError specifically for the missing-binary case and re-raise or handle other OSError differently.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Script correctly handles targeted vs. FIFO issue selection, claims issues safely, and writes the plan file; no critical issues.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"scripts/ci/execute_implementation.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 124,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"When the select-loop timeout fires and proc.kill() is called, the subsequent proc.wait(timeout=\u2026) may have a negative remaining value; max(1, negative) defaults to 1 s instead of propagating the timeout signal.\\\",\\n        \\\"suggestion\\\": \\\"Guard with: remaining = timeout - elapsed; if remaining <= 0: proc.kill(); proc.wait(); return None before the final wait call.\\\"\\n      },\\n      {\\n        \\\"line\\\": 166,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"OSError is broad for the missing-binary case \u2014 also catches unrelated OS errors that may deserve different handling or logging.\\\",\\n        \\\"suggestion\\\": \\\"Catch FileNotFoundError specifically; let other OSError propagate or log with higher severity.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Streaming subprocess invocation is correctly structured; timeout, permission bypass, and prompt delivery are all sound.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"scripts/ci/self_review_implementation.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 123,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"Same timeout edge case as execute_implementation.py: if the select loop exhausts remaining time and proc.kill() fires, the final proc.wait(timeout=\u2026) receives a negative remaining value clamped to 1 s.\\\",\\n        \\\"suggestion\\\": \\\"Guard the final wait call with an elapsed-time check so negative remaining time is handled explicitly.\\\"\\n      },\\n      {\\n        \\\"line\\\": 157,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"OSError is broad \u2014 FileNotFoundError is the specific case for a missing binary; other OS errors (ENOMEM, EPERM) may warrant different treatment.\\\",\\n        \\\"suggestion\\\": \\\"Catch FileNotFoundError explicitly for the missing-binary case; log or re-raise other OSError variants differently.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Self-review prompt is thorough and well-scoped; streaming and timeout patterns match execute_implementation.py correctly.\\\"\\n  }\\n]\",\"stop_reason\":\"end_turn\",\"session_id\":\"be6563a7-6293-4910-a66b-26a50880fddc\",\"total_cost_usd\":0.1750728,\"usage\":{\"input_tokens\":37361,\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":33216,\"output_tokens\":3535,\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":0,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"\",\"iterations\":[],\"speed\":\"standard\"},\"modelUsage\":{\"claude-sonnet-4-6\":{\"inputTokens\":37361,\"outputTokens\":3535,\"cacheReadInputTokens\":33216,\"cacheCreationInputTokens\":0,\"webSearchRequests\":0,\"costUSD\":0.1750728,\"contextWindow\":200000,\"maxOutputTokens\":32000}},\"permission_denials\":[],\"terminal_reason\":\"completed\",\"fast_mode_state\":\"off\",\"uuid\":\"2dc8852a-b926-4ab2-a2c6-8336a1d22196\"}\n",
         "parsed": {
-          "filename": "src/services/auth/__init__.py",
-          "issues": [],
-          "summary": "Clean package init that re-exports all auth service public types and the device fingerprint helper. No issues."
-        }
-      },
-      {
-        "file": "src/services/auth/device_trust_service.py",
-        "returncode": 0,
-        "output": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"api_error_status\":null,\"duration_ms\":155831,\"duration_api_ms\":155719,\"num_turns\":5,\"result\":\"\\n\\n```json\\n[\\n  {\\n    \\\"filename\\\": \\\"src/db/models/webauthn_challenge.py\\\",\\n    \\\"issues\\\": [],\\n    \\\"summary\\\": \\\"Clean ORM model with proper column definitions, indexes, and server-side defaults. to_dict() intentionally omits the challenge field for security, which is correct per the router-layer serialization pattern.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"src/main.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 0,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"No rate limiting middleware is configured on any auth endpoints (rule 59).\\\",\\n        \\\"suggestion\\\": \\\"Add a rate limiting middleware (e.g. slowapi) scoped to auth routes, especially the WebAuthn and login endpoints, to prevent brute-force abuse.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Well-structured FastAPI entry point with clean exception hierarchy, proper CORS handling, and router inclusion. No critical issues.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"src/services/auth/__init__.py\\\",\\n    \\\"issues\\\": [],\\n    \\\"summary\\\": \\\"Clean package init that re-exports all auth service public types and the device fingerprint helper. No issues.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"src/services/auth/device_trust_service.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 155,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"`location` parameter is accepted but never used \u2014 geo-change detection is unimplemented (rule 111: hidden coupling).\\\",\\n        \\\"suggestion\\\": \\\"Remove `location` from the signature if geo-change detection is not implemented, or add the comparison: after the IP check, add `if location and device.last_location and location != device.last_location: reasons.append(SuspiciousActivityReason.GEO_CHANGE)`.\\\"\\n      },\\n      {\\n        \\\"line\\\": 98,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"`trust_device` does not update `last_used_at` when re-trusting an existing device (rule 90).\\\",\\n        \\\"suggestion\\\": \\\"Add `model.last_used_at = datetime.now(UTC)` in the `else` branch at line 98 to keep the timestamp current, ensuring `get_trusted_devices` ordering remains accurate.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Service correctly uses flush() over commit per project rules. `is_device_trusted`, `distrust_device`, and `distrust_all_devices` are clean. Two issues: a stub parameter in check_suspicious_activity and a missing timestamp update in trust_device.\\\"\\n  }\\n]\\n```\",\"stop_reason\":\"end_turn\",\"session_id\":\"ec5bda1b-167b-476c-b524-a46ba1fcf48e\",\"total_cost_usd\":0.1597626,\"usage\":{\"input_tokens\":34568,\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":30912,\"output_tokens\":3119,\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":0,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"\",\"iterations\":[],\"speed\":\"standard\"},\"modelUsage\":{\"claude-sonnet-4-6\":{\"inputTokens\":34568,\"outputTokens\":3119,\"cacheReadInputTokens\":30912,\"cacheCreationInputTokens\":0,\"webSearchRequests\":0,\"costUSD\":0.1597626,\"contextWindow\":200000,\"maxOutputTokens\":32000}},\"permission_denials\":[],\"terminal_reason\":\"completed\",\"fast_mode_state\":\"off\",\"uuid\":\"48c4d324-03f3-4da1-b7df-73b2e1b08da7\"}\n",
-        "parsed": {
-          "filename": "src/services/auth/device_trust_service.py",
+          "filename": "scripts/ci/self_review_implementation.py",
           "issues": [
             {
-              "line": 155,
-              "severity": "critical",
-              "message": "`location` parameter is accepted but never used \u2014 geo-change detection is unimplemented (rule 111: hidden coupling).",
-              "suggestion": "Remove `location` from the signature if geo-change detection is not implemented, or add the comparison: after the IP check, add `if location and device.last_location and location != device.last_location: reasons.append(SuspiciousActivityReason.GEO_CHANGE)`."
+              "line": 123,
+              "severity": "info",
+              "message": "Same timeout edge case as execute_implementation.py: if the select loop exhausts remaining time and proc.kill() fires, the final proc.wait(timeout=\u2026) receives a negative remaining value clamped to 1 s.",
+              "suggestion": "Guard the final wait call with an elapsed-time check so negative remaining time is handled explicitly."
             },
             {
-              "line": 98,
-              "severity": "warning",
-              "message": "`trust_device` does not update `last_used_at` when re-trusting an existing device (rule 90).",
-              "suggestion": "Add `model.last_used_at = datetime.now(UTC)` in the `else` branch at line 98 to keep the timestamp current, ensuring `get_trusted_devices` ordering remains accurate."
+              "line": 157,
+              "severity": "info",
+              "message": "OSError is broad \u2014 FileNotFoundError is the specific case for a missing binary; other OS errors (ENOMEM, EPERM) may warrant different treatment.",
+              "suggestion": "Catch FileNotFoundError explicitly for the missing-binary case; log or re-raise other OSError variants differently."
             }
           ],
-          "summary": "Service correctly uses flush() over commit per project rules. `is_device_trusted`, `distrust_device`, and `distrust_all_devices` are clean. Two issues: a stub parameter in check_suspicious_activity and a missing timestamp update in trust_device."
-        }
-      },
-      {
-        "file": "src/services/auth/token_service.py",
-        "returncode": 0,
-        "output": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"api_error_status\":null,\"duration_ms\":134267,\"duration_api_ms\":134147,\"num_turns\":3,\"result\":\"\\n\\n```json\\n[\\n  {\\n    \\\"filename\\\": \\\"src/services/auth/token_service.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 120,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"Access token tenant_id is baked into JWT at creation and not updated on tenant context change \u2014 stale tenant_id persists in the token for its full lifetime.\\\",\\n        \\\"suggestion\\\": \\\"Treat access token as issued for a specific tenant context; re-issue token on tenant switch if multi-tenancy is active.\\\"\\n      },\\n      {\\n        \\\"line\\\": 114,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"Multiple queries lack tenant_id filtering, relying on implicit user_id scoping \u2014 confirm this satisfies the multi-tenancy requirement for refresh tokens.\\\",\\n        \\\"suggestion\\\": \\\"Add tenant_id to WHERE clauses on all RefreshTokenModel queries if multi-tenant isolation is required.\\\"\\n      },\\n      {\\n        \\\"line\\\": 192,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"rotate_refresh_token truncates remaining TTL to whole days \u2014 a user with 8 days left gets 8 days on rotation, preserving most of the original window, but the logic could be clearer.\\\",\\n        \\\"suggestion\\\": \\\"Document or refactor the TTL rounding logic so the minimum-granted TTL is explicit.\\\"\\n      },\\n      {\\n        \\\"line\\\": 67,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"verify_access_token swallows jwt.ExpiredSignatureError and jwt.InvalidTokenError identically, returning None \u2014 this is safe but makes debugging harder.\\\",\\n        \\\"suggestion\\\": \\\"Log (but not expose) the specific failure reason for operational visibility without changing behavior.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"TokenService correctly implements refresh token lifecycle with hashed storage and rotation; multi-tenancy scoping on queries should be verified against the tenancy model.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"src/services/auth/webauthn_service.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 228,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"finish_registration accepts any origin from the client without validating it matches rp_id \u2014 a malicious client could register with an arbitrary origin.\\\",\\n        \\\"suggestion\\\": \\\"Validate that origin is https and matches the expected rp_id (e.g., origin must be https://<rp_id> or https://<rp_id>:<port>). Remove the TODO comment and add actual validation.\\\"\\n      },\\n      {\\n        \\\"line\\\": 326,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"verify_assertion accepts any origin without validation \u2014 same attack surface as finish_registration.\\\",\\n        \\\"suggestion\\\": \\\"Add origin validation matching the expected rp_id before accepting the assertion.\\\"\\n      },\\n      {\\n        \\\"line\\\": 245,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"Bare except: clause silently falls back to using the raw attestation object string as the public key \u2014 this could store an unusable credential without any error signal.\\\",\\n        \\\"suggestion\\\": \\\"Catch specific exceptions (base64.b64decode.DecodeError, json.JSONDecodeError) and raise ValidationException; only fallback for known-safe formats.\\\"\\n      },\\n      {\\n        \\\"line\\\": 358,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"Bare except: clause silently ignores all exceptions in sign count parsing \u2014 parsing errors are invisible and sign_count stays 0.\\\",\\n        \\\"suggestion\\\": \\\"Catch specific exceptions (ValueError, IndexError, struct.error) and handle them explicitly rather than using a bare except.\\\"\\n      },\\n      {\\n        \\\"line\\\": 350,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"Sign count byte offset (37) and length (4) are magic numbers \u2014 the structure is documented only in a comment.\\\",\\n        \\\"suggestion\\\": \\\"Define named constants (AUTHENTICATOR_DATA_SIGN_COUNT_OFFSET, AUTHENTICATOR_DATA_SIGN_COUNT_LENGTH) or parse from a structured AuthenticatorData class.\\\"\\n      },\\n      {\\n        \\\"line\\\": 103,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"_consume_challenge is not atomic \u2014 concurrent requests could consume the same challenge between the SELECT and the consume update within a single request.\\\",\\n        \\\"suggestion\\\": \\\"Use SELECT ... FOR UPDATE or an atomic UPDATE ... WHERE consumed=False RETURNING to eliminate the race window.\\\"\\n      },\\n      {\\n        \\\"line\\\": 234,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"The 256-byte threshold for choosing decode_credential_id vs base64.b64decode is arbitrary and undocumented \u2014 unclear why 256 bytes distinguishes the encoding scheme.\\\",\\n        \\\"suggestion\\\": \\\"Document the threshold rationale or refactor to always attempt url-safe decode first, then fallback to standard base64.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"WebAuthnService implements the full registration/assertion flow with TTL-backed challenges, but has two critical origin-validation gaps and two bare except: clauses that silently swallow failures.\\\"\\n  }\\n]\\n```\",\"stop_reason\":\"end_turn\",\"session_id\":\"c9cfa0f9-2491-4743-9ae8-a9dc36080003\",\"total_cost_usd\":0.14857740000000003,\"usage\":{\"input_tokens\":36641,\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":30848,\"output_tokens\":1960,\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":0,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"\",\"iterations\":[],\"speed\":\"standard\"},\"modelUsage\":{\"claude-sonnet-4-6\":{\"inputTokens\":36641,\"outputTokens\":1960,\"cacheReadInputTokens\":30848,\"cacheCreationInputTokens\":0,\"webSearchRequests\":0,\"costUSD\":0.14857740000000003,\"contextWindow\":200000,\"maxOutputTokens\":32000}},\"permission_denials\":[],\"terminal_reason\":\"completed\",\"fast_mode_state\":\"off\",\"uuid\":\"ef8d5784-5d33-40bf-b328-95278abe5ff7\"}\n",
-        "parsed": {
-          "filename": "src/services/auth/token_service.py",
-          "issues": [
-            {
-              "line": 120,
-              "severity": "warning",
-              "message": "Access token tenant_id is baked into JWT at creation and not updated on tenant context change \u2014 stale tenant_id persists in the token for its full lifetime.",
-              "suggestion": "Treat access token as issued for a specific tenant context; re-issue token on tenant switch if multi-tenancy is active."
-            },
-            {
-              "line": 114,
-              "severity": "info",
-              "message": "Multiple queries lack tenant_id filtering, relying on implicit user_id scoping \u2014 confirm this satisfies the multi-tenancy requirement for refresh tokens.",
-              "suggestion": "Add tenant_id to WHERE clauses on all RefreshTokenModel queries if multi-tenant isolation is required."
-            },
-            {
-              "line": 192,
-              "severity": "info",
-              "message": "rotate_refresh_token truncates remaining TTL to whole days \u2014 a user with 8 days left gets 8 days on rotation, preserving most of the original window, but the logic could be clearer.",
-              "suggestion": "Document or refactor the TTL rounding logic so the minimum-granted TTL is explicit."
-            },
-            {
-              "line": 67,
-              "severity": "info",
-              "message": "verify_access_token swallows jwt.ExpiredSignatureError and jwt.InvalidTokenError identically, returning None \u2014 this is safe but makes debugging harder.",
-              "suggestion": "Log (but not expose) the specific failure reason for operational visibility without changing behavior."
-            }
-          ],
-          "summary": "TokenService correctly implements refresh token lifecycle with hashed storage and rotation; multi-tenancy scoping on queries should be verified against the tenancy model."
-        }
-      },
-      {
-        "file": "src/services/auth/webauthn_service.py",
-        "returncode": 0,
-        "output": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"api_error_status\":null,\"duration_ms\":134267,\"duration_api_ms\":134147,\"num_turns\":3,\"result\":\"\\n\\n```json\\n[\\n  {\\n    \\\"filename\\\": \\\"src/services/auth/token_service.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 120,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"Access token tenant_id is baked into JWT at creation and not updated on tenant context change \u2014 stale tenant_id persists in the token for its full lifetime.\\\",\\n        \\\"suggestion\\\": \\\"Treat access token as issued for a specific tenant context; re-issue token on tenant switch if multi-tenancy is active.\\\"\\n      },\\n      {\\n        \\\"line\\\": 114,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"Multiple queries lack tenant_id filtering, relying on implicit user_id scoping \u2014 confirm this satisfies the multi-tenancy requirement for refresh tokens.\\\",\\n        \\\"suggestion\\\": \\\"Add tenant_id to WHERE clauses on all RefreshTokenModel queries if multi-tenant isolation is required.\\\"\\n      },\\n      {\\n        \\\"line\\\": 192,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"rotate_refresh_token truncates remaining TTL to whole days \u2014 a user with 8 days left gets 8 days on rotation, preserving most of the original window, but the logic could be clearer.\\\",\\n        \\\"suggestion\\\": \\\"Document or refactor the TTL rounding logic so the minimum-granted TTL is explicit.\\\"\\n      },\\n      {\\n        \\\"line\\\": 67,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"verify_access_token swallows jwt.ExpiredSignatureError and jwt.InvalidTokenError identically, returning None \u2014 this is safe but makes debugging harder.\\\",\\n        \\\"suggestion\\\": \\\"Log (but not expose) the specific failure reason for operational visibility without changing behavior.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"TokenService correctly implements refresh token lifecycle with hashed storage and rotation; multi-tenancy scoping on queries should be verified against the tenancy model.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"src/services/auth/webauthn_service.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 228,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"finish_registration accepts any origin from the client without validating it matches rp_id \u2014 a malicious client could register with an arbitrary origin.\\\",\\n        \\\"suggestion\\\": \\\"Validate that origin is https and matches the expected rp_id (e.g., origin must be https://<rp_id> or https://<rp_id>:<port>). Remove the TODO comment and add actual validation.\\\"\\n      },\\n      {\\n        \\\"line\\\": 326,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"verify_assertion accepts any origin without validation \u2014 same attack surface as finish_registration.\\\",\\n        \\\"suggestion\\\": \\\"Add origin validation matching the expected rp_id before accepting the assertion.\\\"\\n      },\\n      {\\n        \\\"line\\\": 245,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"Bare except: clause silently falls back to using the raw attestation object string as the public key \u2014 this could store an unusable credential without any error signal.\\\",\\n        \\\"suggestion\\\": \\\"Catch specific exceptions (base64.b64decode.DecodeError, json.JSONDecodeError) and raise ValidationException; only fallback for known-safe formats.\\\"\\n      },\\n      {\\n        \\\"line\\\": 358,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"Bare except: clause silently ignores all exceptions in sign count parsing \u2014 parsing errors are invisible and sign_count stays 0.\\\",\\n        \\\"suggestion\\\": \\\"Catch specific exceptions (ValueError, IndexError, struct.error) and handle them explicitly rather than using a bare except.\\\"\\n      },\\n      {\\n        \\\"line\\\": 350,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"Sign count byte offset (37) and length (4) are magic numbers \u2014 the structure is documented only in a comment.\\\",\\n        \\\"suggestion\\\": \\\"Define named constants (AUTHENTICATOR_DATA_SIGN_COUNT_OFFSET, AUTHENTICATOR_DATA_SIGN_COUNT_LENGTH) or parse from a structured AuthenticatorData class.\\\"\\n      },\\n      {\\n        \\\"line\\\": 103,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"_consume_challenge is not atomic \u2014 concurrent requests could consume the same challenge between the SELECT and the consume update within a single request.\\\",\\n        \\\"suggestion\\\": \\\"Use SELECT ... FOR UPDATE or an atomic UPDATE ... WHERE consumed=False RETURNING to eliminate the race window.\\\"\\n      },\\n      {\\n        \\\"line\\\": 234,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"The 256-byte threshold for choosing decode_credential_id vs base64.b64decode is arbitrary and undocumented \u2014 unclear why 256 bytes distinguishes the encoding scheme.\\\",\\n        \\\"suggestion\\\": \\\"Document the threshold rationale or refactor to always attempt url-safe decode first, then fallback to standard base64.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"WebAuthnService implements the full registration/assertion flow with TTL-backed challenges, but has two critical origin-validation gaps and two bare except: clauses that silently swallow failures.\\\"\\n  }\\n]\\n```\",\"stop_reason\":\"end_turn\",\"session_id\":\"c9cfa0f9-2491-4743-9ae8-a9dc36080003\",\"total_cost_usd\":0.14857740000000003,\"usage\":{\"input_tokens\":36641,\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":30848,\"output_tokens\":1960,\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":0,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"\",\"iterations\":[],\"speed\":\"standard\"},\"modelUsage\":{\"claude-sonnet-4-6\":{\"inputTokens\":36641,\"outputTokens\":1960,\"cacheReadInputTokens\":30848,\"cacheCreationInputTokens\":0,\"webSearchRequests\":0,\"costUSD\":0.14857740000000003,\"contextWindow\":200000,\"maxOutputTokens\":32000}},\"permission_denials\":[],\"terminal_reason\":\"completed\",\"fast_mode_state\":\"off\",\"uuid\":\"ef8d5784-5d33-40bf-b328-95278abe5ff7\"}\n",
-        "parsed": {
-          "filename": "src/services/auth/webauthn_service.py",
-          "issues": [
-            {
-              "line": 228,
-              "severity": "critical",
-              "message": "finish_registration accepts any origin from the client without validating it matches rp_id \u2014 a malicious client could register with an arbitrary origin.",
-              "suggestion": "Validate that origin is https and matches the expected rp_id (e.g., origin must be https://<rp_id> or https://<rp_id>:<port>). Remove the TODO comment and add actual validation."
-            },
-            {
-              "line": 326,
-              "severity": "critical",
-              "message": "verify_assertion accepts any origin without validation \u2014 same attack surface as finish_registration.",
-              "suggestion": "Add origin validation matching the expected rp_id before accepting the assertion."
-            },
-            {
-              "line": 245,
-              "severity": "warning",
-              "message": "Bare except: clause silently falls back to using the raw attestation object string as the public key \u2014 this could store an unusable credential without any error signal.",
-              "suggestion": "Catch specific exceptions (base64.b64decode.DecodeError, json.JSONDecodeError) and raise ValidationException; only fallback for known-safe formats."
-            },
-            {
-              "line": 358,
-              "severity": "warning",
-              "message": "Bare except: clause silently ignores all exceptions in sign count parsing \u2014 parsing errors are invisible and sign_count stays 0.",
-              "suggestion": "Catch specific exceptions (ValueError, IndexError, struct.error) and handle them explicitly rather than using a bare except."
-            },
-            {
-              "line": 350,
-              "severity": "info",
-              "message": "Sign count byte offset (37) and length (4) are magic numbers \u2014 the structure is documented only in a comment.",
-              "suggestion": "Define named constants (AUTHENTICATOR_DATA_SIGN_COUNT_OFFSET, AUTHENTICATOR_DATA_SIGN_COUNT_LENGTH) or parse from a structured AuthenticatorData class."
-            },
-            {
-              "line": 103,
-              "severity": "info",
-              "message": "_consume_challenge is not atomic \u2014 concurrent requests could consume the same challenge between the SELECT and the consume update within a single request.",
-              "suggestion": "Use SELECT ... FOR UPDATE or an atomic UPDATE ... WHERE consumed=False RETURNING to eliminate the race window."
-            },
-            {
-              "line": 234,
-              "severity": "info",
-              "message": "The 256-byte threshold for choosing decode_credential_id vs base64.b64decode is arbitrary and undocumented \u2014 unclear why 256 bytes distinguishes the encoding scheme.",
-              "suggestion": "Document the threshold rationale or refactor to always attempt url-safe decode first, then fallback to standard base64."
-            }
-          ],
-          "summary": "WebAuthnService implements the full registration/assertion flow with TTL-backed challenges, but has two critical origin-validation gaps and two bare except: clauses that silently swallow failures."
+          "summary": "Self-review prompt is thorough and well-scoped; streaming and timeout patterns match execute_implementation.py correctly."
         }
       }
     ]
