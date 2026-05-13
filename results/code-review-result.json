@@ -3,97 +3,83 @@
   "verdict": "fail",
   "critical_issues": [
     {
-      "file": "src/services/customer_service.py",
-      "line": 10,
+      "file": "tests/unit/test_customer_service.py",
+      "line": 219,
       "severity": "critical",
-      "msg": "CustomerStatus imported from models.customer has 4 values but VALID_STATUSES on line 18 has 7 values \u2014 'partner', 'prospect', 'active', 'blocked' are in VALID_STATUSES but not in the enum; count_by_status() will crash with ValueError when it encounters these statuses.",
-      "suggestion": "Extend CustomerStatus enum in models/customer.py to include all VALID_STATUSES values, or remove the missing ones from VALID_STATUSES. Ensure the two stay in sync."
-    },
-    {
-      "file": "src/services/customer_service.py",
-      "line": 139,
-      "severity": "critical",
-      "msg": "count_by_status() returns Dict[CustomerStatus, int] but the dict comprehension on line 146 calls CustomerStatus(row[0]) which raises ValueError for any status string not defined in the enum (e.g. 'partner', 'prospect', 'blocked').",
-      "suggestion": "This line will raise at runtime for any status not in the enum. Either the enum must be exhaustive, or use a try/except (or .get()) to gracefully handle unknown statuses."
+      "msg": "TestCountByStatus is missing @pytest.mark.asyncio class decorator \u2014 async test methods will not be treated as coroutines by pytest-asyncio, causing them to be silently skipped or error.",
+      "suggestion": "Add @pytest.mark.asyncio decorator before 'class TestCountByStatus:' on line 220."
     }
   ],
   "suggestions": [
     {
       "file": "src/services/customer_service.py",
-      "line": 129,
+      "line": 100,
+      "severity": "warning",
+      "msg": "NotFoundException message uses Chinese string '\u5ba2\u6237' \u2014 inconsistent with English-only conventions (rule 20).",
+      "suggestion": "Use 'Customer' instead of '\u5ba2\u6237' for the exception message."
+    },
+    {
+      "file": "src/services/customer_service.py",
+      "line": 135,
+      "severity": "warning",
+      "msg": "NotFoundException message uses Chinese string '\u5ba2\u6237' \u2014 inconsistent with English-only conventions (rule 20).",
+      "suggestion": "Use 'Customer' instead of '\u5ba2\u6237' for the exception message."
+    },
+    {
+      "file": "src/services/customer_service.py",
+      "line": 4,
       "severity": "info",
-      "msg": "delete_customer returns dict {'id': customer_id} while all other service methods return ORM models \u2014 inconsistent return type for a mutation method.",
-      "suggestion": "Return type annotation is missing on line 129 (declared as -> dict) \u2014 consider returning just customer_id (int) or None to match other delete-style methods, or add an explicit type annotation."
+      "msg": "typing.Dict is imported but lowercase dict is used throughout the file \u2014 inconsistent import style (rule 20).",
+      "suggestion": "Remove 'Dict' from the typing import; use built-in dict consistently."
     },
     {
-      "file": "tests/integration/test_sales_customer_integration.py",
-      "line": 27,
+      "file": "src/services/customer_service.py",
+      "line": 108,
       "severity": "info",
-      "msg": "_seed_user is defined in this file but only used by assign_owner (line 189) and a few SalesService tests \u2014 minor duplication vs the same helper in tests/integration/conftest.py.",
-      "suggestion": "Consider importing _seed_user from conftest.py or the shared helpers module to avoid duplication."
+      "msg": "Return type uses Python 3.10+ pipe union syntax (CustomerModel | None) while other files may use Optional \u2014 verify project-wide convention.",
+      "suggestion": "Use Optional[CustomerModel] for consistency with Optional-style type hints used elsewhere in the codebase."
     },
     {
-      "file": "tests/integration/test_sales_customer_integration.py",
-      "line": 41,
+      "file": "src/services/customer_service.py",
+      "line": 215,
+      "severity": "warning",
+      "msg": "bulk_import builds all ORM objects in memory before flushing \u2014 O(N) memory before any DB write; large payloads could exhaust memory (rule 33).",
+      "suggestion": "Consider flushing in batches (e.g., every 500 rows) to bound memory usage, or use executemany-style bulk insert."
+    },
+    {
+      "file": "src/services/customer_service.py",
+      "line": 136,
       "severity": "info",
-      "msg": "_seed_customer is defined in this file but may duplicate a helper of the same name in conftest.py \u2014 search for both definitions before adding another.",
-      "suggestion": "Consolidate into a single shared _seed_customer in conftest.py and import it here."
+      "msg": "delete_customer calls flush() even though no auto-generated ID is needed back \u2014 unnecessary DB round-trip (rule 36).",
+      "suggestion": "Remove await self.session.flush() from delete_customer \u2014 the rowcount check is already done before flush."
     },
     {
       "file": "tests/integration/test_sales_customer_integration.py",
-      "line": 130,
-      "severity": "warning",
-      "msg": "test_list_customers asserts 'len(items) >= 3' but creates only 3 customers for this specific tenant \u2014 if other tests share the same DB (schema truncated between tests, but session is function-scoped), the assertion may flakily pass on a larger-than-expected result set.",
-      "suggestion": "Use tenant-scoped filtering or a unique-enough suffix to guarantee the assertion measures only the test's own data."
-    },
-    {
-      "file": "tests/integration/test_sales_customer_integration.py",
-      "line": 143,
-      "severity": "warning",
-      "msg": "test_list_customers_pagination asserts 'total1 >= 5' using a >= comparison that hides whether pagination actually works or whether earlier tests left residual data.",
-      "suggestion": "Assert 'total1 == 5' or otherwise isolate the test's data so the assertion is deterministic."
-    },
-    {
-      "file": "tests/integration/test_sales_customer_integration.py",
-      "line": 466,
-      "severity": "warning",
-      "msg": "test_count_by_status_tenant_isolation creates customers for tenant2_id within a test on the same async_session without cleanup \u2014 if the session is function-scoped but shared across tests, cross-test contamination is possible.",
-      "suggestion": "Verify conftest.py truncates all tables (TRUNCATE CASCADE) between each test function to guarantee isolation, or add explicit cleanup."
-    },
-    {
-      "file": "tests/unit/test_customer_service.py",
-      "line": 18,
-      "severity": "warning",
-      "msg": "mock_db_session fixture defines session.commit = MagicMock() (line 23) \u2014 commit should not appear on the mock since services must never call commit (rules 121/122); the mock should not include this method.",
-      "suggestion": "Remove session.commit = MagicMock() from the fixture. If a test needs to verify flush was called, assert flush directly rather than having commit on the mock."
-    },
-    {
-      "file": "tests/unit/test_customer_service.py",
-      "line": 149,
-      "severity": "warning",
-      "msg": "fake_refresh is a regular (non-async) function but service.create_customer calls 'await self.session.refresh(customer)' \u2014 async code calling a sync coroutine will fail with 'coroutine was never awaited' at runtime.",
-      "suggestion": "Make fake_refresh an async def: 'async def fake_refresh(obj): ...' and call it as 'mock_db_session.refresh = fake_refresh' without await (the mock replaces the bound method)."
-    },
-    {
-      "file": "tests/unit/test_customer_service.py",
-      "line": 164,
-      "severity": "warning",
-      "msg": "Same issue as line 149 \u2014 fake_refresh is synchronous but session.refresh is awaited in create_customer.",
-      "suggestion": "Make fake_refresh async (async def fake_refresh(obj): ...)."
-    },
-    {
-      "file": "tests/unit/test_customer_service.py",
-      "line": 201,
-      "severity": "warning",
-      "msg": "Same issue as line 149 \u2014 fake_refresh is synchronous but service.create_customer awaits it.",
-      "suggestion": "Make fake_refresh async (async def fake_refresh(obj): ...)."
-    },
-    {
-      "file": "tests/unit/test_customer_service.py",
-      "line": 137,
+      "line": 467,
       "severity": "info",
-      "msg": "Test class TestCreateCustomerService is not decorated with @pytest.mark.asyncio \u2014 pytest-asyncio requires explicit marking for class-level async test classes.",
-      "suggestion": "Add @pytest.mark.asyncio above the class definition: '@pytest.mark.asyncio\\nclass TestCreateCustomerService:'."
+      "msg": "Explicit async_session.commit() in test body \u2014 test code owns the transaction boundary here (rule 121/122 note: tests are exempt, but still worth flagging for clarity).",
+      "suggestion": "No change needed \u2014 integration tests own their transaction; just be aware this differs from service-layer semantics."
+    },
+    {
+      "file": "tests/integration/test_sales_customer_integration.py",
+      "line": 509,
+      "severity": "info",
+      "msg": "Explicit async_session.commit() in test body \u2014 same as line 467.",
+      "suggestion": "No change needed."
+    },
+    {
+      "file": "tests/unit/test_customer_service.py",
+      "line": 30,
+      "severity": "warning",
+      "msg": "mock_result.fetchall is a MagicMock (sync) while result.all is AsyncMock on line 31 \u2014 if any code path calls fetchall() expecting an awaitable, it will fail at runtime.",
+      "suggestion": "Make mock_result.fetchall = AsyncMock(return_value=[]) for consistency with how the mock is wired elsewhere."
+    },
+    {
+      "file": "tests/unit/test_customer_service.py",
+      "line": 25,
+      "severity": "info",
+      "msg": "session.commit is set as AsyncMock but services never call session.commit() \u2014 this mock is dead code and could mask a future accidental commit call.",
+      "suggestion": "Remove session.commit = AsyncMock() from the fixture, or replace with a non-Async MagicMock with a warning comment."
     }
   ],
   "summary": "Reviewed 3 file(s) between origin/master and origin/issue-271-customer-dto.",
@@ -102,104 +88,90 @@
       "verdict": "fail",
       "critical": [
         {
-          "file": "src/services/customer_service.py",
-          "line": 10,
+          "file": "tests/unit/test_customer_service.py",
+          "line": 219,
           "severity": "critical",
-          "msg": "CustomerStatus imported from models.customer has 4 values but VALID_STATUSES on line 18 has 7 values \u2014 'partner', 'prospect', 'active', 'blocked' are in VALID_STATUSES but not in the enum; count_by_status() will crash with ValueError when it encounters these statuses.",
-          "suggestion": "Extend CustomerStatus enum in models/customer.py to include all VALID_STATUSES values, or remove the missing ones from VALID_STATUSES. Ensure the two stay in sync."
-        },
-        {
-          "file": "src/services/customer_service.py",
-          "line": 139,
-          "severity": "critical",
-          "msg": "count_by_status() returns Dict[CustomerStatus, int] but the dict comprehension on line 146 calls CustomerStatus(row[0]) which raises ValueError for any status string not defined in the enum (e.g. 'partner', 'prospect', 'blocked').",
-          "suggestion": "This line will raise at runtime for any status not in the enum. Either the enum must be exhaustive, or use a try/except (or .get()) to gracefully handle unknown statuses."
+          "msg": "TestCountByStatus is missing @pytest.mark.asyncio class decorator \u2014 async test methods will not be treated as coroutines by pytest-asyncio, causing them to be silently skipped or error.",
+          "suggestion": "Add @pytest.mark.asyncio decorator before 'class TestCountByStatus:' on line 220."
         }
       ],
       "warnings": [
         {
           "file": "src/services/customer_service.py",
-          "line": 129,
+          "line": 100,
+          "severity": "warning",
+          "msg": "NotFoundException message uses Chinese string '\u5ba2\u6237' \u2014 inconsistent with English-only conventions (rule 20).",
+          "suggestion": "Use 'Customer' instead of '\u5ba2\u6237' for the exception message."
+        },
+        {
+          "file": "src/services/customer_service.py",
+          "line": 135,
+          "severity": "warning",
+          "msg": "NotFoundException message uses Chinese string '\u5ba2\u6237' \u2014 inconsistent with English-only conventions (rule 20).",
+          "suggestion": "Use 'Customer' instead of '\u5ba2\u6237' for the exception message."
+        },
+        {
+          "file": "src/services/customer_service.py",
+          "line": 4,
           "severity": "info",
-          "msg": "delete_customer returns dict {'id': customer_id} while all other service methods return ORM models \u2014 inconsistent return type for a mutation method.",
-          "suggestion": "Return type annotation is missing on line 129 (declared as -> dict) \u2014 consider returning just customer_id (int) or None to match other delete-style methods, or add an explicit type annotation."
+          "msg": "typing.Dict is imported but lowercase dict is used throughout the file \u2014 inconsistent import style (rule 20).",
+          "suggestion": "Remove 'Dict' from the typing import; use built-in dict consistently."
         },
         {
-          "file": "tests/integration/test_sales_customer_integration.py",
-          "line": 27,
+          "file": "src/services/customer_service.py",
+          "line": 108,
           "severity": "info",
-          "msg": "_seed_user is defined in this file but only used by assign_owner (line 189) and a few SalesService tests \u2014 minor duplication vs the same helper in tests/integration/conftest.py.",
-          "suggestion": "Consider importing _seed_user from conftest.py or the shared helpers module to avoid duplication."
+          "msg": "Return type uses Python 3.10+ pipe union syntax (CustomerModel | None) while other files may use Optional \u2014 verify project-wide convention.",
+          "suggestion": "Use Optional[CustomerModel] for consistency with Optional-style type hints used elsewhere in the codebase."
         },
         {
-          "file": "tests/integration/test_sales_customer_integration.py",
-          "line": 41,
+          "file": "src/services/customer_service.py",
+          "line": 215,
+          "severity": "warning",
+          "msg": "bulk_import builds all ORM objects in memory before flushing \u2014 O(N) memory before any DB write; large payloads could exhaust memory (rule 33).",
+          "suggestion": "Consider flushing in batches (e.g., every 500 rows) to bound memory usage, or use executemany-style bulk insert."
+        },
+        {
+          "file": "src/services/customer_service.py",
+          "line": 136,
           "severity": "info",
-          "msg": "_seed_customer is defined in this file but may duplicate a helper of the same name in conftest.py \u2014 search for both definitions before adding another.",
-          "suggestion": "Consolidate into a single shared _seed_customer in conftest.py and import it here."
+          "msg": "delete_customer calls flush() even though no auto-generated ID is needed back \u2014 unnecessary DB round-trip (rule 36).",
+          "suggestion": "Remove await self.session.flush() from delete_customer \u2014 the rowcount check is already done before flush."
         },
         {
           "file": "tests/integration/test_sales_customer_integration.py",
-          "line": 130,
-          "severity": "warning",
-          "msg": "test_list_customers asserts 'len(items) >= 3' but creates only 3 customers for this specific tenant \u2014 if other tests share the same DB (schema truncated between tests, but session is function-scoped), the assertion may flakily pass on a larger-than-expected result set.",
-          "suggestion": "Use tenant-scoped filtering or a unique-enough suffix to guarantee the assertion measures only the test's own data."
-        },
-        {
-          "file": "tests/integration/test_sales_customer_integration.py",
-          "line": 143,
-          "severity": "warning",
-          "msg": "test_list_customers_pagination asserts 'total1 >= 5' using a >= comparison that hides whether pagination actually works or whether earlier tests left residual data.",
-          "suggestion": "Assert 'total1 == 5' or otherwise isolate the test's data so the assertion is deterministic."
-        },
-        {
-          "file": "tests/integration/test_sales_customer_integration.py",
-          "line": 466,
-          "severity": "warning",
-          "msg": "test_count_by_status_tenant_isolation creates customers for tenant2_id within a test on the same async_session without cleanup \u2014 if the session is function-scoped but shared across tests, cross-test contamination is possible.",
-          "suggestion": "Verify conftest.py truncates all tables (TRUNCATE CASCADE) between each test function to guarantee isolation, or add explicit cleanup."
-        },
-        {
-          "file": "tests/unit/test_customer_service.py",
-          "line": 18,
-          "severity": "warning",
-          "msg": "mock_db_session fixture defines session.commit = MagicMock() (line 23) \u2014 commit should not appear on the mock since services must never call commit (rules 121/122); the mock should not include this method.",
-          "suggestion": "Remove session.commit = MagicMock() from the fixture. If a test needs to verify flush was called, assert flush directly rather than having commit on the mock."
-        },
-        {
-          "file": "tests/unit/test_customer_service.py",
-          "line": 149,
-          "severity": "warning",
-          "msg": "fake_refresh is a regular (non-async) function but service.create_customer calls 'await self.session.refresh(customer)' \u2014 async code calling a sync coroutine will fail with 'coroutine was never awaited' at runtime.",
-          "suggestion": "Make fake_refresh an async def: 'async def fake_refresh(obj): ...' and call it as 'mock_db_session.refresh = fake_refresh' without await (the mock replaces the bound method)."
-        },
-        {
-          "file": "tests/unit/test_customer_service.py",
-          "line": 164,
-          "severity": "warning",
-          "msg": "Same issue as line 149 \u2014 fake_refresh is synchronous but session.refresh is awaited in create_customer.",
-          "suggestion": "Make fake_refresh async (async def fake_refresh(obj): ...)."
-        },
-        {
-          "file": "tests/unit/test_customer_service.py",
-          "line": 201,
-          "severity": "warning",
-          "msg": "Same issue as line 149 \u2014 fake_refresh is synchronous but service.create_customer awaits it.",
-          "suggestion": "Make fake_refresh async (async def fake_refresh(obj): ...)."
-        },
-        {
-          "file": "tests/unit/test_customer_service.py",
-          "line": 137,
+          "line": 467,
           "severity": "info",
-          "msg": "Test class TestCreateCustomerService is not decorated with @pytest.mark.asyncio \u2014 pytest-asyncio requires explicit marking for class-level async test classes.",
-          "suggestion": "Add @pytest.mark.asyncio above the class definition: '@pytest.mark.asyncio\\nclass TestCreateCustomerService:'."
+          "msg": "Explicit async_session.commit() in test body \u2014 test code owns the transaction boundary here (rule 121/122 note: tests are exempt, but still worth flagging for clarity).",
+          "suggestion": "No change needed \u2014 integration tests own their transaction; just be aware this differs from service-layer semantics."
+        },
+        {
+          "file": "tests/integration/test_sales_customer_integration.py",
+          "line": 509,
+          "severity": "info",
+          "msg": "Explicit async_session.commit() in test body \u2014 same as line 467.",
+          "suggestion": "No change needed."
+        },
+        {
+          "file": "tests/unit/test_customer_service.py",
+          "line": 30,
+          "severity": "warning",
+          "msg": "mock_result.fetchall is a MagicMock (sync) while result.all is AsyncMock on line 31 \u2014 if any code path calls fetchall() expecting an awaitable, it will fail at runtime.",
+          "suggestion": "Make mock_result.fetchall = AsyncMock(return_value=[]) for consistency with how the mock is wired elsewhere."
+        },
+        {
+          "file": "tests/unit/test_customer_service.py",
+          "line": 25,
+          "severity": "info",
+          "msg": "session.commit is set as AsyncMock but services never call session.commit() \u2014 this mock is dead code and could mask a future accidental commit call.",
+          "suggestion": "Remove session.commit = AsyncMock() from the fixture, or replace with a non-Async MagicMock with a warning comment."
         }
       ],
       "summary": "Reviewed 3 file(s) between origin/master and origin/issue-271-customer-dto."
     },
     "reviewed_refs": {
       "base": "ad61e5be9cdd83693cd5a071c4760a7d4c168f41",
-      "head": "c2b9c5a897cd1212429c21525062ec72cd6ad23a",
+      "head": "afd87db6b683fc831385fa0d3845f2bd55571450",
       "base_label": "origin/master",
       "head_label": "origin/issue-271-customer-dto"
     },
@@ -212,112 +184,100 @@
       {
         "file": "src/services/customer_service.py",
         "returncode": 0,
-        "output": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"api_error_status\":null,\"duration_ms\":170266,\"duration_api_ms\":170154,\"num_turns\":13,\"result\":\"\\n\\n[\\n  {\\n    \\\"filename\\\": \\\"src/services/customer_service.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 10,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"CustomerStatus imported from models.customer has 4 values but VALID_STATUSES on line 18 has 7 values \u2014 'partner', 'prospect', 'active', 'blocked' are in VALID_STATUSES but not in the enum; count_by_status() will crash with ValueError when it encounters these statuses.\\\",\\n        \\\"suggestion\\\": \\\"Extend CustomerStatus enum in models/customer.py to include all VALID_STATUSES values, or remove the missing ones from VALID_STATUSES. Ensure the two stay in sync.\\\"\\n      },\\n      {\\n        \\\"line\\\": 139,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"count_by_status() returns Dict[CustomerStatus, int] but the dict comprehension on line 146 calls CustomerStatus(row[0]) which raises ValueError for any status string not defined in the enum (e.g. 'partner', 'prospect', 'blocked').\\\",\\n        \\\"suggestion\\\": \\\"This line will raise at runtime for any status not in the enum. Either the enum must be exhaustive, or use a try/except (or .get()) to gracefully handle unknown statuses.\\\"\\n      },\\n      {\\n        \\\"line\\\": 129,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"delete_customer returns dict {'id': customer_id} while all other service methods return ORM models \u2014 inconsistent return type for a mutation method.\\\",\\n        \\\"suggestion\\\": \\\"Return type annotation is missing on line 129 (declared as -> dict) \u2014 consider returning just customer_id (int) or None to match other delete-style methods, or add an explicit type annotation.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Service correctly follows flush-not-commit pattern (rules 121/122) but has a critical mismatch between VALID_STATUSES and the CustomerStatus enum causing runtime crashes in count_by_status.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"tests/integration/test_sales_customer_integration.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 27,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"_seed_user is defined in this file but only used by assign_owner (line 189) and a few SalesService tests \u2014 minor duplication vs the same helper in tests/integration/conftest.py.\\\",\\n        \\\"suggestion\\\": \\\"Consider importing _seed_user from conftest.py or the shared helpers module to avoid duplication.\\\"\\n      },\\n      {\\n        \\\"line\\\": 41,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"_seed_customer is defined in this file but may duplicate a helper of the same name in conftest.py \u2014 search for both definitions before adding another.\\\",\\n        \\\"suggestion\\\": \\\"Consolidate into a single shared _seed_customer in conftest.py and import it here.\\\"\\n      },\\n      {\\n        \\\"line\\\": 130,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"test_list_customers asserts 'len(items) >= 3' but creates only 3 customers for this specific tenant \u2014 if other tests share the same DB (schema truncated between tests, but session is function-scoped), the assertion may flakily pass on a larger-than-expected result set.\\\",\\n        \\\"suggestion\\\": \\\"Use tenant-scoped filtering or a unique-enough suffix to guarantee the assertion measures only the test's own data.\\\"\\n      },\\n      {\\n        \\\"line\\\": 143,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"test_list_customers_pagination asserts 'total1 >= 5' using a >= comparison that hides whether pagination actually works or whether earlier tests left residual data.\\\",\\n        \\\"suggestion\\\": \\\"Assert 'total1 == 5' or otherwise isolate the test's data so the assertion is deterministic.\\\"\\n      },\\n      {\\n        \\\"line\\\": 466,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"test_count_by_status_tenant_isolation creates customers for tenant2_id within a test on the same async_session without cleanup \u2014 if the session is function-scoped but shared across tests, cross-test contamination is possible.\\\",\\n        \\\"suggestion\\\": \\\"Verify conftest.py truncates all tables (TRUNCATE CASCADE) between each test function to guarantee isolation, or add explicit cleanup.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Integration tests correctly use real DB fixtures (db_schema, tenant_id, async_session) and cover the full lifecycle; pagination assertions use >= comparisons that could mask flakiness from shared state.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"tests/unit/test_customer_service.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 18,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"mock_db_session fixture defines session.commit = MagicMock() (line 23) \u2014 commit should not appear on the mock since services must never call commit (rules 121/122); the mock should not include this method.\\\",\\n        \\\"suggestion\\\": \\\"Remove session.commit = MagicMock() from the fixture. If a test needs to verify flush was called, assert flush directly rather than having commit on the mock.\\\"\\n      },\\n      {\\n        \\\"line\\\": 149,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"fake_refresh is a regular (non-async) function but service.create_customer calls 'await self.session.refresh(customer)' \u2014 async code calling a sync coroutine will fail with 'coroutine was never awaited' at runtime.\\\",\\n        \\\"suggestion\\\": \\\"Make fake_refresh an async def: 'async def fake_refresh(obj): ...' and call it as 'mock_db_session.refresh = fake_refresh' without await (the mock replaces the bound method).\\\"\\n      },\\n      {\\n        \\\"line\\\": 164,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"Same issue as line 149 \u2014 fake_refresh is synchronous but session.refresh is awaited in create_customer.\\\",\\n        \\\"suggestion\\\": \\\"Make fake_refresh async (async def fake_refresh(obj): ...).\\\"\\n      },\\n      {\\n        \\\"line\\\": 201,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"Same issue as line 149 \u2014 fake_refresh is synchronous but service.create_customer awaits it.\\\",\\n        \\\"suggestion\\\": \\\"Make fake_refresh async (async def fake_refresh(obj): ...).\\\"\\n      },\\n      {\\n        \\\"line\\\": 137,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"Test class TestCreateCustomerService is not decorated with @pytest.mark.asyncio \u2014 pytest-asyncio requires explicit marking for class-level async test classes.\\\",\\n        \\\"suggestion\\\": \\\"Add @pytest.mark.asyncio above the class definition: '@pytest.mark.asyncio\\\\\\\\nclass TestCreateCustomerService:'.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Unit tests correctly mock only the DB layer (no real DB), but the mock refresh helper is synchronous while the service awaits it \u2014 a bug that will cause 'coroutine was never awaited' at runtime.\\\"\\n  }\\n]\",\"stop_reason\":\"end_turn\",\"session_id\":\"5d7b996b-664e-4f96-9298-c5b37f34cf8e\",\"total_cost_usd\":0.31643279999999996,\"usage\":{\"input_tokens\":42376,\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":242816,\"output_tokens\":7764,\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":0,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"\",\"iterations\":[],\"speed\":\"standard\"},\"modelUsage\":{\"claude-sonnet-4-6\":{\"inputTokens\":42376,\"outputTokens\":7764,\"cacheReadInputTokens\":242816,\"cacheCreationInputTokens\":0,\"webSearchRequests\":0,\"costUSD\":0.31643279999999996,\"contextWindow\":200000,\"maxOutputTokens\":32000}},\"permission_denials\":[],\"terminal_reason\":\"completed\",\"fast_mode_state\":\"off\",\"uuid\":\"05c27040-ca4a-4add-95fe-56b52d80fcaa\"}\n",
+        "output": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"api_error_status\":null,\"duration_ms\":33755,\"duration_api_ms\":33654,\"num_turns\":4,\"result\":\"\\n\\n[\\n  {\\n    \\\"filename\\\": \\\"src/services/customer_service.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 100,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"NotFoundException message uses Chinese string '\u5ba2\u6237' \u2014 inconsistent with English-only conventions (rule 20).\\\",\\n        \\\"suggestion\\\": \\\"Use 'Customer' instead of '\u5ba2\u6237' for the exception message.\\\"\\n      },\\n      {\\n        \\\"line\\\": 135,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"NotFoundException message uses Chinese string '\u5ba2\u6237' \u2014 inconsistent with English-only conventions (rule 20).\\\",\\n        \\\"suggestion\\\": \\\"Use 'Customer' instead of '\u5ba2\u6237' for the exception message.\\\"\\n      },\\n      {\\n        \\\"line\\\": 4,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"typing.Dict is imported but lowercase dict is used throughout the file \u2014 inconsistent import style (rule 20).\\\",\\n        \\\"suggestion\\\": \\\"Remove 'Dict' from the typing import; use built-in dict consistently.\\\"\\n      },\\n      {\\n        \\\"line\\\": 108,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"Return type uses Python 3.10+ pipe union syntax (CustomerModel | None) while other files may use Optional \u2014 verify project-wide convention.\\\",\\n        \\\"suggestion\\\": \\\"Use Optional[CustomerModel] for consistency with Optional-style type hints used elsewhere in the codebase.\\\"\\n      },\\n      {\\n        \\\"line\\\": 215,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"bulk_import builds all ORM objects in memory before flushing \u2014 O(N) memory before any DB write; large payloads could exhaust memory (rule 33).\\\",\\n        \\\"suggestion\\\": \\\"Consider flushing in batches (e.g., every 500 rows) to bound memory usage, or use executemany-style bulk insert.\\\"\\n      },\\n      {\\n        \\\"line\\\": 136,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"delete_customer calls flush() even though no auto-generated ID is needed back \u2014 unnecessary DB round-trip (rule 36).\\\",\\n        \\\"suggestion\\\": \\\"Remove await self.session.flush() from delete_customer \u2014 the rowcount check is already done before flush.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Service correctly follows flush\u2192refresh\u2192router-commit pattern and has solid multi-tenancy filtering, but uses Chinese error messages and has one memory-concern in bulk_import.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"tests/integration/test_sales_customer_integration.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 467,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"Explicit async_session.commit() in test body \u2014 test code owns the transaction boundary here (rule 121/122 note: tests are exempt, but still worth flagging for clarity).\\\",\\n        \\\"suggestion\\\": \\\"No change needed \u2014 integration tests own their transaction; just be aware this differs from service-layer semantics.\\\"\\n      },\\n      {\\n        \\\"line\\\": 509,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"Explicit async_session.commit() in test body \u2014 same as line 467.\\\",\\n        \\\"suggestion\\\": \\\"No change needed.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Correctly uses raw SQL inserts for precise status control and real DB fixtures throughout \u2014 no DB mocking. Minor note on explicit commits in test bodies.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"tests/unit/test_customer_service.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 219,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"TestCountByStatus is missing @pytest.mark.asyncio class decorator \u2014 async test methods will not be treated as coroutines by pytest-asyncio, causing them to be silently skipped or error.\\\",\\n        \\\"suggestion\\\": \\\"Add @pytest.mark.asyncio decorator before 'class TestCountByStatus:' on line 220.\\\"\\n      },\\n      {\\n        \\\"line\\\": 30,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"mock_result.fetchall is a MagicMock (sync) while result.all is AsyncMock on line 31 \u2014 if any code path calls fetchall() expecting an awaitable, it will fail at runtime.\\\",\\n        \\\"suggestion\\\": \\\"Make mock_result.fetchall = AsyncMock(return_value=[]) for consistency with how the mock is wired elsewhere.\\\"\\n      },\\n      {\\n        \\\"line\\\": 25,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"session.commit is set as AsyncMock but services never call session.commit() \u2014 this mock is dead code and could mask a future accidental commit call.\\\",\\n        \\\"suggestion\\\": \\\"Remove session.commit = AsyncMock() from the fixture, or replace with a non-Async MagicMock with a warning comment.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"TestCreateDTO and TestCreateCustomerService are solid; TestCountByStatus is missing @pytest.mark.asyncio which would silently skip all its tests.\\\"\\n  }\\n]\",\"stop_reason\":\"end_turn\",\"session_id\":\"81b2c4d0-16ab-4d5d-9263-8195e21ceba8\",\"total_cost_usd\":0.1607538,\"usage\":{\"input_tokens\":38823,\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":33216,\"output_tokens\":2288,\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":0,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"\",\"iterations\":[],\"speed\":\"standard\"},\"modelUsage\":{\"claude-sonnet-4-6\":{\"inputTokens\":38823,\"outputTokens\":2288,\"cacheReadInputTokens\":33216,\"cacheCreationInputTokens\":0,\"webSearchRequests\":0,\"costUSD\":0.1607538,\"contextWindow\":200000,\"maxOutputTokens\":32000}},\"permission_denials\":[],\"terminal_reason\":\"completed\",\"fast_mode_state\":\"off\",\"uuid\":\"c52b120f-e573-4282-a05e-3ab4747d74d0\"}\n",
         "parsed": {
           "filename": "src/services/customer_service.py",
           "issues": [
             {
-              "line": 10,
-              "severity": "critical",
-              "message": "CustomerStatus imported from models.customer has 4 values but VALID_STATUSES on line 18 has 7 values \u2014 'partner', 'prospect', 'active', 'blocked' are in VALID_STATUSES but not in the enum; count_by_status() will crash with ValueError when it encounters these statuses.",
-              "suggestion": "Extend CustomerStatus enum in models/customer.py to include all VALID_STATUSES values, or remove the missing ones from VALID_STATUSES. Ensure the two stay in sync."
+              "line": 100,
+              "severity": "warning",
+              "message": "NotFoundException message uses Chinese string '\u5ba2\u6237' \u2014 inconsistent with English-only conventions (rule 20).",
+              "suggestion": "Use 'Customer' instead of '\u5ba2\u6237' for the exception message."
             },
             {
-              "line": 139,
-              "severity": "critical",
-              "message": "count_by_status() returns Dict[CustomerStatus, int] but the dict comprehension on line 146 calls CustomerStatus(row[0]) which raises ValueError for any status string not defined in the enum (e.g. 'partner', 'prospect', 'blocked').",
-              "suggestion": "This line will raise at runtime for any status not in the enum. Either the enum must be exhaustive, or use a try/except (or .get()) to gracefully handle unknown statuses."
+              "line": 135,
+              "severity": "warning",
+              "message": "NotFoundException message uses Chinese string '\u5ba2\u6237' \u2014 inconsistent with English-only conventions (rule 20).",
+              "suggestion": "Use 'Customer' instead of '\u5ba2\u6237' for the exception message."
             },
             {
-              "line": 129,
+              "line": 4,
               "severity": "info",
-              "message": "delete_customer returns dict {'id': customer_id} while all other service methods return ORM models \u2014 inconsistent return type for a mutation method.",
-              "suggestion": "Return type annotation is missing on line 129 (declared as -> dict) \u2014 consider returning just customer_id (int) or None to match other delete-style methods, or add an explicit type annotation."
+              "message": "typing.Dict is imported but lowercase dict is used throughout the file \u2014 inconsistent import style (rule 20).",
+              "suggestion": "Remove 'Dict' from the typing import; use built-in dict consistently."
+            },
+            {
+              "line": 108,
+              "severity": "info",
+              "message": "Return type uses Python 3.10+ pipe union syntax (CustomerModel | None) while other files may use Optional \u2014 verify project-wide convention.",
+              "suggestion": "Use Optional[CustomerModel] for consistency with Optional-style type hints used elsewhere in the codebase."
+            },
+            {
+              "line": 215,
+              "severity": "warning",
+              "message": "bulk_import builds all ORM objects in memory before flushing \u2014 O(N) memory before any DB write; large payloads could exhaust memory (rule 33).",
+              "suggestion": "Consider flushing in batches (e.g., every 500 rows) to bound memory usage, or use executemany-style bulk insert."
+            },
+            {
+              "line": 136,
+              "severity": "info",
+              "message": "delete_customer calls flush() even though no auto-generated ID is needed back \u2014 unnecessary DB round-trip (rule 36).",
+              "suggestion": "Remove await self.session.flush() from delete_customer \u2014 the rowcount check is already done before flush."
             }
           ],
-          "summary": "Service correctly follows flush-not-commit pattern (rules 121/122) but has a critical mismatch between VALID_STATUSES and the CustomerStatus enum causing runtime crashes in count_by_status."
+          "summary": "Service correctly follows flush\u2192refresh\u2192router-commit pattern and has solid multi-tenancy filtering, but uses Chinese error messages and has one memory-concern in bulk_import."
         }
       },
       {
         "file": "tests/integration/test_sales_customer_integration.py",
         "returncode": 0,
-        "output": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"api_error_status\":null,\"duration_ms\":170266,\"duration_api_ms\":170154,\"num_turns\":13,\"result\":\"\\n\\n[\\n  {\\n    \\\"filename\\\": \\\"src/services/customer_service.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 10,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"CustomerStatus imported from models.customer has 4 values but VALID_STATUSES on line 18 has 7 values \u2014 'partner', 'prospect', 'active', 'blocked' are in VALID_STATUSES but not in the enum; count_by_status() will crash with ValueError when it encounters these statuses.\\\",\\n        \\\"suggestion\\\": \\\"Extend CustomerStatus enum in models/customer.py to include all VALID_STATUSES values, or remove the missing ones from VALID_STATUSES. Ensure the two stay in sync.\\\"\\n      },\\n      {\\n        \\\"line\\\": 139,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"count_by_status() returns Dict[CustomerStatus, int] but the dict comprehension on line 146 calls CustomerStatus(row[0]) which raises ValueError for any status string not defined in the enum (e.g. 'partner', 'prospect', 'blocked').\\\",\\n        \\\"suggestion\\\": \\\"This line will raise at runtime for any status not in the enum. Either the enum must be exhaustive, or use a try/except (or .get()) to gracefully handle unknown statuses.\\\"\\n      },\\n      {\\n        \\\"line\\\": 129,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"delete_customer returns dict {'id': customer_id} while all other service methods return ORM models \u2014 inconsistent return type for a mutation method.\\\",\\n        \\\"suggestion\\\": \\\"Return type annotation is missing on line 129 (declared as -> dict) \u2014 consider returning just customer_id (int) or None to match other delete-style methods, or add an explicit type annotation.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Service correctly follows flush-not-commit pattern (rules 121/122) but has a critical mismatch between VALID_STATUSES and the CustomerStatus enum causing runtime crashes in count_by_status.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"tests/integration/test_sales_customer_integration.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 27,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"_seed_user is defined in this file but only used by assign_owner (line 189) and a few SalesService tests \u2014 minor duplication vs the same helper in tests/integration/conftest.py.\\\",\\n        \\\"suggestion\\\": \\\"Consider importing _seed_user from conftest.py or the shared helpers module to avoid duplication.\\\"\\n      },\\n      {\\n        \\\"line\\\": 41,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"_seed_customer is defined in this file but may duplicate a helper of the same name in conftest.py \u2014 search for both definitions before adding another.\\\",\\n        \\\"suggestion\\\": \\\"Consolidate into a single shared _seed_customer in conftest.py and import it here.\\\"\\n      },\\n      {\\n        \\\"line\\\": 130,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"test_list_customers asserts 'len(items) >= 3' but creates only 3 customers for this specific tenant \u2014 if other tests share the same DB (schema truncated between tests, but session is function-scoped), the assertion may flakily pass on a larger-than-expected result set.\\\",\\n        \\\"suggestion\\\": \\\"Use tenant-scoped filtering or a unique-enough suffix to guarantee the assertion measures only the test's own data.\\\"\\n      },\\n      {\\n        \\\"line\\\": 143,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"test_list_customers_pagination asserts 'total1 >= 5' using a >= comparison that hides whether pagination actually works or whether earlier tests left residual data.\\\",\\n        \\\"suggestion\\\": \\\"Assert 'total1 == 5' or otherwise isolate the test's data so the assertion is deterministic.\\\"\\n      },\\n      {\\n        \\\"line\\\": 466,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"test_count_by_status_tenant_isolation creates customers for tenant2_id within a test on the same async_session without cleanup \u2014 if the session is function-scoped but shared across tests, cross-test contamination is possible.\\\",\\n        \\\"suggestion\\\": \\\"Verify conftest.py truncates all tables (TRUNCATE CASCADE) between each test function to guarantee isolation, or add explicit cleanup.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Integration tests correctly use real DB fixtures (db_schema, tenant_id, async_session) and cover the full lifecycle; pagination assertions use >= comparisons that could mask flakiness from shared state.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"tests/unit/test_customer_service.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 18,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"mock_db_session fixture defines session.commit = MagicMock() (line 23) \u2014 commit should not appear on the mock since services must never call commit (rules 121/122); the mock should not include this method.\\\",\\n        \\\"suggestion\\\": \\\"Remove session.commit = MagicMock() from the fixture. If a test needs to verify flush was called, assert flush directly rather than having commit on the mock.\\\"\\n      },\\n      {\\n        \\\"line\\\": 149,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"fake_refresh is a regular (non-async) function but service.create_customer calls 'await self.session.refresh(customer)' \u2014 async code calling a sync coroutine will fail with 'coroutine was never awaited' at runtime.\\\",\\n        \\\"suggestion\\\": \\\"Make fake_refresh an async def: 'async def fake_refresh(obj): ...' and call it as 'mock_db_session.refresh = fake_refresh' without await (the mock replaces the bound method).\\\"\\n      },\\n      {\\n        \\\"line\\\": 164,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"Same issue as line 149 \u2014 fake_refresh is synchronous but session.refresh is awaited in create_customer.\\\",\\n        \\\"suggestion\\\": \\\"Make fake_refresh async (async def fake_refresh(obj): ...).\\\"\\n      },\\n      {\\n        \\\"line\\\": 201,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"Same issue as line 149 \u2014 fake_refresh is synchronous but service.create_customer awaits it.\\\",\\n        \\\"suggestion\\\": \\\"Make fake_refresh async (async def fake_refresh(obj): ...).\\\"\\n      },\\n      {\\n        \\\"line\\\": 137,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"Test class TestCreateCustomerService is not decorated with @pytest.mark.asyncio \u2014 pytest-asyncio requires explicit marking for class-level async test classes.\\\",\\n        \\\"suggestion\\\": \\\"Add @pytest.mark.asyncio above the class definition: '@pytest.mark.asyncio\\\\\\\\nclass TestCreateCustomerService:'.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Unit tests correctly mock only the DB layer (no real DB), but the mock refresh helper is synchronous while the service awaits it \u2014 a bug that will cause 'coroutine was never awaited' at runtime.\\\"\\n  }\\n]\",\"stop_reason\":\"end_turn\",\"session_id\":\"5d7b996b-664e-4f96-9298-c5b37f34cf8e\",\"total_cost_usd\":0.31643279999999996,\"usage\":{\"input_tokens\":42376,\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":242816,\"output_tokens\":7764,\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":0,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"\",\"iterations\":[],\"speed\":\"standard\"},\"modelUsage\":{\"claude-sonnet-4-6\":{\"inputTokens\":42376,\"outputTokens\":7764,\"cacheReadInputTokens\":242816,\"cacheCreationInputTokens\":0,\"webSearchRequests\":0,\"costUSD\":0.31643279999999996,\"contextWindow\":200000,\"maxOutputTokens\":32000}},\"permission_denials\":[],\"terminal_reason\":\"completed\",\"fast_mode_state\":\"off\",\"uuid\":\"05c27040-ca4a-4add-95fe-56b52d80fcaa\"}\n",
+        "output": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"api_error_status\":null,\"duration_ms\":33755,\"duration_api_ms\":33654,\"num_turns\":4,\"result\":\"\\n\\n[\\n  {\\n    \\\"filename\\\": \\\"src/services/customer_service.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 100,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"NotFoundException message uses Chinese string '\u5ba2\u6237' \u2014 inconsistent with English-only conventions (rule 20).\\\",\\n        \\\"suggestion\\\": \\\"Use 'Customer' instead of '\u5ba2\u6237' for the exception message.\\\"\\n      },\\n      {\\n        \\\"line\\\": 135,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"NotFoundException message uses Chinese string '\u5ba2\u6237' \u2014 inconsistent with English-only conventions (rule 20).\\\",\\n        \\\"suggestion\\\": \\\"Use 'Customer' instead of '\u5ba2\u6237' for the exception message.\\\"\\n      },\\n      {\\n        \\\"line\\\": 4,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"typing.Dict is imported but lowercase dict is used throughout the file \u2014 inconsistent import style (rule 20).\\\",\\n        \\\"suggestion\\\": \\\"Remove 'Dict' from the typing import; use built-in dict consistently.\\\"\\n      },\\n      {\\n        \\\"line\\\": 108,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"Return type uses Python 3.10+ pipe union syntax (CustomerModel | None) while other files may use Optional \u2014 verify project-wide convention.\\\",\\n        \\\"suggestion\\\": \\\"Use Optional[CustomerModel] for consistency with Optional-style type hints used elsewhere in the codebase.\\\"\\n      },\\n      {\\n        \\\"line\\\": 215,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"bulk_import builds all ORM objects in memory before flushing \u2014 O(N) memory before any DB write; large payloads could exhaust memory (rule 33).\\\",\\n        \\\"suggestion\\\": \\\"Consider flushing in batches (e.g., every 500 rows) to bound memory usage, or use executemany-style bulk insert.\\\"\\n      },\\n      {\\n        \\\"line\\\": 136,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"delete_customer calls flush() even though no auto-generated ID is needed back \u2014 unnecessary DB round-trip (rule 36).\\\",\\n        \\\"suggestion\\\": \\\"Remove await self.session.flush() from delete_customer \u2014 the rowcount check is already done before flush.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Service correctly follows flush\u2192refresh\u2192router-commit pattern and has solid multi-tenancy filtering, but uses Chinese error messages and has one memory-concern in bulk_import.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"tests/integration/test_sales_customer_integration.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 467,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"Explicit async_session.commit() in test body \u2014 test code owns the transaction boundary here (rule 121/122 note: tests are exempt, but still worth flagging for clarity).\\\",\\n        \\\"suggestion\\\": \\\"No change needed \u2014 integration tests own their transaction; just be aware this differs from service-layer semantics.\\\"\\n      },\\n      {\\n        \\\"line\\\": 509,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"Explicit async_session.commit() in test body \u2014 same as line 467.\\\",\\n        \\\"suggestion\\\": \\\"No change needed.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Correctly uses raw SQL inserts for precise status control and real DB fixtures throughout \u2014 no DB mocking. Minor note on explicit commits in test bodies.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"tests/unit/test_customer_service.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 219,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"TestCountByStatus is missing @pytest.mark.asyncio class decorator \u2014 async test methods will not be treated as coroutines by pytest-asyncio, causing them to be silently skipped or error.\\\",\\n        \\\"suggestion\\\": \\\"Add @pytest.mark.asyncio decorator before 'class TestCountByStatus:' on line 220.\\\"\\n      },\\n      {\\n        \\\"line\\\": 30,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"mock_result.fetchall is a MagicMock (sync) while result.all is AsyncMock on line 31 \u2014 if any code path calls fetchall() expecting an awaitable, it will fail at runtime.\\\",\\n        \\\"suggestion\\\": \\\"Make mock_result.fetchall = AsyncMock(return_value=[]) for consistency with how the mock is wired elsewhere.\\\"\\n      },\\n      {\\n        \\\"line\\\": 25,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"session.commit is set as AsyncMock but services never call session.commit() \u2014 this mock is dead code and could mask a future accidental commit call.\\\",\\n        \\\"suggestion\\\": \\\"Remove session.commit = AsyncMock() from the fixture, or replace with a non-Async MagicMock with a warning comment.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"TestCreateDTO and TestCreateCustomerService are solid; TestCountByStatus is missing @pytest.mark.asyncio which would silently skip all its tests.\\\"\\n  }\\n]\",\"stop_reason\":\"end_turn\",\"session_id\":\"81b2c4d0-16ab-4d5d-9263-8195e21ceba8\",\"total_cost_usd\":0.1607538,\"usage\":{\"input_tokens\":38823,\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":33216,\"output_tokens\":2288,\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":0,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"\",\"iterations\":[],\"speed\":\"standard\"},\"modelUsage\":{\"claude-sonnet-4-6\":{\"inputTokens\":38823,\"outputTokens\":2288,\"cacheReadInputTokens\":33216,\"cacheCreationInputTokens\":0,\"webSearchRequests\":0,\"costUSD\":0.1607538,\"contextWindow\":200000,\"maxOutputTokens\":32000}},\"permission_denials\":[],\"terminal_reason\":\"completed\",\"fast_mode_state\":\"off\",\"uuid\":\"c52b120f-e573-4282-a05e-3ab4747d74d0\"}\n",
         "parsed": {
           "filename": "tests/integration/test_sales_customer_integration.py",
           "issues": [
             {
-              "line": 27,
+              "line": 467,
               "severity": "info",
-              "message": "_seed_user is defined in this file but only used by assign_owner (line 189) and a few SalesService tests \u2014 minor duplication vs the same helper in tests/integration/conftest.py.",
-              "suggestion": "Consider importing _seed_user from conftest.py or the shared helpers module to avoid duplication."
+              "message": "Explicit async_session.commit() in test body \u2014 test code owns the transaction boundary here (rule 121/122 note: tests are exempt, but still worth flagging for clarity).",
+              "suggestion": "No change needed \u2014 integration tests own their transaction; just be aware this differs from service-layer semantics."
             },
             {
-              "line": 41,
+              "line": 509,
               "severity": "info",
-              "message": "_seed_customer is defined in this file but may duplicate a helper of the same name in conftest.py \u2014 search for both definitions before adding another.",
-              "suggestion": "Consolidate into a single shared _seed_customer in conftest.py and import it here."
-            },
-            {
-              "line": 130,
-              "severity": "warning",
-              "message": "test_list_customers asserts 'len(items) >= 3' but creates only 3 customers for this specific tenant \u2014 if other tests share the same DB (schema truncated between tests, but session is function-scoped), the assertion may flakily pass on a larger-than-expected result set.",
-              "suggestion": "Use tenant-scoped filtering or a unique-enough suffix to guarantee the assertion measures only the test's own data."
-            },
-            {
-              "line": 143,
-              "severity": "warning",
-              "message": "test_list_customers_pagination asserts 'total1 >= 5' using a >= comparison that hides whether pagination actually works or whether earlier tests left residual data.",
-              "suggestion": "Assert 'total1 == 5' or otherwise isolate the test's data so the assertion is deterministic."
-            },
-            {
-              "line": 466,
-              "severity": "warning",
-              "message": "test_count_by_status_tenant_isolation creates customers for tenant2_id within a test on the same async_session without cleanup \u2014 if the session is function-scoped but shared across tests, cross-test contamination is possible.",
-              "suggestion": "Verify conftest.py truncates all tables (TRUNCATE CASCADE) between each test function to guarantee isolation, or add explicit cleanup."
+              "message": "Explicit async_session.commit() in test body \u2014 same as line 467.",
+              "suggestion": "No change needed."
             }
           ],
-          "summary": "Integration tests correctly use real DB fixtures (db_schema, tenant_id, async_session) and cover the full lifecycle; pagination assertions use >= comparisons that could mask flakiness from shared state."
+          "summary": "Correctly uses raw SQL inserts for precise status control and real DB fixtures throughout \u2014 no DB mocking. Minor note on explicit commits in test bodies."
         }
       },
       {
         "file": "tests/unit/test_customer_service.py",
         "returncode": 0,
-        "output": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"api_error_status\":null,\"duration_ms\":170266,\"duration_api_ms\":170154,\"num_turns\":13,\"result\":\"\\n\\n[\\n  {\\n    \\\"filename\\\": \\\"src/services/customer_service.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 10,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"CustomerStatus imported from models.customer has 4 values but VALID_STATUSES on line 18 has 7 values \u2014 'partner', 'prospect', 'active', 'blocked' are in VALID_STATUSES but not in the enum; count_by_status() will crash with ValueError when it encounters these statuses.\\\",\\n        \\\"suggestion\\\": \\\"Extend CustomerStatus enum in models/customer.py to include all VALID_STATUSES values, or remove the missing ones from VALID_STATUSES. Ensure the two stay in sync.\\\"\\n      },\\n      {\\n        \\\"line\\\": 139,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"count_by_status() returns Dict[CustomerStatus, int] but the dict comprehension on line 146 calls CustomerStatus(row[0]) which raises ValueError for any status string not defined in the enum (e.g. 'partner', 'prospect', 'blocked').\\\",\\n        \\\"suggestion\\\": \\\"This line will raise at runtime for any status not in the enum. Either the enum must be exhaustive, or use a try/except (or .get()) to gracefully handle unknown statuses.\\\"\\n      },\\n      {\\n        \\\"line\\\": 129,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"delete_customer returns dict {'id': customer_id} while all other service methods return ORM models \u2014 inconsistent return type for a mutation method.\\\",\\n        \\\"suggestion\\\": \\\"Return type annotation is missing on line 129 (declared as -> dict) \u2014 consider returning just customer_id (int) or None to match other delete-style methods, or add an explicit type annotation.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Service correctly follows flush-not-commit pattern (rules 121/122) but has a critical mismatch between VALID_STATUSES and the CustomerStatus enum causing runtime crashes in count_by_status.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"tests/integration/test_sales_customer_integration.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 27,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"_seed_user is defined in this file but only used by assign_owner (line 189) and a few SalesService tests \u2014 minor duplication vs the same helper in tests/integration/conftest.py.\\\",\\n        \\\"suggestion\\\": \\\"Consider importing _seed_user from conftest.py or the shared helpers module to avoid duplication.\\\"\\n      },\\n      {\\n        \\\"line\\\": 41,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"_seed_customer is defined in this file but may duplicate a helper of the same name in conftest.py \u2014 search for both definitions before adding another.\\\",\\n        \\\"suggestion\\\": \\\"Consolidate into a single shared _seed_customer in conftest.py and import it here.\\\"\\n      },\\n      {\\n        \\\"line\\\": 130,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"test_list_customers asserts 'len(items) >= 3' but creates only 3 customers for this specific tenant \u2014 if other tests share the same DB (schema truncated between tests, but session is function-scoped), the assertion may flakily pass on a larger-than-expected result set.\\\",\\n        \\\"suggestion\\\": \\\"Use tenant-scoped filtering or a unique-enough suffix to guarantee the assertion measures only the test's own data.\\\"\\n      },\\n      {\\n        \\\"line\\\": 143,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"test_list_customers_pagination asserts 'total1 >= 5' using a >= comparison that hides whether pagination actually works or whether earlier tests left residual data.\\\",\\n        \\\"suggestion\\\": \\\"Assert 'total1 == 5' or otherwise isolate the test's data so the assertion is deterministic.\\\"\\n      },\\n      {\\n        \\\"line\\\": 466,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"test_count_by_status_tenant_isolation creates customers for tenant2_id within a test on the same async_session without cleanup \u2014 if the session is function-scoped but shared across tests, cross-test contamination is possible.\\\",\\n        \\\"suggestion\\\": \\\"Verify conftest.py truncates all tables (TRUNCATE CASCADE) between each test function to guarantee isolation, or add explicit cleanup.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Integration tests correctly use real DB fixtures (db_schema, tenant_id, async_session) and cover the full lifecycle; pagination assertions use >= comparisons that could mask flakiness from shared state.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"tests/unit/test_customer_service.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 18,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"mock_db_session fixture defines session.commit = MagicMock() (line 23) \u2014 commit should not appear on the mock since services must never call commit (rules 121/122); the mock should not include this method.\\\",\\n        \\\"suggestion\\\": \\\"Remove session.commit = MagicMock() from the fixture. If a test needs to verify flush was called, assert flush directly rather than having commit on the mock.\\\"\\n      },\\n      {\\n        \\\"line\\\": 149,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"fake_refresh is a regular (non-async) function but service.create_customer calls 'await self.session.refresh(customer)' \u2014 async code calling a sync coroutine will fail with 'coroutine was never awaited' at runtime.\\\",\\n        \\\"suggestion\\\": \\\"Make fake_refresh an async def: 'async def fake_refresh(obj): ...' and call it as 'mock_db_session.refresh = fake_refresh' without await (the mock replaces the bound method).\\\"\\n      },\\n      {\\n        \\\"line\\\": 164,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"Same issue as line 149 \u2014 fake_refresh is synchronous but session.refresh is awaited in create_customer.\\\",\\n        \\\"suggestion\\\": \\\"Make fake_refresh async (async def fake_refresh(obj): ...).\\\"\\n      },\\n      {\\n        \\\"line\\\": 201,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"Same issue as line 149 \u2014 fake_refresh is synchronous but service.create_customer awaits it.\\\",\\n        \\\"suggestion\\\": \\\"Make fake_refresh async (async def fake_refresh(obj): ...).\\\"\\n      },\\n      {\\n        \\\"line\\\": 137,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"Test class TestCreateCustomerService is not decorated with @pytest.mark.asyncio \u2014 pytest-asyncio requires explicit marking for class-level async test classes.\\\",\\n        \\\"suggestion\\\": \\\"Add @pytest.mark.asyncio above the class definition: '@pytest.mark.asyncio\\\\\\\\nclass TestCreateCustomerService:'.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Unit tests correctly mock only the DB layer (no real DB), but the mock refresh helper is synchronous while the service awaits it \u2014 a bug that will cause 'coroutine was never awaited' at runtime.\\\"\\n  }\\n]\",\"stop_reason\":\"end_turn\",\"session_id\":\"5d7b996b-664e-4f96-9298-c5b37f34cf8e\",\"total_cost_usd\":0.31643279999999996,\"usage\":{\"input_tokens\":42376,\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":242816,\"output_tokens\":7764,\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":0,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"\",\"iterations\":[],\"speed\":\"standard\"},\"modelUsage\":{\"claude-sonnet-4-6\":{\"inputTokens\":42376,\"outputTokens\":7764,\"cacheReadInputTokens\":242816,\"cacheCreationInputTokens\":0,\"webSearchRequests\":0,\"costUSD\":0.31643279999999996,\"contextWindow\":200000,\"maxOutputTokens\":32000}},\"permission_denials\":[],\"terminal_reason\":\"completed\",\"fast_mode_state\":\"off\",\"uuid\":\"05c27040-ca4a-4add-95fe-56b52d80fcaa\"}\n",
+        "output": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"api_error_status\":null,\"duration_ms\":33755,\"duration_api_ms\":33654,\"num_turns\":4,\"result\":\"\\n\\n[\\n  {\\n    \\\"filename\\\": \\\"src/services/customer_service.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 100,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"NotFoundException message uses Chinese string '\u5ba2\u6237' \u2014 inconsistent with English-only conventions (rule 20).\\\",\\n        \\\"suggestion\\\": \\\"Use 'Customer' instead of '\u5ba2\u6237' for the exception message.\\\"\\n      },\\n      {\\n        \\\"line\\\": 135,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"NotFoundException message uses Chinese string '\u5ba2\u6237' \u2014 inconsistent with English-only conventions (rule 20).\\\",\\n        \\\"suggestion\\\": \\\"Use 'Customer' instead of '\u5ba2\u6237' for the exception message.\\\"\\n      },\\n      {\\n        \\\"line\\\": 4,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"typing.Dict is imported but lowercase dict is used throughout the file \u2014 inconsistent import style (rule 20).\\\",\\n        \\\"suggestion\\\": \\\"Remove 'Dict' from the typing import; use built-in dict consistently.\\\"\\n      },\\n      {\\n        \\\"line\\\": 108,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"Return type uses Python 3.10+ pipe union syntax (CustomerModel | None) while other files may use Optional \u2014 verify project-wide convention.\\\",\\n        \\\"suggestion\\\": \\\"Use Optional[CustomerModel] for consistency with Optional-style type hints used elsewhere in the codebase.\\\"\\n      },\\n      {\\n        \\\"line\\\": 215,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"bulk_import builds all ORM objects in memory before flushing \u2014 O(N) memory before any DB write; large payloads could exhaust memory (rule 33).\\\",\\n        \\\"suggestion\\\": \\\"Consider flushing in batches (e.g., every 500 rows) to bound memory usage, or use executemany-style bulk insert.\\\"\\n      },\\n      {\\n        \\\"line\\\": 136,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"delete_customer calls flush() even though no auto-generated ID is needed back \u2014 unnecessary DB round-trip (rule 36).\\\",\\n        \\\"suggestion\\\": \\\"Remove await self.session.flush() from delete_customer \u2014 the rowcount check is already done before flush.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Service correctly follows flush\u2192refresh\u2192router-commit pattern and has solid multi-tenancy filtering, but uses Chinese error messages and has one memory-concern in bulk_import.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"tests/integration/test_sales_customer_integration.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 467,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"Explicit async_session.commit() in test body \u2014 test code owns the transaction boundary here (rule 121/122 note: tests are exempt, but still worth flagging for clarity).\\\",\\n        \\\"suggestion\\\": \\\"No change needed \u2014 integration tests own their transaction; just be aware this differs from service-layer semantics.\\\"\\n      },\\n      {\\n        \\\"line\\\": 509,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"Explicit async_session.commit() in test body \u2014 same as line 467.\\\",\\n        \\\"suggestion\\\": \\\"No change needed.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Correctly uses raw SQL inserts for precise status control and real DB fixtures throughout \u2014 no DB mocking. Minor note on explicit commits in test bodies.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"tests/unit/test_customer_service.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 219,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"TestCountByStatus is missing @pytest.mark.asyncio class decorator \u2014 async test methods will not be treated as coroutines by pytest-asyncio, causing them to be silently skipped or error.\\\",\\n        \\\"suggestion\\\": \\\"Add @pytest.mark.asyncio decorator before 'class TestCountByStatus:' on line 220.\\\"\\n      },\\n      {\\n        \\\"line\\\": 30,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"mock_result.fetchall is a MagicMock (sync) while result.all is AsyncMock on line 31 \u2014 if any code path calls fetchall() expecting an awaitable, it will fail at runtime.\\\",\\n        \\\"suggestion\\\": \\\"Make mock_result.fetchall = AsyncMock(return_value=[]) for consistency with how the mock is wired elsewhere.\\\"\\n      },\\n      {\\n        \\\"line\\\": 25,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"session.commit is set as AsyncMock but services never call session.commit() \u2014 this mock is dead code and could mask a future accidental commit call.\\\",\\n        \\\"suggestion\\\": \\\"Remove session.commit = AsyncMock() from the fixture, or replace with a non-Async MagicMock with a warning comment.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"TestCreateDTO and TestCreateCustomerService are solid; TestCountByStatus is missing @pytest.mark.asyncio which would silently skip all its tests.\\\"\\n  }\\n]\",\"stop_reason\":\"end_turn\",\"session_id\":\"81b2c4d0-16ab-4d5d-9263-8195e21ceba8\",\"total_cost_usd\":0.1607538,\"usage\":{\"input_tokens\":38823,\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":33216,\"output_tokens\":2288,\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":0,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"\",\"iterations\":[],\"speed\":\"standard\"},\"modelUsage\":{\"claude-sonnet-4-6\":{\"inputTokens\":38823,\"outputTokens\":2288,\"cacheReadInputTokens\":33216,\"cacheCreationInputTokens\":0,\"webSearchRequests\":0,\"costUSD\":0.1607538,\"contextWindow\":200000,\"maxOutputTokens\":32000}},\"permission_denials\":[],\"terminal_reason\":\"completed\",\"fast_mode_state\":\"off\",\"uuid\":\"c52b120f-e573-4282-a05e-3ab4747d74d0\"}\n",
         "parsed": {
           "filename": "tests/unit/test_customer_service.py",
           "issues": [
             {
-              "line": 18,
-              "severity": "warning",
-              "message": "mock_db_session fixture defines session.commit = MagicMock() (line 23) \u2014 commit should not appear on the mock since services must never call commit (rules 121/122); the mock should not include this method.",
-              "suggestion": "Remove session.commit = MagicMock() from the fixture. If a test needs to verify flush was called, assert flush directly rather than having commit on the mock."
+              "line": 219,
+              "severity": "critical",
+              "message": "TestCountByStatus is missing @pytest.mark.asyncio class decorator \u2014 async test methods will not be treated as coroutines by pytest-asyncio, causing them to be silently skipped or error.",
+              "suggestion": "Add @pytest.mark.asyncio decorator before 'class TestCountByStatus:' on line 220."
             },
             {
-              "line": 149,
+              "line": 30,
               "severity": "warning",
-              "message": "fake_refresh is a regular (non-async) function but service.create_customer calls 'await self.session.refresh(customer)' \u2014 async code calling a sync coroutine will fail with 'coroutine was never awaited' at runtime.",
-              "suggestion": "Make fake_refresh an async def: 'async def fake_refresh(obj): ...' and call it as 'mock_db_session.refresh = fake_refresh' without await (the mock replaces the bound method)."
+              "message": "mock_result.fetchall is a MagicMock (sync) while result.all is AsyncMock on line 31 \u2014 if any code path calls fetchall() expecting an awaitable, it will fail at runtime.",
+              "suggestion": "Make mock_result.fetchall = AsyncMock(return_value=[]) for consistency with how the mock is wired elsewhere."
             },
             {
-              "line": 164,
-              "severity": "warning",
-              "message": "Same issue as line 149 \u2014 fake_refresh is synchronous but session.refresh is awaited in create_customer.",
-              "suggestion": "Make fake_refresh async (async def fake_refresh(obj): ...)."
-            },
-            {
-              "line": 201,
-              "severity": "warning",
-              "message": "Same issue as line 149 \u2014 fake_refresh is synchronous but service.create_customer awaits it.",
-              "suggestion": "Make fake_refresh async (async def fake_refresh(obj): ...)."
-            },
-            {
-              "line": 137,
+              "line": 25,
               "severity": "info",
-              "message": "Test class TestCreateCustomerService is not decorated with @pytest.mark.asyncio \u2014 pytest-asyncio requires explicit marking for class-level async test classes.",
-              "suggestion": "Add @pytest.mark.asyncio above the class definition: '@pytest.mark.asyncio\\nclass TestCreateCustomerService:'."
+              "message": "session.commit is set as AsyncMock but services never call session.commit() \u2014 this mock is dead code and could mask a future accidental commit call.",
+              "suggestion": "Remove session.commit = AsyncMock() from the fixture, or replace with a non-Async MagicMock with a warning comment."
             }
           ],
-          "summary": "Unit tests correctly mock only the DB layer (no real DB), but the mock refresh helper is synchronous while the service awaits it \u2014 a bug that will cause 'coroutine was never awaited' at runtime."
+          "summary": "TestCreateDTO and TestCreateCustomerService are solid; TestCountByStatus is missing @pytest.mark.asyncio which would silently skip all its tests."
         }
       }
     ]
