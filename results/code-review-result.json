@@ -1,23 +1,345 @@
 {
-  "status": "pass",
-  "verdict": "pass",
-  "critical_issues": [],
-  "suggestions": [],
-  "summary": "Reviewed 0 file(s) between origin/master and origin/develop.",
+  "status": "fail",
+  "verdict": "fail",
+  "critical_issues": [
+    {
+      "file": "src/services/customer_service.py",
+      "line": 139,
+      "severity": "critical",
+      "msg": "Return type annotation says `Dict[CustomerStatus, int]` but the actual return is a plain dict with `CustomerStatus` enum keys and `int` values \u2014 type checker will flag a mismatch.",
+      "suggestion": "Change return type to `dict[CustomerStatus, int]` (lowercase `dict`, matching Python 3.9+ annotation style used elsewhere in the file)."
+    }
+  ],
+  "suggestions": [
+    {
+      "file": "src/services/customer_service.py",
+      "line": 148,
+      "severity": "warning",
+      "msg": "search_customers does not validate or guard against an empty keyword string \u2014 `keyword=\"\"` produces `WHERE ... ILIKE \"%%\"` which matches every row, potentially returning up to 100 results unexpectedly.",
+      "suggestion": "Guard: `if not keyword.strip(): raise ValidationException(\"keyword cannot be empty\")` at the top of the method."
+    },
+    {
+      "file": "src/services/customer_service.py",
+      "line": 164,
+      "severity": "warning",
+      "msg": "add_tag performs read-modify-write on `customer.tags` without any row-level locking; concurrent requests can overwrite each other's append (lost update).",
+      "suggestion": "Either use `await self.session.execute(update(CustomerModel).where(...).values(tags=array_append(...)))` via raw SQL, or catch and retry on stale version via an explicit lock query."
+    },
+    {
+      "file": "src/services/customer_service.py",
+      "line": 115,
+      "severity": "info",
+      "msg": "update_customer silently skips keys not in `allowed` set with no indication to the caller \u2014 a typo like `{\"naem\": \"X\"}` is silently ignored.",
+      "suggestion": "Collect unknown keys and raise ValidationException or log a warning so callers can detect configuration errors."
+    },
+    {
+      "file": "tests/integration/test_sales_customer_integration.py",
+      "line": 417,
+      "severity": "warning",
+      "msg": "TestCustomerCountByStatusIntegration test methods lack @pytest.mark.asyncio decoration \u2014 unlike TestCustomerServiceIntegration (line 53, also missing) and other integration test classes; if pytest-asyncio is in strict mode these will fail or warn.",
+      "suggestion": "Add @pytest.mark.asyncio decorator to each integration test class (TestCustomerServiceIntegration, TestPipelineServiceIntegration, TestSalesServiceIntegration, TestCustomerCountByStatusIntegration)."
+    },
+    {
+      "file": "tests/integration/test_sales_customer_integration.py",
+      "line": 515,
+      "severity": "warning",
+      "msg": "test_count_by_status_tenant_isolation uses a single async_session for both tenant lookups but calls count_by_status with two different tenant_ids \u2014 if the session uses a transaction isolation level that isn't READ COMMITTED, stale reads across the two queries could produce a race.",
+      "suggestion": "Call async_session.commit() between the two lookups, or use two separate session instances per tenant, to guarantee each count reflects its own committed state."
+    },
+    {
+      "file": "tests/integration/test_sales_customer_integration.py",
+      "line": 156,
+      "severity": "info",
+      "msg": "test_search_customers asserts only that 'any result contains suffix' \u2014 if the search accidentally returned ALL customers (e.g. empty keyword), the test would still pass.",
+      "suggestion": "Use a unique suffix that cannot appear in any other customer's name, then assert exactly one result."
+    },
+    {
+      "file": "tests/unit/test_customer_service.py",
+      "line": 24,
+      "severity": "warning",
+      "msg": "mock_db_session fixture defines `session.commit = AsyncMock()` but the service layer must never call commit (rule 121/122); the mock communicates incorrect behavior.",
+      "suggestion": "Remove `session.commit = AsyncMock()` from the fixture so tests fail fast if a service erroneously calls commit."
+    },
+    {
+      "file": "tests/unit/test_customer_service.py",
+      "line": 27,
+      "severity": "warning",
+      "msg": "mock_result.scalar_one_or_none is AsyncMock (returns awaitable) but SQLAlchemy's async result.scalar_one_or_none() is a synchronous method \u2014 the mock shape is incorrect.",
+      "suggestion": "Change `mock_result.scalar_one_or_none = AsyncMock(return_value=None)` to `MagicMock(return_value=None)`."
+    },
+    {
+      "file": "tests/unit/test_customer_service.py",
+      "line": 28,
+      "severity": "warning",
+      "msg": "mock_result.scalar is AsyncMock but result.scalar() is synchronous in SQLAlchemy async.",
+      "suggestion": "Change `mock_result.scalar = AsyncMock(return_value=0)` to `MagicMock(return_value=0)`."
+    },
+    {
+      "file": "tests/unit/test_customer_service.py",
+      "line": 31,
+      "severity": "warning",
+      "msg": "mock_result.all is AsyncMock but result.all() is synchronous.",
+      "suggestion": "Change `mock_result.all = AsyncMock(return_value=[])` to `MagicMock(return_value=[])`."
+    },
+    {
+      "file": "tests/unit/test_customer_service.py",
+      "line": 33,
+      "severity": "warning",
+      "msg": "session.execute is AsyncMock but AsyncSession.execute is a coroutine so this is correct; however the return mock_result needs all its synchronous methods as MagicMock not AsyncMock \u2014 see lines 27-31.",
+      "suggestion": "Fix synchronous methods on mock_result as described in the preceding three issues."
+    },
+    {
+      "file": "tests/unit/test_customer_service.py",
+      "line": 220,
+      "severity": "warning",
+      "msg": "TestCountByStatus class is not decorated with @pytest.mark.asyncio, unlike TestCreateCustomerService on line 137 \u2014 inconsistency means these tests may silently not behave as async in certain pytest-asyncio strictness modes.",
+      "suggestion": "Add @pytest.mark.asyncio decorator to class TestCountByStatus."
+    },
+    {
+      "file": "tests/unit/test_customer_service.py",
+      "line": 157,
+      "severity": "info",
+      "msg": "search_customers assertion checks that any result contains the suffix but does not assert zero results when a non-matching suffix is used, leaving the negative case untested.",
+      "suggestion": "Add a test case for search_customers with a keyword that matches nothing to verify the empty-result path."
+    }
+  ],
+  "summary": "Reviewed 3 file(s) between origin/master and origin/issue-271-customer-dto.",
   "details": {
     "llm_parsed": {
-      "verdict": "pass",
-      "critical": [],
-      "warnings": [],
-      "summary": "Reviewed 0 file(s) between origin/master and origin/develop."
+      "verdict": "fail",
+      "critical": [
+        {
+          "file": "src/services/customer_service.py",
+          "line": 139,
+          "severity": "critical",
+          "msg": "Return type annotation says `Dict[CustomerStatus, int]` but the actual return is a plain dict with `CustomerStatus` enum keys and `int` values \u2014 type checker will flag a mismatch.",
+          "suggestion": "Change return type to `dict[CustomerStatus, int]` (lowercase `dict`, matching Python 3.9+ annotation style used elsewhere in the file)."
+        }
+      ],
+      "warnings": [
+        {
+          "file": "src/services/customer_service.py",
+          "line": 148,
+          "severity": "warning",
+          "msg": "search_customers does not validate or guard against an empty keyword string \u2014 `keyword=\"\"` produces `WHERE ... ILIKE \"%%\"` which matches every row, potentially returning up to 100 results unexpectedly.",
+          "suggestion": "Guard: `if not keyword.strip(): raise ValidationException(\"keyword cannot be empty\")` at the top of the method."
+        },
+        {
+          "file": "src/services/customer_service.py",
+          "line": 164,
+          "severity": "warning",
+          "msg": "add_tag performs read-modify-write on `customer.tags` without any row-level locking; concurrent requests can overwrite each other's append (lost update).",
+          "suggestion": "Either use `await self.session.execute(update(CustomerModel).where(...).values(tags=array_append(...)))` via raw SQL, or catch and retry on stale version via an explicit lock query."
+        },
+        {
+          "file": "src/services/customer_service.py",
+          "line": 115,
+          "severity": "info",
+          "msg": "update_customer silently skips keys not in `allowed` set with no indication to the caller \u2014 a typo like `{\"naem\": \"X\"}` is silently ignored.",
+          "suggestion": "Collect unknown keys and raise ValidationException or log a warning so callers can detect configuration errors."
+        },
+        {
+          "file": "tests/integration/test_sales_customer_integration.py",
+          "line": 417,
+          "severity": "warning",
+          "msg": "TestCustomerCountByStatusIntegration test methods lack @pytest.mark.asyncio decoration \u2014 unlike TestCustomerServiceIntegration (line 53, also missing) and other integration test classes; if pytest-asyncio is in strict mode these will fail or warn.",
+          "suggestion": "Add @pytest.mark.asyncio decorator to each integration test class (TestCustomerServiceIntegration, TestPipelineServiceIntegration, TestSalesServiceIntegration, TestCustomerCountByStatusIntegration)."
+        },
+        {
+          "file": "tests/integration/test_sales_customer_integration.py",
+          "line": 515,
+          "severity": "warning",
+          "msg": "test_count_by_status_tenant_isolation uses a single async_session for both tenant lookups but calls count_by_status with two different tenant_ids \u2014 if the session uses a transaction isolation level that isn't READ COMMITTED, stale reads across the two queries could produce a race.",
+          "suggestion": "Call async_session.commit() between the two lookups, or use two separate session instances per tenant, to guarantee each count reflects its own committed state."
+        },
+        {
+          "file": "tests/integration/test_sales_customer_integration.py",
+          "line": 156,
+          "severity": "info",
+          "msg": "test_search_customers asserts only that 'any result contains suffix' \u2014 if the search accidentally returned ALL customers (e.g. empty keyword), the test would still pass.",
+          "suggestion": "Use a unique suffix that cannot appear in any other customer's name, then assert exactly one result."
+        },
+        {
+          "file": "tests/unit/test_customer_service.py",
+          "line": 24,
+          "severity": "warning",
+          "msg": "mock_db_session fixture defines `session.commit = AsyncMock()` but the service layer must never call commit (rule 121/122); the mock communicates incorrect behavior.",
+          "suggestion": "Remove `session.commit = AsyncMock()` from the fixture so tests fail fast if a service erroneously calls commit."
+        },
+        {
+          "file": "tests/unit/test_customer_service.py",
+          "line": 27,
+          "severity": "warning",
+          "msg": "mock_result.scalar_one_or_none is AsyncMock (returns awaitable) but SQLAlchemy's async result.scalar_one_or_none() is a synchronous method \u2014 the mock shape is incorrect.",
+          "suggestion": "Change `mock_result.scalar_one_or_none = AsyncMock(return_value=None)` to `MagicMock(return_value=None)`."
+        },
+        {
+          "file": "tests/unit/test_customer_service.py",
+          "line": 28,
+          "severity": "warning",
+          "msg": "mock_result.scalar is AsyncMock but result.scalar() is synchronous in SQLAlchemy async.",
+          "suggestion": "Change `mock_result.scalar = AsyncMock(return_value=0)` to `MagicMock(return_value=0)`."
+        },
+        {
+          "file": "tests/unit/test_customer_service.py",
+          "line": 31,
+          "severity": "warning",
+          "msg": "mock_result.all is AsyncMock but result.all() is synchronous.",
+          "suggestion": "Change `mock_result.all = AsyncMock(return_value=[])` to `MagicMock(return_value=[])`."
+        },
+        {
+          "file": "tests/unit/test_customer_service.py",
+          "line": 33,
+          "severity": "warning",
+          "msg": "session.execute is AsyncMock but AsyncSession.execute is a coroutine so this is correct; however the return mock_result needs all its synchronous methods as MagicMock not AsyncMock \u2014 see lines 27-31.",
+          "suggestion": "Fix synchronous methods on mock_result as described in the preceding three issues."
+        },
+        {
+          "file": "tests/unit/test_customer_service.py",
+          "line": 220,
+          "severity": "warning",
+          "msg": "TestCountByStatus class is not decorated with @pytest.mark.asyncio, unlike TestCreateCustomerService on line 137 \u2014 inconsistency means these tests may silently not behave as async in certain pytest-asyncio strictness modes.",
+          "suggestion": "Add @pytest.mark.asyncio decorator to class TestCountByStatus."
+        },
+        {
+          "file": "tests/unit/test_customer_service.py",
+          "line": 157,
+          "severity": "info",
+          "msg": "search_customers assertion checks that any result contains the suffix but does not assert zero results when a non-matching suffix is used, leaving the negative case untested.",
+          "suggestion": "Add a test case for search_customers with a keyword that matches nothing to verify the empty-result path."
+        }
+      ],
+      "summary": "Reviewed 3 file(s) between origin/master and origin/issue-271-customer-dto."
     },
     "reviewed_refs": {
       "base": "f34ce69344f08e5782f77d89ceebc2bc3ba49d22",
-      "head": "b09065e5de708bb6491a8938f0164c7d994f9584",
+      "head": "696a3d6e0d0d73c38c643826334f4d23310d19ff",
       "base_label": "origin/master",
-      "head_label": "origin/develop"
+      "head_label": "origin/issue-271-customer-dto"
     },
-    "reviewed_files": [],
-    "per_file_reviews": []
+    "reviewed_files": [
+      "src/services/customer_service.py",
+      "tests/integration/test_sales_customer_integration.py",
+      "tests/unit/test_customer_service.py"
+    ],
+    "per_file_reviews": [
+      {
+        "file": "src/services/customer_service.py",
+        "returncode": 0,
+        "output": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"api_error_status\":null,\"duration_ms\":224822,\"duration_api_ms\":224766,\"num_turns\":4,\"result\":\"\\n\\n[\\n  {\\n    \\\"filename\\\": \\\"src/services/customer_service.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 139,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"Return type annotation says `Dict[CustomerStatus, int]` but the actual return is a plain dict with `CustomerStatus` enum keys and `int` values \u2014 type checker will flag a mismatch.\\\",\\n        \\\"suggestion\\\": \\\"Change return type to `dict[CustomerStatus, int]` (lowercase `dict`, matching Python 3.9+ annotation style used elsewhere in the file).\\\"\\n      },\\n      {\\n        \\\"line\\\": 148,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"search_customers does not validate or guard against an empty keyword string \u2014 `keyword=\\\\\\\"\\\\\\\"` produces `WHERE ... ILIKE \\\\\\\"%%\\\\\\\"` which matches every row, potentially returning up to 100 results unexpectedly.\\\",\\n        \\\"suggestion\\\": \\\"Guard: `if not keyword.strip(): raise ValidationException(\\\\\\\"keyword cannot be empty\\\\\\\")` at the top of the method.\\\"\\n      },\\n      {\\n        \\\"line\\\": 164,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"add_tag performs read-modify-write on `customer.tags` without any row-level locking; concurrent requests can overwrite each other's append (lost update).\\\",\\n        \\\"suggestion\\\": \\\"Either use `await self.session.execute(update(CustomerModel).where(...).values(tags=array_append(...)))` via raw SQL, or catch and retry on stale version via an explicit lock query.\\\"\\n      },\\n      {\\n        \\\"line\\\": 115,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"update_customer silently skips keys not in `allowed` set with no indication to the caller \u2014 a typo like `{\\\\\\\"naem\\\\\\\": \\\\\\\"X\\\\\\\"}` is silently ignored.\\\",\\n        \\\"suggestion\\\": \\\"Collect unknown keys and raise ValidationException or log a warning so callers can detect configuration errors.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Overall structure is sound; the flush()/refresh() pattern is correct per project rules 121-123, but the count_by_status return annotation is wrong and there are three reliability/concurrency gaps worth addressing.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"tests/unit/test_customer_service.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 24,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"mock_db_session fixture defines `session.commit = AsyncMock()` but the service layer must never call commit (rule 121/122); the mock communicates incorrect behavior.\\\",\\n        \\\"suggestion\\\": \\\"Remove `session.commit = AsyncMock()` from the fixture so tests fail fast if a service erroneously calls commit.\\\"\\n      },\\n      {\\n        \\\"line\\\": 27,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"mock_result.scalar_one_or_none is AsyncMock (returns awaitable) but SQLAlchemy's async result.scalar_one_or_none() is a synchronous method \u2014 the mock shape is incorrect.\\\",\\n        \\\"suggestion\\\": \\\"Change `mock_result.scalar_one_or_none = AsyncMock(return_value=None)` to `MagicMock(return_value=None)`.\\\"\\n      },\\n      {\\n        \\\"line\\\": 28,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"mock_result.scalar is AsyncMock but result.scalar() is synchronous in SQLAlchemy async.\\\",\\n        \\\"suggestion\\\": \\\"Change `mock_result.scalar = AsyncMock(return_value=0)` to `MagicMock(return_value=0)`.\\\"\\n      },\\n      {\\n        \\\"line\\\": 31,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"mock_result.all is AsyncMock but result.all() is synchronous.\\\",\\n        \\\"suggestion\\\": \\\"Change `mock_result.all = AsyncMock(return_value=[])` to `MagicMock(return_value=[])`.\\\"\\n      },\\n      {\\n        \\\"line\\\": 33,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"session.execute is AsyncMock but AsyncSession.execute is a coroutine so this is correct; however the return mock_result needs all its synchronous methods as MagicMock not AsyncMock \u2014 see lines 27-31.\\\",\\n        \\\"suggestion\\\": \\\"Fix synchronous methods on mock_result as described in the preceding three issues.\\\"\\n      },\\n      {\\n        \\\"line\\\": 220,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"TestCountByStatus class is not decorated with @pytest.mark.asyncio, unlike TestCreateCustomerService on line 137 \u2014 inconsistency means these tests may silently not behave as async in certain pytest-asyncio strictness modes.\\\",\\n        \\\"suggestion\\\": \\\"Add @pytest.mark.asyncio decorator to class TestCountByStatus.\\\"\\n      },\\n      {\\n        \\\"line\\\": 157,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"search_customers assertion checks that any result contains the suffix but does not assert zero results when a non-matching suffix is used, leaving the negative case untested.\\\",\\n        \\\"suggestion\\\": \\\"Add a test case for search_customers with a keyword that matches nothing to verify the empty-result path.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Fixture mocks synchronous SQLAlchemy result methods as AsyncMock (wrong), includes a spurious commit mock, and the TestCountByStatus class is missing the @pytest.mark.asyncio decorator.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"tests/integration/test_sales_customer_integration.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 417,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"TestCustomerCountByStatusIntegration test methods lack @pytest.mark.asyncio decoration \u2014 unlike TestCustomerServiceIntegration (line 53, also missing) and other integration test classes; if pytest-asyncio is in strict mode these will fail or warn.\\\",\\n        \\\"suggestion\\\": \\\"Add @pytest.mark.asyncio decorator to each integration test class (TestCustomerServiceIntegration, TestPipelineServiceIntegration, TestSalesServiceIntegration, TestCustomerCountByStatusIntegration).\\\"\\n      },\\n      {\\n        \\\"line\\\": 515,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"test_count_by_status_tenant_isolation uses a single async_session for both tenant lookups but calls count_by_status with two different tenant_ids \u2014 if the session uses a transaction isolation level that isn't READ COMMITTED, stale reads across the two queries could produce a race.\\\",\\n        \\\"suggestion\\\": \\\"Call async_session.commit() between the two lookups, or use two separate session instances per tenant, to guarantee each count reflects its own committed state.\\\"\\n      },\\n      {\\n        \\\"line\\\": 156,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"test_search_customers asserts only that 'any result contains suffix' \u2014 if the search accidentally returned ALL customers (e.g. empty keyword), the test would still pass.\\\",\\n        \\\"suggestion\\\": \\\"Use a unique suffix that cannot appear in any other customer's name, then assert exactly one result.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Integration tests correctly use real DB fixtures and REST API clients, but are missing @pytest.mark.asyncio decorators on all test classes, and the tenant-isolation test has a potential cross-request consistency issue.\\\"\\n  }\\n]\",\"stop_reason\":\"end_turn\",\"session_id\":\"608ad9a4-8255-4fb8-9641-e7d6e6830d3e\",\"total_cost_usd\":0.28250205,\"usage\":{\"input_tokens\":41023,\"cache_creation_input_tokens\":30719,\"cache_read_input_tokens\":256,\"output_tokens\":2944,\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":0,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"\",\"iterations\":[],\"speed\":\"standard\"},\"modelUsage\":{\"claude-sonnet-4-6\":{\"inputTokens\":41023,\"outputTokens\":2944,\"cacheReadInputTokens\":256,\"cacheCreationInputTokens\":30719,\"webSearchRequests\":0,\"costUSD\":0.28250205,\"contextWindow\":200000,\"maxOutputTokens\":32000}},\"permission_denials\":[],\"terminal_reason\":\"completed\",\"fast_mode_state\":\"off\",\"uuid\":\"375c6e0c-22c2-4749-88e1-37ad9728b737\"}\n",
+        "parsed": {
+          "filename": "src/services/customer_service.py",
+          "issues": [
+            {
+              "line": 139,
+              "severity": "critical",
+              "message": "Return type annotation says `Dict[CustomerStatus, int]` but the actual return is a plain dict with `CustomerStatus` enum keys and `int` values \u2014 type checker will flag a mismatch.",
+              "suggestion": "Change return type to `dict[CustomerStatus, int]` (lowercase `dict`, matching Python 3.9+ annotation style used elsewhere in the file)."
+            },
+            {
+              "line": 148,
+              "severity": "warning",
+              "message": "search_customers does not validate or guard against an empty keyword string \u2014 `keyword=\"\"` produces `WHERE ... ILIKE \"%%\"` which matches every row, potentially returning up to 100 results unexpectedly.",
+              "suggestion": "Guard: `if not keyword.strip(): raise ValidationException(\"keyword cannot be empty\")` at the top of the method."
+            },
+            {
+              "line": 164,
+              "severity": "warning",
+              "message": "add_tag performs read-modify-write on `customer.tags` without any row-level locking; concurrent requests can overwrite each other's append (lost update).",
+              "suggestion": "Either use `await self.session.execute(update(CustomerModel).where(...).values(tags=array_append(...)))` via raw SQL, or catch and retry on stale version via an explicit lock query."
+            },
+            {
+              "line": 115,
+              "severity": "info",
+              "message": "update_customer silently skips keys not in `allowed` set with no indication to the caller \u2014 a typo like `{\"naem\": \"X\"}` is silently ignored.",
+              "suggestion": "Collect unknown keys and raise ValidationException or log a warning so callers can detect configuration errors."
+            }
+          ],
+          "summary": "Overall structure is sound; the flush()/refresh() pattern is correct per project rules 121-123, but the count_by_status return annotation is wrong and there are three reliability/concurrency gaps worth addressing."
+        }
+      },
+      {
+        "file": "tests/integration/test_sales_customer_integration.py",
+        "returncode": 0,
+        "output": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"api_error_status\":null,\"duration_ms\":224822,\"duration_api_ms\":224766,\"num_turns\":4,\"result\":\"\\n\\n[\\n  {\\n    \\\"filename\\\": \\\"src/services/customer_service.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 139,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"Return type annotation says `Dict[CustomerStatus, int]` but the actual return is a plain dict with `CustomerStatus` enum keys and `int` values \u2014 type checker will flag a mismatch.\\\",\\n        \\\"suggestion\\\": \\\"Change return type to `dict[CustomerStatus, int]` (lowercase `dict`, matching Python 3.9+ annotation style used elsewhere in the file).\\\"\\n      },\\n      {\\n        \\\"line\\\": 148,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"search_customers does not validate or guard against an empty keyword string \u2014 `keyword=\\\\\\\"\\\\\\\"` produces `WHERE ... ILIKE \\\\\\\"%%\\\\\\\"` which matches every row, potentially returning up to 100 results unexpectedly.\\\",\\n        \\\"suggestion\\\": \\\"Guard: `if not keyword.strip(): raise ValidationException(\\\\\\\"keyword cannot be empty\\\\\\\")` at the top of the method.\\\"\\n      },\\n      {\\n        \\\"line\\\": 164,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"add_tag performs read-modify-write on `customer.tags` without any row-level locking; concurrent requests can overwrite each other's append (lost update).\\\",\\n        \\\"suggestion\\\": \\\"Either use `await self.session.execute(update(CustomerModel).where(...).values(tags=array_append(...)))` via raw SQL, or catch and retry on stale version via an explicit lock query.\\\"\\n      },\\n      {\\n        \\\"line\\\": 115,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"update_customer silently skips keys not in `allowed` set with no indication to the caller \u2014 a typo like `{\\\\\\\"naem\\\\\\\": \\\\\\\"X\\\\\\\"}` is silently ignored.\\\",\\n        \\\"suggestion\\\": \\\"Collect unknown keys and raise ValidationException or log a warning so callers can detect configuration errors.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Overall structure is sound; the flush()/refresh() pattern is correct per project rules 121-123, but the count_by_status return annotation is wrong and there are three reliability/concurrency gaps worth addressing.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"tests/unit/test_customer_service.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 24,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"mock_db_session fixture defines `session.commit = AsyncMock()` but the service layer must never call commit (rule 121/122); the mock communicates incorrect behavior.\\\",\\n        \\\"suggestion\\\": \\\"Remove `session.commit = AsyncMock()` from the fixture so tests fail fast if a service erroneously calls commit.\\\"\\n      },\\n      {\\n        \\\"line\\\": 27,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"mock_result.scalar_one_or_none is AsyncMock (returns awaitable) but SQLAlchemy's async result.scalar_one_or_none() is a synchronous method \u2014 the mock shape is incorrect.\\\",\\n        \\\"suggestion\\\": \\\"Change `mock_result.scalar_one_or_none = AsyncMock(return_value=None)` to `MagicMock(return_value=None)`.\\\"\\n      },\\n      {\\n        \\\"line\\\": 28,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"mock_result.scalar is AsyncMock but result.scalar() is synchronous in SQLAlchemy async.\\\",\\n        \\\"suggestion\\\": \\\"Change `mock_result.scalar = AsyncMock(return_value=0)` to `MagicMock(return_value=0)`.\\\"\\n      },\\n      {\\n        \\\"line\\\": 31,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"mock_result.all is AsyncMock but result.all() is synchronous.\\\",\\n        \\\"suggestion\\\": \\\"Change `mock_result.all = AsyncMock(return_value=[])` to `MagicMock(return_value=[])`.\\\"\\n      },\\n      {\\n        \\\"line\\\": 33,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"session.execute is AsyncMock but AsyncSession.execute is a coroutine so this is correct; however the return mock_result needs all its synchronous methods as MagicMock not AsyncMock \u2014 see lines 27-31.\\\",\\n        \\\"suggestion\\\": \\\"Fix synchronous methods on mock_result as described in the preceding three issues.\\\"\\n      },\\n      {\\n        \\\"line\\\": 220,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"TestCountByStatus class is not decorated with @pytest.mark.asyncio, unlike TestCreateCustomerService on line 137 \u2014 inconsistency means these tests may silently not behave as async in certain pytest-asyncio strictness modes.\\\",\\n        \\\"suggestion\\\": \\\"Add @pytest.mark.asyncio decorator to class TestCountByStatus.\\\"\\n      },\\n      {\\n        \\\"line\\\": 157,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"search_customers assertion checks that any result contains the suffix but does not assert zero results when a non-matching suffix is used, leaving the negative case untested.\\\",\\n        \\\"suggestion\\\": \\\"Add a test case for search_customers with a keyword that matches nothing to verify the empty-result path.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Fixture mocks synchronous SQLAlchemy result methods as AsyncMock (wrong), includes a spurious commit mock, and the TestCountByStatus class is missing the @pytest.mark.asyncio decorator.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"tests/integration/test_sales_customer_integration.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 417,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"TestCustomerCountByStatusIntegration test methods lack @pytest.mark.asyncio decoration \u2014 unlike TestCustomerServiceIntegration (line 53, also missing) and other integration test classes; if pytest-asyncio is in strict mode these will fail or warn.\\\",\\n        \\\"suggestion\\\": \\\"Add @pytest.mark.asyncio decorator to each integration test class (TestCustomerServiceIntegration, TestPipelineServiceIntegration, TestSalesServiceIntegration, TestCustomerCountByStatusIntegration).\\\"\\n      },\\n      {\\n        \\\"line\\\": 515,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"test_count_by_status_tenant_isolation uses a single async_session for both tenant lookups but calls count_by_status with two different tenant_ids \u2014 if the session uses a transaction isolation level that isn't READ COMMITTED, stale reads across the two queries could produce a race.\\\",\\n        \\\"suggestion\\\": \\\"Call async_session.commit() between the two lookups, or use two separate session instances per tenant, to guarantee each count reflects its own committed state.\\\"\\n      },\\n      {\\n        \\\"line\\\": 156,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"test_search_customers asserts only that 'any result contains suffix' \u2014 if the search accidentally returned ALL customers (e.g. empty keyword), the test would still pass.\\\",\\n        \\\"suggestion\\\": \\\"Use a unique suffix that cannot appear in any other customer's name, then assert exactly one result.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Integration tests correctly use real DB fixtures and REST API clients, but are missing @pytest.mark.asyncio decorators on all test classes, and the tenant-isolation test has a potential cross-request consistency issue.\\\"\\n  }\\n]\",\"stop_reason\":\"end_turn\",\"session_id\":\"608ad9a4-8255-4fb8-9641-e7d6e6830d3e\",\"total_cost_usd\":0.28250205,\"usage\":{\"input_tokens\":41023,\"cache_creation_input_tokens\":30719,\"cache_read_input_tokens\":256,\"output_tokens\":2944,\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":0,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"\",\"iterations\":[],\"speed\":\"standard\"},\"modelUsage\":{\"claude-sonnet-4-6\":{\"inputTokens\":41023,\"outputTokens\":2944,\"cacheReadInputTokens\":256,\"cacheCreationInputTokens\":30719,\"webSearchRequests\":0,\"costUSD\":0.28250205,\"contextWindow\":200000,\"maxOutputTokens\":32000}},\"permission_denials\":[],\"terminal_reason\":\"completed\",\"fast_mode_state\":\"off\",\"uuid\":\"375c6e0c-22c2-4749-88e1-37ad9728b737\"}\n",
+        "parsed": {
+          "filename": "tests/integration/test_sales_customer_integration.py",
+          "issues": [
+            {
+              "line": 417,
+              "severity": "warning",
+              "message": "TestCustomerCountByStatusIntegration test methods lack @pytest.mark.asyncio decoration \u2014 unlike TestCustomerServiceIntegration (line 53, also missing) and other integration test classes; if pytest-asyncio is in strict mode these will fail or warn.",
+              "suggestion": "Add @pytest.mark.asyncio decorator to each integration test class (TestCustomerServiceIntegration, TestPipelineServiceIntegration, TestSalesServiceIntegration, TestCustomerCountByStatusIntegration)."
+            },
+            {
+              "line": 515,
+              "severity": "warning",
+              "message": "test_count_by_status_tenant_isolation uses a single async_session for both tenant lookups but calls count_by_status with two different tenant_ids \u2014 if the session uses a transaction isolation level that isn't READ COMMITTED, stale reads across the two queries could produce a race.",
+              "suggestion": "Call async_session.commit() between the two lookups, or use two separate session instances per tenant, to guarantee each count reflects its own committed state."
+            },
+            {
+              "line": 156,
+              "severity": "info",
+              "message": "test_search_customers asserts only that 'any result contains suffix' \u2014 if the search accidentally returned ALL customers (e.g. empty keyword), the test would still pass.",
+              "suggestion": "Use a unique suffix that cannot appear in any other customer's name, then assert exactly one result."
+            }
+          ],
+          "summary": "Integration tests correctly use real DB fixtures and REST API clients, but are missing @pytest.mark.asyncio decorators on all test classes, and the tenant-isolation test has a potential cross-request consistency issue."
+        }
+      },
+      {
+        "file": "tests/unit/test_customer_service.py",
+        "returncode": 0,
+        "output": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"api_error_status\":null,\"duration_ms\":224822,\"duration_api_ms\":224766,\"num_turns\":4,\"result\":\"\\n\\n[\\n  {\\n    \\\"filename\\\": \\\"src/services/customer_service.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 139,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"Return type annotation says `Dict[CustomerStatus, int]` but the actual return is a plain dict with `CustomerStatus` enum keys and `int` values \u2014 type checker will flag a mismatch.\\\",\\n        \\\"suggestion\\\": \\\"Change return type to `dict[CustomerStatus, int]` (lowercase `dict`, matching Python 3.9+ annotation style used elsewhere in the file).\\\"\\n      },\\n      {\\n        \\\"line\\\": 148,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"search_customers does not validate or guard against an empty keyword string \u2014 `keyword=\\\\\\\"\\\\\\\"` produces `WHERE ... ILIKE \\\\\\\"%%\\\\\\\"` which matches every row, potentially returning up to 100 results unexpectedly.\\\",\\n        \\\"suggestion\\\": \\\"Guard: `if not keyword.strip(): raise ValidationException(\\\\\\\"keyword cannot be empty\\\\\\\")` at the top of the method.\\\"\\n      },\\n      {\\n        \\\"line\\\": 164,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"add_tag performs read-modify-write on `customer.tags` without any row-level locking; concurrent requests can overwrite each other's append (lost update).\\\",\\n        \\\"suggestion\\\": \\\"Either use `await self.session.execute(update(CustomerModel).where(...).values(tags=array_append(...)))` via raw SQL, or catch and retry on stale version via an explicit lock query.\\\"\\n      },\\n      {\\n        \\\"line\\\": 115,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"update_customer silently skips keys not in `allowed` set with no indication to the caller \u2014 a typo like `{\\\\\\\"naem\\\\\\\": \\\\\\\"X\\\\\\\"}` is silently ignored.\\\",\\n        \\\"suggestion\\\": \\\"Collect unknown keys and raise ValidationException or log a warning so callers can detect configuration errors.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Overall structure is sound; the flush()/refresh() pattern is correct per project rules 121-123, but the count_by_status return annotation is wrong and there are three reliability/concurrency gaps worth addressing.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"tests/unit/test_customer_service.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 24,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"mock_db_session fixture defines `session.commit = AsyncMock()` but the service layer must never call commit (rule 121/122); the mock communicates incorrect behavior.\\\",\\n        \\\"suggestion\\\": \\\"Remove `session.commit = AsyncMock()` from the fixture so tests fail fast if a service erroneously calls commit.\\\"\\n      },\\n      {\\n        \\\"line\\\": 27,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"mock_result.scalar_one_or_none is AsyncMock (returns awaitable) but SQLAlchemy's async result.scalar_one_or_none() is a synchronous method \u2014 the mock shape is incorrect.\\\",\\n        \\\"suggestion\\\": \\\"Change `mock_result.scalar_one_or_none = AsyncMock(return_value=None)` to `MagicMock(return_value=None)`.\\\"\\n      },\\n      {\\n        \\\"line\\\": 28,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"mock_result.scalar is AsyncMock but result.scalar() is synchronous in SQLAlchemy async.\\\",\\n        \\\"suggestion\\\": \\\"Change `mock_result.scalar = AsyncMock(return_value=0)` to `MagicMock(return_value=0)`.\\\"\\n      },\\n      {\\n        \\\"line\\\": 31,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"mock_result.all is AsyncMock but result.all() is synchronous.\\\",\\n        \\\"suggestion\\\": \\\"Change `mock_result.all = AsyncMock(return_value=[])` to `MagicMock(return_value=[])`.\\\"\\n      },\\n      {\\n        \\\"line\\\": 33,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"session.execute is AsyncMock but AsyncSession.execute is a coroutine so this is correct; however the return mock_result needs all its synchronous methods as MagicMock not AsyncMock \u2014 see lines 27-31.\\\",\\n        \\\"suggestion\\\": \\\"Fix synchronous methods on mock_result as described in the preceding three issues.\\\"\\n      },\\n      {\\n        \\\"line\\\": 220,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"TestCountByStatus class is not decorated with @pytest.mark.asyncio, unlike TestCreateCustomerService on line 137 \u2014 inconsistency means these tests may silently not behave as async in certain pytest-asyncio strictness modes.\\\",\\n        \\\"suggestion\\\": \\\"Add @pytest.mark.asyncio decorator to class TestCountByStatus.\\\"\\n      },\\n      {\\n        \\\"line\\\": 157,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"search_customers assertion checks that any result contains the suffix but does not assert zero results when a non-matching suffix is used, leaving the negative case untested.\\\",\\n        \\\"suggestion\\\": \\\"Add a test case for search_customers with a keyword that matches nothing to verify the empty-result path.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Fixture mocks synchronous SQLAlchemy result methods as AsyncMock (wrong), includes a spurious commit mock, and the TestCountByStatus class is missing the @pytest.mark.asyncio decorator.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"tests/integration/test_sales_customer_integration.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 417,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"TestCustomerCountByStatusIntegration test methods lack @pytest.mark.asyncio decoration \u2014 unlike TestCustomerServiceIntegration (line 53, also missing) and other integration test classes; if pytest-asyncio is in strict mode these will fail or warn.\\\",\\n        \\\"suggestion\\\": \\\"Add @pytest.mark.asyncio decorator to each integration test class (TestCustomerServiceIntegration, TestPipelineServiceIntegration, TestSalesServiceIntegration, TestCustomerCountByStatusIntegration).\\\"\\n      },\\n      {\\n        \\\"line\\\": 515,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"test_count_by_status_tenant_isolation uses a single async_session for both tenant lookups but calls count_by_status with two different tenant_ids \u2014 if the session uses a transaction isolation level that isn't READ COMMITTED, stale reads across the two queries could produce a race.\\\",\\n        \\\"suggestion\\\": \\\"Call async_session.commit() between the two lookups, or use two separate session instances per tenant, to guarantee each count reflects its own committed state.\\\"\\n      },\\n      {\\n        \\\"line\\\": 156,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"test_search_customers asserts only that 'any result contains suffix' \u2014 if the search accidentally returned ALL customers (e.g. empty keyword), the test would still pass.\\\",\\n        \\\"suggestion\\\": \\\"Use a unique suffix that cannot appear in any other customer's name, then assert exactly one result.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Integration tests correctly use real DB fixtures and REST API clients, but are missing @pytest.mark.asyncio decorators on all test classes, and the tenant-isolation test has a potential cross-request consistency issue.\\\"\\n  }\\n]\",\"stop_reason\":\"end_turn\",\"session_id\":\"608ad9a4-8255-4fb8-9641-e7d6e6830d3e\",\"total_cost_usd\":0.28250205,\"usage\":{\"input_tokens\":41023,\"cache_creation_input_tokens\":30719,\"cache_read_input_tokens\":256,\"output_tokens\":2944,\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":0,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"\",\"iterations\":[],\"speed\":\"standard\"},\"modelUsage\":{\"claude-sonnet-4-6\":{\"inputTokens\":41023,\"outputTokens\":2944,\"cacheReadInputTokens\":256,\"cacheCreationInputTokens\":30719,\"webSearchRequests\":0,\"costUSD\":0.28250205,\"contextWindow\":200000,\"maxOutputTokens\":32000}},\"permission_denials\":[],\"terminal_reason\":\"completed\",\"fast_mode_state\":\"off\",\"uuid\":\"375c6e0c-22c2-4749-88e1-37ad9728b737\"}\n",
+        "parsed": {
+          "filename": "tests/unit/test_customer_service.py",
+          "issues": [
+            {
+              "line": 24,
+              "severity": "warning",
+              "message": "mock_db_session fixture defines `session.commit = AsyncMock()` but the service layer must never call commit (rule 121/122); the mock communicates incorrect behavior.",
+              "suggestion": "Remove `session.commit = AsyncMock()` from the fixture so tests fail fast if a service erroneously calls commit."
+            },
+            {
+              "line": 27,
+              "severity": "warning",
+              "message": "mock_result.scalar_one_or_none is AsyncMock (returns awaitable) but SQLAlchemy's async result.scalar_one_or_none() is a synchronous method \u2014 the mock shape is incorrect.",
+              "suggestion": "Change `mock_result.scalar_one_or_none = AsyncMock(return_value=None)` to `MagicMock(return_value=None)`."
+            },
+            {
+              "line": 28,
+              "severity": "warning",
+              "message": "mock_result.scalar is AsyncMock but result.scalar() is synchronous in SQLAlchemy async.",
+              "suggestion": "Change `mock_result.scalar = AsyncMock(return_value=0)` to `MagicMock(return_value=0)`."
+            },
+            {
+              "line": 31,
+              "severity": "warning",
+              "message": "mock_result.all is AsyncMock but result.all() is synchronous.",
+              "suggestion": "Change `mock_result.all = AsyncMock(return_value=[])` to `MagicMock(return_value=[])`."
+            },
+            {
+              "line": 33,
+              "severity": "warning",
+              "message": "session.execute is AsyncMock but AsyncSession.execute is a coroutine so this is correct; however the return mock_result needs all its synchronous methods as MagicMock not AsyncMock \u2014 see lines 27-31.",
+              "suggestion": "Fix synchronous methods on mock_result as described in the preceding three issues."
+            },
+            {
+              "line": 220,
+              "severity": "warning",
+              "message": "TestCountByStatus class is not decorated with @pytest.mark.asyncio, unlike TestCreateCustomerService on line 137 \u2014 inconsistency means these tests may silently not behave as async in certain pytest-asyncio strictness modes.",
+              "suggestion": "Add @pytest.mark.asyncio decorator to class TestCountByStatus."
+            },
+            {
+              "line": 157,
+              "severity": "info",
+              "message": "search_customers assertion checks that any result contains the suffix but does not assert zero results when a non-matching suffix is used, leaving the negative case untested.",
+              "suggestion": "Add a test case for search_customers with a keyword that matches nothing to verify the empty-result path."
+            }
+          ],
+          "summary": "Fixture mocks synchronous SQLAlchemy result methods as AsyncMock (wrong), includes a spurious commit mock, and the TestCountByStatus class is missing the @pytest.mark.asyncio decorator."
+        }
+      }
+    ]
   }
 }
