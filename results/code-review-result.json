@@ -3,291 +3,169 @@
   "verdict": "fail",
   "critical_issues": [
     {
-      "file": "src/api/routers/tasks.py",
-      "line": 97,
+      "file": ".github/workflows/fix-pr-comments.yml",
+      "line": 59,
       "severity": "critical",
-      "msg": "total = len(items) returns the page size (capped at 100), not the true total matching rows. The service applies LIMIT/OFFSET in SQL so len() undercounts when total > page_size.",
-      "suggestion": "Call a count method on TaskService (e.g., svc.count_tasks(...)) or have list_tasks return (items, total) like list_tickets does. Compare with tickets.py:125 where service returns (items, total) tuple."
+      "msg": "Token fallback to GITHUB_TOKEN defeats the PAT purpose \u2014 events from GITHUB_TOKEN do NOT fire pull_request workflows, so downstream CI will not trigger after the auto-commit.",
+      "suggestion": "Remove `|| secrets.GITHUB_TOKEN` and guard with a required secret or a condition: only run the commit step when `secrets.COMMIT_GITHUB_TOKEN` is set. Alternatively, document why the fallback is intentional and accept the missing downstream CI trigger."
     }
   ],
   "suggestions": [
     {
-      "file": ".plans/issue-106.md",
-      "line": "",
+      "file": ".github/workflows/fix-pr-comments.yml",
+      "line": 65,
       "severity": "info",
-      "msg": "Plan document is detailed and consistent with the implemented files, correctly describing the tasks.py router structure, registration steps, and test strategy. No issues found."
+      "msg": "actions/setup-node@v4 installs Node.js but fix_pr_comments.py is a Python script with no Node dependency.",
+      "suggestion": "Remove the `actions/setup-node@v4` step and the `Set up claude` step (lines 65-73) \u2014 neither is used by the Python script."
     },
     {
-      "file": "src/api/__init__.py",
-      "line": "",
-      "severity": "info",
-      "msg": "Clean aggregation of all feature routers with correct imports and __all__ exports. No issues found."
-    },
-    {
-      "file": "src/api/routers/tasks.py",
-      "line": 31,
-      "severity": "info",
-      "msg": "Message field uses hardcoded Chinese string literal '\u83b7\u53d6\u4efb\u52a1\u5217\u8868\u6210\u529f'. Other routers use English or omit the message. Inconsistent with project style.",
-      "suggestion": "Replace with English string matching the style of other router responses, or remove the message field for consistency."
-    },
-    {
-      "file": "src/main.py",
-      "line": 68,
+      "file": ".github/workflows/fix-pr-comments.yml",
+      "line": 89,
       "severity": "warning",
-      "msg": "CORSMiddleware configured with allow_credentials=True and allow_origins=allowed_origins where the default (when env var is unset) becomes ['*']. Credentials with wildcard origin is unsafe and violates CORS spec \u2014 browsers will reject it.",
-      "suggestion": "When allow_credentials=True, allowed_origins must be an explicit allowlist (never '*'). Ensure settings.cors_origins is non-empty in all environments, or add a validation check that rejects '*' as a value."
+      "msg": "Refresh step (lines 80-95) and exclude cycle (lines 162-174) add complexity: files are fetched from master only to be immediately dropped from the commit. The same logic is duplicated across two separate code paths.",
+      "suggestion": "Simplify by never staging those two files in the first place: `git add -A -- :!scripts/ci/fix_pr_comments.py :!scripts/ci/fetch_pr_test_failures.py`, or use a .gitattributes exclude rule."
     },
     {
-      "file": "tests/integration/test_tasks_integration.py",
-      "line": 80,
+      "file": "scripts/ci/fix_pr_comments.py",
+      "line": 44,
       "severity": "warning",
-      "msg": "Assertion uses >= which passes even if the 3 created tasks were not persisted, masking a data-loss bug.",
-      "suggestion": "Use == 3 after ensuring the DB is clean (db_schema should guarantee this, but >= hides violations). If the intent is to assert minimum count, add a comment explaining why."
+      "msg": "run_gh has no timeout \u2014 if `gh` hangs (network issue, credential prompt), stream_claude will block indefinitely even though the outer caller has a timeout budget.",
+      "suggestion": "Add a reasonable timeout to the subprocess.run call in run_gh, e.g. `timeout=30`, and handle subprocess.TimeoutExpired by logging and returning an error result."
     },
     {
-      "file": "tests/unit/conftest.py",
-      "line": 754,
+      "file": "scripts/ci/fix_pr_comments.py",
+      "line": 65,
       "severity": "info",
-      "msg": "Unhandled SQL in `make_mock_session` returns `MockResult([])` silently \u2014 a missing handler will produce zero rows with no indication that the query was unrecognized.",
-      "suggestion": "Add a debug-mode assertion or log in `_execute_side_effect`: when all handlers return None, log a warning or raise `ValueError(f'No handler matched: {sql_text}')` so unknown queries fail loudly in tests."
+      "msg": "url.removeprefix/.removesuffix are Python 3.9+; the workflow specifies Python 3.11 so this is fine, but the shebang (`#!/usr/bin/env python3`) may resolve to Python 3.8 on some systems.",
+      "suggestion": "Pin the shebang to python3.11 or use `/usr/bin/env python3` as a portable fallback and rely on the workflow to set the correct Python."
     },
     {
-      "file": "tests/unit/conftest.py",
-      "line": 619,
+      "file": "scripts/ci/fix_pr_comments.py",
+      "line": 331,
       "severity": "info",
-      "msg": "`make_task_handler` is defined in conftest.py but no existing unit test file imports it \u2014 the task domain has a router-level unit test (test_tasks.py) but no service-layer unit test that exercises the mock handler.",
-      "suggestion": "If TaskService unit tests are intended, create tests/unit/test_task_service.py that imports `make_mock_session` and `make_task_handler` from conftest to provide a real mock session instead of the constructor-level patch used in test_tasks.py."
-    },
-    {
-      "file": "tests/unit/test_tasks.py",
-      "line": 86,
-      "severity": "warning",
-      "msg": "The `get_db` dependency is overridden with a bare `MagicMock()` (no spec, no awaitable `__aenter__`/`__aexit__`), which bypasses the async context-manager contract that FastAPI's dependency injection expects.",
-      "suggestion": "Use `make_mock_session([])` from conftest.py instead of `MagicMock()` for the get_db override, so the mock session has a proper `__aenter__`/`__aexit__` and spec'd methods."
-    },
-    {
-      "file": "tests/unit/test_tasks.py",
-      "line": 104,
-      "severity": "warning",
-      "msg": "Rule 66 / Rule 121: Tests mock `TaskService` at the class level (via `monkeypatch.setattr`) rather than constructing the service with a real mock session. This skips the router's actual session-injection path and the `__init__` contract that session must be AsyncSession.",
-      "suggestion": "Import `make_mock_session` and `make_task_handler` from conftest, then replace the `monkeypatch.setattr('api.routers.tasks.TaskService', lambda session: mock_service)` pattern with: `state = MockState(); mock_db = make_mock_session([make_task_handler(state)]); app.dependency_overrides[get_db] = lambda: mock_db; app.dependency_overrides[TaskService] = lambda session: mock_service`. This keeps the service mock for return-value control while exercising real session injection."
+      "msg": "pr_number argument is extracted from env and cast to int; if the env var is an empty string the early return on line 335 catches it, but a 0-valued PR number would not be caught (int('') raises, but '0' is valid and would pass).",
+      "suggestion": "Add `if pr_n <= 0: log(f'invalid_PR_NUMBER={pr_n}'); return 1` after the int cast on line 346."
     }
   ],
-  "summary": "Reviewed 7 file(s) between origin/master and origin/auto/issue-106.",
+  "summary": "Reviewed 2 file(s) between origin/master and origin/develop.",
   "details": {
     "llm_parsed": {
       "verdict": "fail",
       "critical": [
         {
-          "file": "src/api/routers/tasks.py",
-          "line": 97,
+          "file": ".github/workflows/fix-pr-comments.yml",
+          "line": 59,
           "severity": "critical",
-          "msg": "total = len(items) returns the page size (capped at 100), not the true total matching rows. The service applies LIMIT/OFFSET in SQL so len() undercounts when total > page_size.",
-          "suggestion": "Call a count method on TaskService (e.g., svc.count_tasks(...)) or have list_tasks return (items, total) like list_tickets does. Compare with tickets.py:125 where service returns (items, total) tuple."
+          "msg": "Token fallback to GITHUB_TOKEN defeats the PAT purpose \u2014 events from GITHUB_TOKEN do NOT fire pull_request workflows, so downstream CI will not trigger after the auto-commit.",
+          "suggestion": "Remove `|| secrets.GITHUB_TOKEN` and guard with a required secret or a condition: only run the commit step when `secrets.COMMIT_GITHUB_TOKEN` is set. Alternatively, document why the fallback is intentional and accept the missing downstream CI trigger."
         }
       ],
       "warnings": [
         {
-          "file": ".plans/issue-106.md",
-          "line": "",
+          "file": ".github/workflows/fix-pr-comments.yml",
+          "line": 65,
           "severity": "info",
-          "msg": "Plan document is detailed and consistent with the implemented files, correctly describing the tasks.py router structure, registration steps, and test strategy. No issues found."
+          "msg": "actions/setup-node@v4 installs Node.js but fix_pr_comments.py is a Python script with no Node dependency.",
+          "suggestion": "Remove the `actions/setup-node@v4` step and the `Set up claude` step (lines 65-73) \u2014 neither is used by the Python script."
         },
         {
-          "file": "src/api/__init__.py",
-          "line": "",
-          "severity": "info",
-          "msg": "Clean aggregation of all feature routers with correct imports and __all__ exports. No issues found."
-        },
-        {
-          "file": "src/api/routers/tasks.py",
-          "line": 31,
-          "severity": "info",
-          "msg": "Message field uses hardcoded Chinese string literal '\u83b7\u53d6\u4efb\u52a1\u5217\u8868\u6210\u529f'. Other routers use English or omit the message. Inconsistent with project style.",
-          "suggestion": "Replace with English string matching the style of other router responses, or remove the message field for consistency."
-        },
-        {
-          "file": "src/main.py",
-          "line": 68,
+          "file": ".github/workflows/fix-pr-comments.yml",
+          "line": 89,
           "severity": "warning",
-          "msg": "CORSMiddleware configured with allow_credentials=True and allow_origins=allowed_origins where the default (when env var is unset) becomes ['*']. Credentials with wildcard origin is unsafe and violates CORS spec \u2014 browsers will reject it.",
-          "suggestion": "When allow_credentials=True, allowed_origins must be an explicit allowlist (never '*'). Ensure settings.cors_origins is non-empty in all environments, or add a validation check that rejects '*' as a value."
+          "msg": "Refresh step (lines 80-95) and exclude cycle (lines 162-174) add complexity: files are fetched from master only to be immediately dropped from the commit. The same logic is duplicated across two separate code paths.",
+          "suggestion": "Simplify by never staging those two files in the first place: `git add -A -- :!scripts/ci/fix_pr_comments.py :!scripts/ci/fetch_pr_test_failures.py`, or use a .gitattributes exclude rule."
         },
         {
-          "file": "tests/integration/test_tasks_integration.py",
-          "line": 80,
+          "file": "scripts/ci/fix_pr_comments.py",
+          "line": 44,
           "severity": "warning",
-          "msg": "Assertion uses >= which passes even if the 3 created tasks were not persisted, masking a data-loss bug.",
-          "suggestion": "Use == 3 after ensuring the DB is clean (db_schema should guarantee this, but >= hides violations). If the intent is to assert minimum count, add a comment explaining why."
+          "msg": "run_gh has no timeout \u2014 if `gh` hangs (network issue, credential prompt), stream_claude will block indefinitely even though the outer caller has a timeout budget.",
+          "suggestion": "Add a reasonable timeout to the subprocess.run call in run_gh, e.g. `timeout=30`, and handle subprocess.TimeoutExpired by logging and returning an error result."
         },
         {
-          "file": "tests/unit/conftest.py",
-          "line": 754,
+          "file": "scripts/ci/fix_pr_comments.py",
+          "line": 65,
           "severity": "info",
-          "msg": "Unhandled SQL in `make_mock_session` returns `MockResult([])` silently \u2014 a missing handler will produce zero rows with no indication that the query was unrecognized.",
-          "suggestion": "Add a debug-mode assertion or log in `_execute_side_effect`: when all handlers return None, log a warning or raise `ValueError(f'No handler matched: {sql_text}')` so unknown queries fail loudly in tests."
+          "msg": "url.removeprefix/.removesuffix are Python 3.9+; the workflow specifies Python 3.11 so this is fine, but the shebang (`#!/usr/bin/env python3`) may resolve to Python 3.8 on some systems.",
+          "suggestion": "Pin the shebang to python3.11 or use `/usr/bin/env python3` as a portable fallback and rely on the workflow to set the correct Python."
         },
         {
-          "file": "tests/unit/conftest.py",
-          "line": 619,
+          "file": "scripts/ci/fix_pr_comments.py",
+          "line": 331,
           "severity": "info",
-          "msg": "`make_task_handler` is defined in conftest.py but no existing unit test file imports it \u2014 the task domain has a router-level unit test (test_tasks.py) but no service-layer unit test that exercises the mock handler.",
-          "suggestion": "If TaskService unit tests are intended, create tests/unit/test_task_service.py that imports `make_mock_session` and `make_task_handler` from conftest to provide a real mock session instead of the constructor-level patch used in test_tasks.py."
-        },
-        {
-          "file": "tests/unit/test_tasks.py",
-          "line": 86,
-          "severity": "warning",
-          "msg": "The `get_db` dependency is overridden with a bare `MagicMock()` (no spec, no awaitable `__aenter__`/`__aexit__`), which bypasses the async context-manager contract that FastAPI's dependency injection expects.",
-          "suggestion": "Use `make_mock_session([])` from conftest.py instead of `MagicMock()` for the get_db override, so the mock session has a proper `__aenter__`/`__aexit__` and spec'd methods."
-        },
-        {
-          "file": "tests/unit/test_tasks.py",
-          "line": 104,
-          "severity": "warning",
-          "msg": "Rule 66 / Rule 121: Tests mock `TaskService` at the class level (via `monkeypatch.setattr`) rather than constructing the service with a real mock session. This skips the router's actual session-injection path and the `__init__` contract that session must be AsyncSession.",
-          "suggestion": "Import `make_mock_session` and `make_task_handler` from conftest, then replace the `monkeypatch.setattr('api.routers.tasks.TaskService', lambda session: mock_service)` pattern with: `state = MockState(); mock_db = make_mock_session([make_task_handler(state)]); app.dependency_overrides[get_db] = lambda: mock_db; app.dependency_overrides[TaskService] = lambda session: mock_service`. This keeps the service mock for return-value control while exercising real session injection."
+          "msg": "pr_number argument is extracted from env and cast to int; if the env var is an empty string the early return on line 335 catches it, but a 0-valued PR number would not be caught (int('') raises, but '0' is valid and would pass).",
+          "suggestion": "Add `if pr_n <= 0: log(f'invalid_PR_NUMBER={pr_n}'); return 1` after the int cast on line 346."
         }
       ],
-      "summary": "Reviewed 7 file(s) between origin/master and origin/auto/issue-106."
+      "summary": "Reviewed 2 file(s) between origin/master and origin/develop."
     },
     "reviewed_refs": {
       "base": "d1b04a0fadb7a682f15065e4f234be4f0d8806f9",
-      "head": "9bb937f6f60a5d0ba77a2f88449f63bbf6f1cee0",
+      "head": "8f8a1be3ed4e67fd9d5bbade305d2b31a5390836",
       "base_label": "origin/master",
-      "head_label": "origin/auto/issue-106"
+      "head_label": "origin/develop"
     },
     "reviewed_files": [
-      ".plans/issue-106.md",
-      "src/api/__init__.py",
-      "src/api/routers/tasks.py",
-      "src/main.py",
-      "tests/integration/test_tasks_integration.py",
-      "tests/unit/conftest.py",
-      "tests/unit/test_tasks.py"
+      ".github/workflows/fix-pr-comments.yml",
+      "scripts/ci/fix_pr_comments.py"
     ],
     "per_file_reviews": [
       {
-        "file": ".plans/issue-106.md",
+        "file": ".github/workflows/fix-pr-comments.yml",
         "returncode": 0,
-        "output": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"api_error_status\":null,\"duration_ms\":122244,\"duration_api_ms\":122153,\"num_turns\":12,\"result\":\"\\n\\n```json\\n[\\n  {\\n    \\\"filename\\\": \\\"src/api/routers/tasks.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 97,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"total = len(items) returns the page size (capped at 100), not the true total matching rows. The service applies LIMIT/OFFSET in SQL so len() undercounts when total > page_size.\\\",\\n        \\\"suggestion\\\": \\\"Call a count method on TaskService (e.g., svc.count_tasks(...)) or have list_tasks return (items, total) like list_tickets does. Compare with tickets.py:125 where service returns (items, total) tuple.\\\"\\n      },\\n      {\\n        \\\"line\\\": 31,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"Message field uses hardcoded Chinese string literal '\u83b7\u53d6\u4efb\u52a1\u5217\u8868\u6210\u529f'. Other routers use English or omit the message. Inconsistent with project style.\\\",\\n        \\\"suggestion\\\": \\\"Replace with English string matching the style of other router responses, or remove the message field for consistency.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Router correctly follows the tickets.py pattern for structure and auth, but list_tasks endpoint miscounts total rows by using len(items) instead of a real count \u2014 causing pagination to report wrong totals.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"src/api/__init__.py\\\",\\n    \\\"issues\\\": [],\\n    \\\"summary\\\": \\\"Clean aggregation of all feature routers with correct imports and __all__ exports. No issues found.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"src/main.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 68,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"CORSMiddleware configured with allow_credentials=True and allow_origins=allowed_origins where the default (when env var is unset) becomes ['*']. Credentials with wildcard origin is unsafe and violates CORS spec \u2014 browsers will reject it.\\\",\\n        \\\"suggestion\\\": \\\"When allow_credentials=True, allowed_origins must be an explicit allowlist (never '*'). Ensure settings.cors_origins is non-empty in all environments, or add a validation check that rejects '*' as a value.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"App factory and lifecycle are clean; global exception handlers, middleware, and router registration are all correct. One CORS security concern with credentials + wildcard origin fallback.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\".plans/issue-106.md\\\",\\n    \\\"issues\\\": [],\\n    \\\"summary\\\": \\\"Plan document is detailed and consistent with the implemented files, correctly describing the tasks.py router structure, registration steps, and test strategy. No issues found.\\\"\\n  }\\n]\\n```\",\"stop_reason\":\"end_turn\",\"session_id\":\"abbac6e0-9342-454a-9843-7f9386dcd0de\",\"total_cost_usd\":0.24697634999999998,\"usage\":{\"input_tokens\":36365,\"cache_creation_input_tokens\":11419,\"cache_read_input_tokens\":167667,\"output_tokens\":2984,\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":0,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"\",\"iterations\":[],\"speed\":\"standard\"},\"modelUsage\":{\"claude-sonnet-4-6\":{\"inputTokens\":36365,\"outputTokens\":2984,\"cacheReadInputTokens\":167667,\"cacheCreationInputTokens\":11419,\"webSearchRequests\":0,\"costUSD\":0.24697634999999998,\"contextWindow\":200000,\"maxOutputTokens\":32000}},\"permission_denials\":[],\"terminal_reason\":\"completed\",\"fast_mode_state\":\"off\",\"uuid\":\"1aecb707-bfea-4943-9327-7b8dd41e834f\"}\n",
+        "output": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"api_error_status\":null,\"duration_ms\":94247,\"duration_api_ms\":94197,\"num_turns\":3,\"result\":\"\\n\\n[\\n  {\\n    \\\"filename\\\": \\\".github/workflows/fix-pr-comments.yml\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 59,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"Token fallback to GITHUB_TOKEN defeats the PAT purpose \u2014 events from GITHUB_TOKEN do NOT fire pull_request workflows, so downstream CI will not trigger after the auto-commit.\\\",\\n        \\\"suggestion\\\": \\\"Remove `|| secrets.GITHUB_TOKEN` and guard with a required secret or a condition: only run the commit step when `secrets.COMMIT_GITHUB_TOKEN` is set. Alternatively, document why the fallback is intentional and accept the missing downstream CI trigger.\\\"\\n      },\\n      {\\n        \\\"line\\\": 65,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"actions/setup-node@v4 installs Node.js but fix_pr_comments.py is a Python script with no Node dependency.\\\",\\n        \\\"suggestion\\\": \\\"Remove the `actions/setup-node@v4` step and the `Set up claude` step (lines 65-73) \u2014 neither is used by the Python script.\\\"\\n      },\\n      {\\n        \\\"line\\\": 89,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"Refresh step (lines 80-95) and exclude cycle (lines 162-174) add complexity: files are fetched from master only to be immediately dropped from the commit. The same logic is duplicated across two separate code paths.\\\",\\n        \\\"suggestion\\\": \\\"Simplify by never staging those two files in the first place: `git add -A -- :!scripts/ci/fix_pr_comments.py :!scripts/ci/fetch_pr_test_failures.py`, or use a .gitattributes exclude rule.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Token logic on line 59 can cause downstream CI to miss the auto-fix push; Node/Claude setup is unused; refresh-then-exclude pattern is overcomplicated.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"scripts/ci/fix_pr_comments.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 44,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"run_gh has no timeout \u2014 if `gh` hangs (network issue, credential prompt), stream_claude will block indefinitely even though the outer caller has a timeout budget.\\\",\\n        \\\"suggestion\\\": \\\"Add a reasonable timeout to the subprocess.run call in run_gh, e.g. `timeout=30`, and handle subprocess.TimeoutExpired by logging and returning an error result.\\\"\\n      },\\n      {\\n        \\\"line\\\": 65,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"url.removeprefix/.removesuffix are Python 3.9+; the workflow specifies Python 3.11 so this is fine, but the shebang (`#!/usr/bin/env python3`) may resolve to Python 3.8 on some systems.\\\",\\n        \\\"suggestion\\\": \\\"Pin the shebang to python3.11 or use `/usr/bin/env python3` as a portable fallback and rely on the workflow to set the correct Python.\\\"\\n      },\\n      {\\n        \\\"line\\\": 331,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"pr_number argument is extracted from env and cast to int; if the env var is an empty string the early return on line 335 catches it, but a 0-valued PR number would not be caught (int('') raises, but '0' is valid and would pass).\\\",\\n        \\\"suggestion\\\": \\\"Add `if pr_n <= 0: log(f'invalid_PR_NUMBER={pr_n}'); return 1` after the int cast on line 346.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"No critical issues; run_gh lacks a timeout which could cause indefinite blocking; minor input validation gap on PR number.\\\"\\n  }\\n]\",\"stop_reason\":\"end_turn\",\"session_id\":\"7cb3500c-bad7-457f-9aa6-c10bb898e028\",\"total_cost_usd\":0.24759315,\"usage\":{\"input_tokens\":35043,\"cache_creation_input_tokens\":30773,\"cache_read_input_tokens\":2368,\"output_tokens\":1757,\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":0,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"\",\"iterations\":[],\"speed\":\"standard\"},\"modelUsage\":{\"claude-sonnet-4-6\":{\"inputTokens\":35043,\"outputTokens\":1757,\"cacheReadInputTokens\":2368,\"cacheCreationInputTokens\":30773,\"webSearchRequests\":0,\"costUSD\":0.24759315,\"contextWindow\":200000,\"maxOutputTokens\":32000}},\"permission_denials\":[],\"terminal_reason\":\"completed\",\"fast_mode_state\":\"off\",\"uuid\":\"b45f3068-3059-4f3f-b696-6862eaa24a56\"}\n",
         "parsed": {
-          "filename": ".plans/issue-106.md",
-          "issues": [],
-          "summary": "Plan document is detailed and consistent with the implemented files, correctly describing the tasks.py router structure, registration steps, and test strategy. No issues found."
-        }
-      },
-      {
-        "file": "src/api/__init__.py",
-        "returncode": 0,
-        "output": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"api_error_status\":null,\"duration_ms\":122244,\"duration_api_ms\":122153,\"num_turns\":12,\"result\":\"\\n\\n```json\\n[\\n  {\\n    \\\"filename\\\": \\\"src/api/routers/tasks.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 97,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"total = len(items) returns the page size (capped at 100), not the true total matching rows. The service applies LIMIT/OFFSET in SQL so len() undercounts when total > page_size.\\\",\\n        \\\"suggestion\\\": \\\"Call a count method on TaskService (e.g., svc.count_tasks(...)) or have list_tasks return (items, total) like list_tickets does. Compare with tickets.py:125 where service returns (items, total) tuple.\\\"\\n      },\\n      {\\n        \\\"line\\\": 31,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"Message field uses hardcoded Chinese string literal '\u83b7\u53d6\u4efb\u52a1\u5217\u8868\u6210\u529f'. Other routers use English or omit the message. Inconsistent with project style.\\\",\\n        \\\"suggestion\\\": \\\"Replace with English string matching the style of other router responses, or remove the message field for consistency.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Router correctly follows the tickets.py pattern for structure and auth, but list_tasks endpoint miscounts total rows by using len(items) instead of a real count \u2014 causing pagination to report wrong totals.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"src/api/__init__.py\\\",\\n    \\\"issues\\\": [],\\n    \\\"summary\\\": \\\"Clean aggregation of all feature routers with correct imports and __all__ exports. No issues found.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"src/main.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 68,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"CORSMiddleware configured with allow_credentials=True and allow_origins=allowed_origins where the default (when env var is unset) becomes ['*']. Credentials with wildcard origin is unsafe and violates CORS spec \u2014 browsers will reject it.\\\",\\n        \\\"suggestion\\\": \\\"When allow_credentials=True, allowed_origins must be an explicit allowlist (never '*'). Ensure settings.cors_origins is non-empty in all environments, or add a validation check that rejects '*' as a value.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"App factory and lifecycle are clean; global exception handlers, middleware, and router registration are all correct. One CORS security concern with credentials + wildcard origin fallback.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\".plans/issue-106.md\\\",\\n    \\\"issues\\\": [],\\n    \\\"summary\\\": \\\"Plan document is detailed and consistent with the implemented files, correctly describing the tasks.py router structure, registration steps, and test strategy. No issues found.\\\"\\n  }\\n]\\n```\",\"stop_reason\":\"end_turn\",\"session_id\":\"abbac6e0-9342-454a-9843-7f9386dcd0de\",\"total_cost_usd\":0.24697634999999998,\"usage\":{\"input_tokens\":36365,\"cache_creation_input_tokens\":11419,\"cache_read_input_tokens\":167667,\"output_tokens\":2984,\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":0,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"\",\"iterations\":[],\"speed\":\"standard\"},\"modelUsage\":{\"claude-sonnet-4-6\":{\"inputTokens\":36365,\"outputTokens\":2984,\"cacheReadInputTokens\":167667,\"cacheCreationInputTokens\":11419,\"webSearchRequests\":0,\"costUSD\":0.24697634999999998,\"contextWindow\":200000,\"maxOutputTokens\":32000}},\"permission_denials\":[],\"terminal_reason\":\"completed\",\"fast_mode_state\":\"off\",\"uuid\":\"1aecb707-bfea-4943-9327-7b8dd41e834f\"}\n",
-        "parsed": {
-          "filename": "src/api/__init__.py",
-          "issues": [],
-          "summary": "Clean aggregation of all feature routers with correct imports and __all__ exports. No issues found."
-        }
-      },
-      {
-        "file": "src/api/routers/tasks.py",
-        "returncode": 0,
-        "output": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"api_error_status\":null,\"duration_ms\":122244,\"duration_api_ms\":122153,\"num_turns\":12,\"result\":\"\\n\\n```json\\n[\\n  {\\n    \\\"filename\\\": \\\"src/api/routers/tasks.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 97,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"total = len(items) returns the page size (capped at 100), not the true total matching rows. The service applies LIMIT/OFFSET in SQL so len() undercounts when total > page_size.\\\",\\n        \\\"suggestion\\\": \\\"Call a count method on TaskService (e.g., svc.count_tasks(...)) or have list_tasks return (items, total) like list_tickets does. Compare with tickets.py:125 where service returns (items, total) tuple.\\\"\\n      },\\n      {\\n        \\\"line\\\": 31,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"Message field uses hardcoded Chinese string literal '\u83b7\u53d6\u4efb\u52a1\u5217\u8868\u6210\u529f'. Other routers use English or omit the message. Inconsistent with project style.\\\",\\n        \\\"suggestion\\\": \\\"Replace with English string matching the style of other router responses, or remove the message field for consistency.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Router correctly follows the tickets.py pattern for structure and auth, but list_tasks endpoint miscounts total rows by using len(items) instead of a real count \u2014 causing pagination to report wrong totals.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"src/api/__init__.py\\\",\\n    \\\"issues\\\": [],\\n    \\\"summary\\\": \\\"Clean aggregation of all feature routers with correct imports and __all__ exports. No issues found.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"src/main.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 68,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"CORSMiddleware configured with allow_credentials=True and allow_origins=allowed_origins where the default (when env var is unset) becomes ['*']. Credentials with wildcard origin is unsafe and violates CORS spec \u2014 browsers will reject it.\\\",\\n        \\\"suggestion\\\": \\\"When allow_credentials=True, allowed_origins must be an explicit allowlist (never '*'). Ensure settings.cors_origins is non-empty in all environments, or add a validation check that rejects '*' as a value.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"App factory and lifecycle are clean; global exception handlers, middleware, and router registration are all correct. One CORS security concern with credentials + wildcard origin fallback.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\".plans/issue-106.md\\\",\\n    \\\"issues\\\": [],\\n    \\\"summary\\\": \\\"Plan document is detailed and consistent with the implemented files, correctly describing the tasks.py router structure, registration steps, and test strategy. No issues found.\\\"\\n  }\\n]\\n```\",\"stop_reason\":\"end_turn\",\"session_id\":\"abbac6e0-9342-454a-9843-7f9386dcd0de\",\"total_cost_usd\":0.24697634999999998,\"usage\":{\"input_tokens\":36365,\"cache_creation_input_tokens\":11419,\"cache_read_input_tokens\":167667,\"output_tokens\":2984,\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":0,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"\",\"iterations\":[],\"speed\":\"standard\"},\"modelUsage\":{\"claude-sonnet-4-6\":{\"inputTokens\":36365,\"outputTokens\":2984,\"cacheReadInputTokens\":167667,\"cacheCreationInputTokens\":11419,\"webSearchRequests\":0,\"costUSD\":0.24697634999999998,\"contextWindow\":200000,\"maxOutputTokens\":32000}},\"permission_denials\":[],\"terminal_reason\":\"completed\",\"fast_mode_state\":\"off\",\"uuid\":\"1aecb707-bfea-4943-9327-7b8dd41e834f\"}\n",
-        "parsed": {
-          "filename": "src/api/routers/tasks.py",
+          "filename": ".github/workflows/fix-pr-comments.yml",
           "issues": [
             {
-              "line": 97,
+              "line": 59,
               "severity": "critical",
-              "message": "total = len(items) returns the page size (capped at 100), not the true total matching rows. The service applies LIMIT/OFFSET in SQL so len() undercounts when total > page_size.",
-              "suggestion": "Call a count method on TaskService (e.g., svc.count_tasks(...)) or have list_tasks return (items, total) like list_tickets does. Compare with tickets.py:125 where service returns (items, total) tuple."
+              "message": "Token fallback to GITHUB_TOKEN defeats the PAT purpose \u2014 events from GITHUB_TOKEN do NOT fire pull_request workflows, so downstream CI will not trigger after the auto-commit.",
+              "suggestion": "Remove `|| secrets.GITHUB_TOKEN` and guard with a required secret or a condition: only run the commit step when `secrets.COMMIT_GITHUB_TOKEN` is set. Alternatively, document why the fallback is intentional and accept the missing downstream CI trigger."
             },
             {
-              "line": 31,
+              "line": 65,
               "severity": "info",
-              "message": "Message field uses hardcoded Chinese string literal '\u83b7\u53d6\u4efb\u52a1\u5217\u8868\u6210\u529f'. Other routers use English or omit the message. Inconsistent with project style.",
-              "suggestion": "Replace with English string matching the style of other router responses, or remove the message field for consistency."
-            }
-          ],
-          "summary": "Router correctly follows the tickets.py pattern for structure and auth, but list_tasks endpoint miscounts total rows by using len(items) instead of a real count \u2014 causing pagination to report wrong totals."
-        }
-      },
-      {
-        "file": "src/main.py",
-        "returncode": 0,
-        "output": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"api_error_status\":null,\"duration_ms\":122244,\"duration_api_ms\":122153,\"num_turns\":12,\"result\":\"\\n\\n```json\\n[\\n  {\\n    \\\"filename\\\": \\\"src/api/routers/tasks.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 97,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"total = len(items) returns the page size (capped at 100), not the true total matching rows. The service applies LIMIT/OFFSET in SQL so len() undercounts when total > page_size.\\\",\\n        \\\"suggestion\\\": \\\"Call a count method on TaskService (e.g., svc.count_tasks(...)) or have list_tasks return (items, total) like list_tickets does. Compare with tickets.py:125 where service returns (items, total) tuple.\\\"\\n      },\\n      {\\n        \\\"line\\\": 31,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"Message field uses hardcoded Chinese string literal '\u83b7\u53d6\u4efb\u52a1\u5217\u8868\u6210\u529f'. Other routers use English or omit the message. Inconsistent with project style.\\\",\\n        \\\"suggestion\\\": \\\"Replace with English string matching the style of other router responses, or remove the message field for consistency.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Router correctly follows the tickets.py pattern for structure and auth, but list_tasks endpoint miscounts total rows by using len(items) instead of a real count \u2014 causing pagination to report wrong totals.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"src/api/__init__.py\\\",\\n    \\\"issues\\\": [],\\n    \\\"summary\\\": \\\"Clean aggregation of all feature routers with correct imports and __all__ exports. No issues found.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"src/main.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 68,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"CORSMiddleware configured with allow_credentials=True and allow_origins=allowed_origins where the default (when env var is unset) becomes ['*']. Credentials with wildcard origin is unsafe and violates CORS spec \u2014 browsers will reject it.\\\",\\n        \\\"suggestion\\\": \\\"When allow_credentials=True, allowed_origins must be an explicit allowlist (never '*'). Ensure settings.cors_origins is non-empty in all environments, or add a validation check that rejects '*' as a value.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"App factory and lifecycle are clean; global exception handlers, middleware, and router registration are all correct. One CORS security concern with credentials + wildcard origin fallback.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\".plans/issue-106.md\\\",\\n    \\\"issues\\\": [],\\n    \\\"summary\\\": \\\"Plan document is detailed and consistent with the implemented files, correctly describing the tasks.py router structure, registration steps, and test strategy. No issues found.\\\"\\n  }\\n]\\n```\",\"stop_reason\":\"end_turn\",\"session_id\":\"abbac6e0-9342-454a-9843-7f9386dcd0de\",\"total_cost_usd\":0.24697634999999998,\"usage\":{\"input_tokens\":36365,\"cache_creation_input_tokens\":11419,\"cache_read_input_tokens\":167667,\"output_tokens\":2984,\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":0,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"\",\"iterations\":[],\"speed\":\"standard\"},\"modelUsage\":{\"claude-sonnet-4-6\":{\"inputTokens\":36365,\"outputTokens\":2984,\"cacheReadInputTokens\":167667,\"cacheCreationInputTokens\":11419,\"webSearchRequests\":0,\"costUSD\":0.24697634999999998,\"contextWindow\":200000,\"maxOutputTokens\":32000}},\"permission_denials\":[],\"terminal_reason\":\"completed\",\"fast_mode_state\":\"off\",\"uuid\":\"1aecb707-bfea-4943-9327-7b8dd41e834f\"}\n",
-        "parsed": {
-          "filename": "src/main.py",
-          "issues": [
-            {
-              "line": 68,
-              "severity": "warning",
-              "message": "CORSMiddleware configured with allow_credentials=True and allow_origins=allowed_origins where the default (when env var is unset) becomes ['*']. Credentials with wildcard origin is unsafe and violates CORS spec \u2014 browsers will reject it.",
-              "suggestion": "When allow_credentials=True, allowed_origins must be an explicit allowlist (never '*'). Ensure settings.cors_origins is non-empty in all environments, or add a validation check that rejects '*' as a value."
-            }
-          ],
-          "summary": "App factory and lifecycle are clean; global exception handlers, middleware, and router registration are all correct. One CORS security concern with credentials + wildcard origin fallback."
-        }
-      },
-      {
-        "file": "tests/integration/test_tasks_integration.py",
-        "returncode": 0,
-        "output": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"api_error_status\":null,\"duration_ms\":808665,\"duration_api_ms\":808351,\"num_turns\":14,\"result\":\"\\n\\nNow I have everything I need. Let me compile the review findings across all three files.\\n\\n[\\n  {\\n    \\\"filename\\\": \\\"tests/integration/test_tasks_integration.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 80,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"Assertion uses >= which passes even if the 3 created tasks were not persisted, masking a data-loss bug.\\\",\\n        \\\"suggestion\\\": \\\"Use == 3 after ensuring the DB is clean (db_schema should guarantee this, but >= hides violations). If the intent is to assert minimum count, add a comment explaining why.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Integration tests are well-structured with good coverage of auth, 404s, and CRUD operations, but have one fragile assertion.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"tests/unit/conftest.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 754,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"Unhandled SQL in `make_mock_session` returns `MockResult([])` silently \u2014 a missing handler will produce zero rows with no indication that the query was unrecognized.\\\",\\n        \\\"suggestion\\\": \\\"Add a debug-mode assertion or log in `_execute_side_effect`: when all handlers return None, log a warning or raise `ValueError(f'No handler matched: {sql_text}')` so unknown queries fail loudly in tests.\\\"\\n      },\\n      {\\n        \\\"line\\\": 619,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"`make_task_handler` is defined in conftest.py but no existing unit test file imports it \u2014 the task domain has a router-level unit test (test_tasks.py) but no service-layer unit test that exercises the mock handler.\\\",\\n        \\\"suggestion\\\": \\\"If TaskService unit tests are intended, create tests/unit/test_task_service.py that imports `make_mock_session` and `make_task_handler` from conftest to provide a real mock session instead of the constructor-level patch used in test_tasks.py.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Comprehensive conftest with good domain coverage and composable handlers; no critical issues, but the silent empty-result fallback for unrecognized queries is a maintenance risk.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"tests/unit/test_tasks.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 86,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"The `get_db` dependency is overridden with a bare `MagicMock()` (no spec, no awaitable `__aenter__`/`__aexit__`), which bypasses the async context-manager contract that FastAPI's dependency injection expects.\\\",\\n        \\\"suggestion\\\": \\\"Use `make_mock_session([])` from conftest.py instead of `MagicMock()` for the get_db override, so the mock session has a proper `__aenter__`/`__aexit__` and spec'd methods.\\\"\\n      },\\n      {\\n        \\\"line\\\": 104,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"Rule 66 / Rule 121: Tests mock `TaskService` at the class level (via `monkeypatch.setattr`) rather than constructing the service with a real mock session. This skips the router's actual session-injection path and the `__init__` contract that session must be AsyncSession.\\\",\\n        \\\"suggestion\\\": \\\"Import `make_mock_session` and `make_task_handler` from conftest, then replace the `monkeypatch.setattr('api.routers.tasks.TaskService', lambda session: mock_service)` pattern with: `state = MockState(); mock_db = make_mock_session([make_task_handler(state)]); app.dependency_overrides[get_db] = lambda: mock_db; app.dependency_overrides[TaskService] = lambda session: mock_service`. This keeps the service mock for return-value control while exercising real session injection.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Router-level unit tests verify HTTP-layer behavior correctly but sidestep DB session injection; the mock-at-constructor approach is valid for pure router logic but provides no coverage of the service instantiation path.\\\"\\n  }\\n]\",\"stop_reason\":\"end_turn\",\"session_id\":\"6c2d7cbc-c4c5-4581-930b-0a2e1d72a3fa\",\"total_cost_usd\":0.68465055,\"usage\":{\"input_tokens\":49473,\"cache_creation_input_tokens\":5853,\"cache_read_input_tokens\":508976,\"output_tokens\":24106,\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":0,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"\",\"iterations\":[],\"speed\":\"standard\"},\"modelUsage\":{\"claude-sonnet-4-6\":{\"inputTokens\":49473,\"outputTokens\":24106,\"cacheReadInputTokens\":508976,\"cacheCreationInputTokens\":5853,\"webSearchRequests\":0,\"costUSD\":0.68465055,\"contextWindow\":200000,\"maxOutputTokens\":32000}},\"permission_denials\":[],\"terminal_reason\":\"completed\",\"fast_mode_state\":\"off\",\"uuid\":\"68bd3cf1-9b79-4557-b0de-a72014b74257\"}\n",
-        "parsed": {
-          "filename": "tests/integration/test_tasks_integration.py",
-          "issues": [
-            {
-              "line": 80,
-              "severity": "warning",
-              "message": "Assertion uses >= which passes even if the 3 created tasks were not persisted, masking a data-loss bug.",
-              "suggestion": "Use == 3 after ensuring the DB is clean (db_schema should guarantee this, but >= hides violations). If the intent is to assert minimum count, add a comment explaining why."
-            }
-          ],
-          "summary": "Integration tests are well-structured with good coverage of auth, 404s, and CRUD operations, but have one fragile assertion."
-        }
-      },
-      {
-        "file": "tests/unit/conftest.py",
-        "returncode": 0,
-        "output": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"api_error_status\":null,\"duration_ms\":808665,\"duration_api_ms\":808351,\"num_turns\":14,\"result\":\"\\n\\nNow I have everything I need. Let me compile the review findings across all three files.\\n\\n[\\n  {\\n    \\\"filename\\\": \\\"tests/integration/test_tasks_integration.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 80,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"Assertion uses >= which passes even if the 3 created tasks were not persisted, masking a data-loss bug.\\\",\\n        \\\"suggestion\\\": \\\"Use == 3 after ensuring the DB is clean (db_schema should guarantee this, but >= hides violations). If the intent is to assert minimum count, add a comment explaining why.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Integration tests are well-structured with good coverage of auth, 404s, and CRUD operations, but have one fragile assertion.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"tests/unit/conftest.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 754,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"Unhandled SQL in `make_mock_session` returns `MockResult([])` silently \u2014 a missing handler will produce zero rows with no indication that the query was unrecognized.\\\",\\n        \\\"suggestion\\\": \\\"Add a debug-mode assertion or log in `_execute_side_effect`: when all handlers return None, log a warning or raise `ValueError(f'No handler matched: {sql_text}')` so unknown queries fail loudly in tests.\\\"\\n      },\\n      {\\n        \\\"line\\\": 619,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"`make_task_handler` is defined in conftest.py but no existing unit test file imports it \u2014 the task domain has a router-level unit test (test_tasks.py) but no service-layer unit test that exercises the mock handler.\\\",\\n        \\\"suggestion\\\": \\\"If TaskService unit tests are intended, create tests/unit/test_task_service.py that imports `make_mock_session` and `make_task_handler` from conftest to provide a real mock session instead of the constructor-level patch used in test_tasks.py.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Comprehensive conftest with good domain coverage and composable handlers; no critical issues, but the silent empty-result fallback for unrecognized queries is a maintenance risk.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"tests/unit/test_tasks.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 86,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"The `get_db` dependency is overridden with a bare `MagicMock()` (no spec, no awaitable `__aenter__`/`__aexit__`), which bypasses the async context-manager contract that FastAPI's dependency injection expects.\\\",\\n        \\\"suggestion\\\": \\\"Use `make_mock_session([])` from conftest.py instead of `MagicMock()` for the get_db override, so the mock session has a proper `__aenter__`/`__aexit__` and spec'd methods.\\\"\\n      },\\n      {\\n        \\\"line\\\": 104,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"Rule 66 / Rule 121: Tests mock `TaskService` at the class level (via `monkeypatch.setattr`) rather than constructing the service with a real mock session. This skips the router's actual session-injection path and the `__init__` contract that session must be AsyncSession.\\\",\\n        \\\"suggestion\\\": \\\"Import `make_mock_session` and `make_task_handler` from conftest, then replace the `monkeypatch.setattr('api.routers.tasks.TaskService', lambda session: mock_service)` pattern with: `state = MockState(); mock_db = make_mock_session([make_task_handler(state)]); app.dependency_overrides[get_db] = lambda: mock_db; app.dependency_overrides[TaskService] = lambda session: mock_service`. This keeps the service mock for return-value control while exercising real session injection.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Router-level unit tests verify HTTP-layer behavior correctly but sidestep DB session injection; the mock-at-constructor approach is valid for pure router logic but provides no coverage of the service instantiation path.\\\"\\n  }\\n]\",\"stop_reason\":\"end_turn\",\"session_id\":\"6c2d7cbc-c4c5-4581-930b-0a2e1d72a3fa\",\"total_cost_usd\":0.68465055,\"usage\":{\"input_tokens\":49473,\"cache_creation_input_tokens\":5853,\"cache_read_input_tokens\":508976,\"output_tokens\":24106,\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":0,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"\",\"iterations\":[],\"speed\":\"standard\"},\"modelUsage\":{\"claude-sonnet-4-6\":{\"inputTokens\":49473,\"outputTokens\":24106,\"cacheReadInputTokens\":508976,\"cacheCreationInputTokens\":5853,\"webSearchRequests\":0,\"costUSD\":0.68465055,\"contextWindow\":200000,\"maxOutputTokens\":32000}},\"permission_denials\":[],\"terminal_reason\":\"completed\",\"fast_mode_state\":\"off\",\"uuid\":\"68bd3cf1-9b79-4557-b0de-a72014b74257\"}\n",
-        "parsed": {
-          "filename": "tests/unit/conftest.py",
-          "issues": [
-            {
-              "line": 754,
-              "severity": "info",
-              "message": "Unhandled SQL in `make_mock_session` returns `MockResult([])` silently \u2014 a missing handler will produce zero rows with no indication that the query was unrecognized.",
-              "suggestion": "Add a debug-mode assertion or log in `_execute_side_effect`: when all handlers return None, log a warning or raise `ValueError(f'No handler matched: {sql_text}')` so unknown queries fail loudly in tests."
+              "message": "actions/setup-node@v4 installs Node.js but fix_pr_comments.py is a Python script with no Node dependency.",
+              "suggestion": "Remove the `actions/setup-node@v4` step and the `Set up claude` step (lines 65-73) \u2014 neither is used by the Python script."
             },
             {
-              "line": 619,
-              "severity": "info",
-              "message": "`make_task_handler` is defined in conftest.py but no existing unit test file imports it \u2014 the task domain has a router-level unit test (test_tasks.py) but no service-layer unit test that exercises the mock handler.",
-              "suggestion": "If TaskService unit tests are intended, create tests/unit/test_task_service.py that imports `make_mock_session` and `make_task_handler` from conftest to provide a real mock session instead of the constructor-level patch used in test_tasks.py."
+              "line": 89,
+              "severity": "warning",
+              "message": "Refresh step (lines 80-95) and exclude cycle (lines 162-174) add complexity: files are fetched from master only to be immediately dropped from the commit. The same logic is duplicated across two separate code paths.",
+              "suggestion": "Simplify by never staging those two files in the first place: `git add -A -- :!scripts/ci/fix_pr_comments.py :!scripts/ci/fetch_pr_test_failures.py`, or use a .gitattributes exclude rule."
             }
           ],
-          "summary": "Comprehensive conftest with good domain coverage and composable handlers; no critical issues, but the silent empty-result fallback for unrecognized queries is a maintenance risk."
+          "summary": "Token logic on line 59 can cause downstream CI to miss the auto-fix push; Node/Claude setup is unused; refresh-then-exclude pattern is overcomplicated."
         }
       },
       {
-        "file": "tests/unit/test_tasks.py",
+        "file": "scripts/ci/fix_pr_comments.py",
         "returncode": 0,
-        "output": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"api_error_status\":null,\"duration_ms\":808665,\"duration_api_ms\":808351,\"num_turns\":14,\"result\":\"\\n\\nNow I have everything I need. Let me compile the review findings across all three files.\\n\\n[\\n  {\\n    \\\"filename\\\": \\\"tests/integration/test_tasks_integration.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 80,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"Assertion uses >= which passes even if the 3 created tasks were not persisted, masking a data-loss bug.\\\",\\n        \\\"suggestion\\\": \\\"Use == 3 after ensuring the DB is clean (db_schema should guarantee this, but >= hides violations). If the intent is to assert minimum count, add a comment explaining why.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Integration tests are well-structured with good coverage of auth, 404s, and CRUD operations, but have one fragile assertion.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"tests/unit/conftest.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 754,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"Unhandled SQL in `make_mock_session` returns `MockResult([])` silently \u2014 a missing handler will produce zero rows with no indication that the query was unrecognized.\\\",\\n        \\\"suggestion\\\": \\\"Add a debug-mode assertion or log in `_execute_side_effect`: when all handlers return None, log a warning or raise `ValueError(f'No handler matched: {sql_text}')` so unknown queries fail loudly in tests.\\\"\\n      },\\n      {\\n        \\\"line\\\": 619,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"`make_task_handler` is defined in conftest.py but no existing unit test file imports it \u2014 the task domain has a router-level unit test (test_tasks.py) but no service-layer unit test that exercises the mock handler.\\\",\\n        \\\"suggestion\\\": \\\"If TaskService unit tests are intended, create tests/unit/test_task_service.py that imports `make_mock_session` and `make_task_handler` from conftest to provide a real mock session instead of the constructor-level patch used in test_tasks.py.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Comprehensive conftest with good domain coverage and composable handlers; no critical issues, but the silent empty-result fallback for unrecognized queries is a maintenance risk.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"tests/unit/test_tasks.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 86,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"The `get_db` dependency is overridden with a bare `MagicMock()` (no spec, no awaitable `__aenter__`/`__aexit__`), which bypasses the async context-manager contract that FastAPI's dependency injection expects.\\\",\\n        \\\"suggestion\\\": \\\"Use `make_mock_session([])` from conftest.py instead of `MagicMock()` for the get_db override, so the mock session has a proper `__aenter__`/`__aexit__` and spec'd methods.\\\"\\n      },\\n      {\\n        \\\"line\\\": 104,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"Rule 66 / Rule 121: Tests mock `TaskService` at the class level (via `monkeypatch.setattr`) rather than constructing the service with a real mock session. This skips the router's actual session-injection path and the `__init__` contract that session must be AsyncSession.\\\",\\n        \\\"suggestion\\\": \\\"Import `make_mock_session` and `make_task_handler` from conftest, then replace the `monkeypatch.setattr('api.routers.tasks.TaskService', lambda session: mock_service)` pattern with: `state = MockState(); mock_db = make_mock_session([make_task_handler(state)]); app.dependency_overrides[get_db] = lambda: mock_db; app.dependency_overrides[TaskService] = lambda session: mock_service`. This keeps the service mock for return-value control while exercising real session injection.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Router-level unit tests verify HTTP-layer behavior correctly but sidestep DB session injection; the mock-at-constructor approach is valid for pure router logic but provides no coverage of the service instantiation path.\\\"\\n  }\\n]\",\"stop_reason\":\"end_turn\",\"session_id\":\"6c2d7cbc-c4c5-4581-930b-0a2e1d72a3fa\",\"total_cost_usd\":0.68465055,\"usage\":{\"input_tokens\":49473,\"cache_creation_input_tokens\":5853,\"cache_read_input_tokens\":508976,\"output_tokens\":24106,\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":0,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"\",\"iterations\":[],\"speed\":\"standard\"},\"modelUsage\":{\"claude-sonnet-4-6\":{\"inputTokens\":49473,\"outputTokens\":24106,\"cacheReadInputTokens\":508976,\"cacheCreationInputTokens\":5853,\"webSearchRequests\":0,\"costUSD\":0.68465055,\"contextWindow\":200000,\"maxOutputTokens\":32000}},\"permission_denials\":[],\"terminal_reason\":\"completed\",\"fast_mode_state\":\"off\",\"uuid\":\"68bd3cf1-9b79-4557-b0de-a72014b74257\"}\n",
+        "output": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"api_error_status\":null,\"duration_ms\":94247,\"duration_api_ms\":94197,\"num_turns\":3,\"result\":\"\\n\\n[\\n  {\\n    \\\"filename\\\": \\\".github/workflows/fix-pr-comments.yml\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 59,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"Token fallback to GITHUB_TOKEN defeats the PAT purpose \u2014 events from GITHUB_TOKEN do NOT fire pull_request workflows, so downstream CI will not trigger after the auto-commit.\\\",\\n        \\\"suggestion\\\": \\\"Remove `|| secrets.GITHUB_TOKEN` and guard with a required secret or a condition: only run the commit step when `secrets.COMMIT_GITHUB_TOKEN` is set. Alternatively, document why the fallback is intentional and accept the missing downstream CI trigger.\\\"\\n      },\\n      {\\n        \\\"line\\\": 65,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"actions/setup-node@v4 installs Node.js but fix_pr_comments.py is a Python script with no Node dependency.\\\",\\n        \\\"suggestion\\\": \\\"Remove the `actions/setup-node@v4` step and the `Set up claude` step (lines 65-73) \u2014 neither is used by the Python script.\\\"\\n      },\\n      {\\n        \\\"line\\\": 89,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"Refresh step (lines 80-95) and exclude cycle (lines 162-174) add complexity: files are fetched from master only to be immediately dropped from the commit. The same logic is duplicated across two separate code paths.\\\",\\n        \\\"suggestion\\\": \\\"Simplify by never staging those two files in the first place: `git add -A -- :!scripts/ci/fix_pr_comments.py :!scripts/ci/fetch_pr_test_failures.py`, or use a .gitattributes exclude rule.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Token logic on line 59 can cause downstream CI to miss the auto-fix push; Node/Claude setup is unused; refresh-then-exclude pattern is overcomplicated.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"scripts/ci/fix_pr_comments.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 44,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"run_gh has no timeout \u2014 if `gh` hangs (network issue, credential prompt), stream_claude will block indefinitely even though the outer caller has a timeout budget.\\\",\\n        \\\"suggestion\\\": \\\"Add a reasonable timeout to the subprocess.run call in run_gh, e.g. `timeout=30`, and handle subprocess.TimeoutExpired by logging and returning an error result.\\\"\\n      },\\n      {\\n        \\\"line\\\": 65,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"url.removeprefix/.removesuffix are Python 3.9+; the workflow specifies Python 3.11 so this is fine, but the shebang (`#!/usr/bin/env python3`) may resolve to Python 3.8 on some systems.\\\",\\n        \\\"suggestion\\\": \\\"Pin the shebang to python3.11 or use `/usr/bin/env python3` as a portable fallback and rely on the workflow to set the correct Python.\\\"\\n      },\\n      {\\n        \\\"line\\\": 331,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"pr_number argument is extracted from env and cast to int; if the env var is an empty string the early return on line 335 catches it, but a 0-valued PR number would not be caught (int('') raises, but '0' is valid and would pass).\\\",\\n        \\\"suggestion\\\": \\\"Add `if pr_n <= 0: log(f'invalid_PR_NUMBER={pr_n}'); return 1` after the int cast on line 346.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"No critical issues; run_gh lacks a timeout which could cause indefinite blocking; minor input validation gap on PR number.\\\"\\n  }\\n]\",\"stop_reason\":\"end_turn\",\"session_id\":\"7cb3500c-bad7-457f-9aa6-c10bb898e028\",\"total_cost_usd\":0.24759315,\"usage\":{\"input_tokens\":35043,\"cache_creation_input_tokens\":30773,\"cache_read_input_tokens\":2368,\"output_tokens\":1757,\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":0,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"\",\"iterations\":[],\"speed\":\"standard\"},\"modelUsage\":{\"claude-sonnet-4-6\":{\"inputTokens\":35043,\"outputTokens\":1757,\"cacheReadInputTokens\":2368,\"cacheCreationInputTokens\":30773,\"webSearchRequests\":0,\"costUSD\":0.24759315,\"contextWindow\":200000,\"maxOutputTokens\":32000}},\"permission_denials\":[],\"terminal_reason\":\"completed\",\"fast_mode_state\":\"off\",\"uuid\":\"b45f3068-3059-4f3f-b696-6862eaa24a56\"}\n",
         "parsed": {
-          "filename": "tests/unit/test_tasks.py",
+          "filename": "scripts/ci/fix_pr_comments.py",
           "issues": [
             {
-              "line": 86,
+              "line": 44,
               "severity": "warning",
-              "message": "The `get_db` dependency is overridden with a bare `MagicMock()` (no spec, no awaitable `__aenter__`/`__aexit__`), which bypasses the async context-manager contract that FastAPI's dependency injection expects.",
-              "suggestion": "Use `make_mock_session([])` from conftest.py instead of `MagicMock()` for the get_db override, so the mock session has a proper `__aenter__`/`__aexit__` and spec'd methods."
+              "message": "run_gh has no timeout \u2014 if `gh` hangs (network issue, credential prompt), stream_claude will block indefinitely even though the outer caller has a timeout budget.",
+              "suggestion": "Add a reasonable timeout to the subprocess.run call in run_gh, e.g. `timeout=30`, and handle subprocess.TimeoutExpired by logging and returning an error result."
             },
             {
-              "line": 104,
-              "severity": "warning",
-              "message": "Rule 66 / Rule 121: Tests mock `TaskService` at the class level (via `monkeypatch.setattr`) rather than constructing the service with a real mock session. This skips the router's actual session-injection path and the `__init__` contract that session must be AsyncSession.",
-              "suggestion": "Import `make_mock_session` and `make_task_handler` from conftest, then replace the `monkeypatch.setattr('api.routers.tasks.TaskService', lambda session: mock_service)` pattern with: `state = MockState(); mock_db = make_mock_session([make_task_handler(state)]); app.dependency_overrides[get_db] = lambda: mock_db; app.dependency_overrides[TaskService] = lambda session: mock_service`. This keeps the service mock for return-value control while exercising real session injection."
+              "line": 65,
+              "severity": "info",
+              "message": "url.removeprefix/.removesuffix are Python 3.9+; the workflow specifies Python 3.11 so this is fine, but the shebang (`#!/usr/bin/env python3`) may resolve to Python 3.8 on some systems.",
+              "suggestion": "Pin the shebang to python3.11 or use `/usr/bin/env python3` as a portable fallback and rely on the workflow to set the correct Python."
+            },
+            {
+              "line": 331,
+              "severity": "info",
+              "message": "pr_number argument is extracted from env and cast to int; if the env var is an empty string the early return on line 335 catches it, but a 0-valued PR number would not be caught (int('') raises, but '0' is valid and would pass).",
+              "suggestion": "Add `if pr_n <= 0: log(f'invalid_PR_NUMBER={pr_n}'); return 1` after the int cast on line 346."
             }
           ],
-          "summary": "Router-level unit tests verify HTTP-layer behavior correctly but sidestep DB session injection; the mock-at-constructor approach is valid for pure router logic but provides no coverage of the service instantiation path."
+          "summary": "No critical issues; run_gh lacks a timeout which could cause indefinite blocking; minor input validation gap on PR number."
         }
       }
     ]
