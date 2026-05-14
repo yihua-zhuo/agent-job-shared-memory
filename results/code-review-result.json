@@ -3,281 +3,621 @@
   "verdict": "fail",
   "critical_issues": [
     {
-      "file": "tests/unit/test_activity_service.py",
-      "line": 13,
+      "file": "tests/unit/test_analytics_service.py",
+      "line": 43,
       "severity": "critical",
-      "msg": "MockRow._fields is never accessed by _to_activity (which uses dot-access on the ORM model), but it is defined on the class. It is dead code \u2014 it shadows a private attribute convention and serves no role in these tests.",
-      "suggestion": "Remove the _fields property from MockRow in conftest.py; it is unused in test_activity_service.py."
+      "msg": "`dashboard_handler` in conftest returns `widgets: \"[]\"` (string) but `MockRow.__init__` only parses `tags` from JSON string \u2014 `widgets` stays a string, causing `assert result.widgets == []` to fail (list != string)",
+      "suggestion": "Fix `dashboard_handler` to return `widgets: []` (actual list) instead of `widgets: \"[]\"` (string) so the equality assertion passes"
     },
     {
-      "file": "tests/unit/test_activity_service.py",
-      "line": 0,
+      "file": "tests/unit/test_analytics_service.py",
+      "line": 43,
       "severity": "critical",
-      "msg": "No test covers ValidationException for invalid activity_type (ActivityService.create_activity raises ValidationException on ValueError from ActivityType()).",
-      "suggestion": "Add to TestCreateActivity: async def test_create_activity_invalid_type_raises(self, mock_db_session): service = ActivityService(mock_db_session); with pytest.raises(ValidationException, match='\u65e0\u6548\u7684\u6d3b\u52a8\u7c7b\u578b'): await service.create_activity(customer_id=1, activity_type='invalid_type', content='...', created_by=1, tenant_id=1)"
+      "msg": "`MockRow` only handles JSON-deserialization for the `tags` key; `widgets` string `\"[]\"` from dashboard INSERT will remain a string through the mock chain, breaking any assertion that expects a list",
+      "suggestion": "Extend `MockRow.__init__` to also parse `widgets` from JSON string when present, mirroring the existing `tags` handling"
     },
     {
-      "file": "tests/unit/test_activity_service.py",
-      "line": 119,
+      "file": "tests/unit/test_analytics_service.py",
+      "line": 373,
       "severity": "critical",
-      "msg": "update_activity with kwargs={} (no fields to update) calls _fetch then exits without any execute/flush call \u2014 the test mocks 3 execute calls but the real service only calls _fetch once in this path, so the side_effect list is misaligned with the actual call count.",
-      "suggestion": "Test the no-op branch explicitly: call update_activity(activity_id=1, tenant_id=1) with no kwargs; mock execute to return scalar_one_or_none=original; assert result.content=='Original content' and execute was called once."
+      "msg": "test_get_get_dashboard_not_found does not override the mock session to return an empty result for id=9999 \u2014 the default `dashboard_handler` already returns `MockResult([])` for unknown IDs, so the test passes correctly, but it is not using the `_empty_dashboard_handler` described in the plan (step 2j)",
+      "suggestion": "Verify the test still passes if conftest's `dashboard_handler` behavior changes; add an explicit empty handler in the test to guarantee independence from conftest internals"
     }
   ],
   "suggestions": [
     {
-      "file": ".plans/issue-143.md",
-      "line": 36,
+      "file": ".plans/issue-144.md",
+      "line": 30,
       "severity": "warning",
-      "msg": "Test case name 'test_create_activity_returns_api_response' is misleading \u2014 the plan itself correctly notes the service returns an Activity domain object, not an ApiResponse envelope.",
-      "suggestion": "Rename to 'test_create_activity_returns_activity' to match the actual return type and align with the test class name TestCreateActivity."
+      "msg": "Test plan references nonexistent file `test_analytics_integration.py` instead of actual integration test file name",
+      "suggestion": "Verify the correct integration test filename and update the reference"
     },
     {
-      "file": ".plans/issue-143.md",
-      "line": 39,
-      "severity": "warning",
-      "msg": "Test case 'test_update_activity' describes using a pre-populated mock result for '_fetch', but '_fetch' is a private method \u2014 the test should document which public call triggers the _fetch internally.",
-      "suggestion": "No code change needed; add a clarifying comment in the plan noting that _fetch is called internally by update_activity."
-    },
-    {
-      "file": "tests/unit/conftest.py",
-      "line": 161,
-      "severity": "info",
-      "msg": "MockState docstring still says 'Per-test mutable state consumed by customer & user handlers' but now also covers activities \u2014 it is out of date.",
-      "suggestion": "Update docstring to: 'Per-test mutable state consumed by customer, user, and activity handlers.'"
-    },
-    {
-      "file": "tests/unit/conftest.py",
-      "line": 680,
-      "severity": "warning",
-      "msg": "SELECT list branch is guarded only by 'if state.activities' \u2014 this matches customer_handler but means any unmatched query on the activities table (e.g. a future JOIN or filtered list) will return all tenant rows instead of None, silently swallowing the query.",
-      "suggestion": "Narrow the guard to require that the query is specifically a list query, e.g.: 'if \"select\" in sql_text and \"where id\" not in sql_text:' before the state.activities check."
-    },
-    {
-      "file": "tests/unit/test_activity_service.py",
-      "line": 123,
-      "severity": "warning",
-      "msg": "update_activity flushes at line 91 of activity_service.py after the UPDATE query \u2014 the DELETE path (line 105) also flushes. These flushes are local to the router-owned transaction (rule 122), but no test verifies flush() call count for update or delete operations.",
-      "suggestion": "Add assertions in test_update_activity and test_delete_activity: mock_db_session.flush.assert_called() (or assert_called_once() if flush is called once per operation)."
-    },
-    {
-      "file": "tests/unit/test_activity_service.py",
-      "line": 201,
-      "severity": "warning",
-      "msg": "test_list_activities_pagination mocks COUNT returning 3 total but SELECT returning only 2 items \u2014 the ActivityModel row returned by SELECT uses the full Activity(...) domain model, not a dict. Passing Activity domain objects where the service expects to call _to_activity(row) is correct, but the mock's scalars().all() returns a list directly rather than a mock iterator, inconsistent with other tests that wrap in MagicMock.",
-      "suggestion": "Wrap the list return in MagicMock for consistency: MagicMock(all=MagicMock(return_value=[activity1, activity2])) already does this correctly \u2014 no change needed here, the existing code is consistent."
-    },
-    {
-      "file": "tests/unit/test_activity_service.py",
-      "line": 34,
-      "severity": "info",
-      "msg": "TestCreateActivity sets mock_db_session.execute to a new AsyncMock after fixture creation \u2014 this overrides the session-level execute mock set up in the fixture, which is the correct pattern but slightly harder to follow than re-initializing session per test as other test files do.",
-      "suggestion": "No code change needed \u2014 the pattern is valid and mirrors test_customer_service.py correctly."
-    },
-    {
-      "file": "tests/unit/test_activity_service.py",
+      "file": ".plans/issue-144.md",
       "line": 0,
       "severity": "info",
-      "msg": "list_activities supports customer_id and activity_type filter parameters but no test exercises these filters.",
-      "suggestion": "Add test_list_activities_with_filters covering customer_id and activity_type filtering to improve coverage of the list_activities surface."
+      "msg": "Plan does not specify how to handle widget-specific mock rows for `add_widget` / `remove_widget` tests",
+      "suggestion": "Add step to cover widget mutation tests or explicitly document them as out of scope"
+    },
+    {
+      "file": ".plans/issue-144.md",
+      "line": 0,
+      "severity": "info",
+      "msg": "Plan does not specify how `get_chart_data` (sync, no DB) is tested \u2014 currently no test covers it",
+      "suggestion": "Add a test case for `get_chart_data` in TestDashboardCrud or a dedicated class"
+    },
+    {
+      "file": "tests/unit/conftest.py",
+      "line": 4,
+      "severity": "info",
+      "msg": "Unused import `asynccontextmanager` from contextlib (never referenced after refactor to test-specific session builder)",
+      "suggestion": "Remove the unused import to keep the file clean"
+    },
+    {
+      "file": "tests/unit/conftest.py",
+      "line": 6,
+      "severity": "info",
+      "msg": "Docstring on line 3 precedes `from __future__ import annotations` on line 6 \u2014 style convention typically places the future import at the very top of the file",
+      "suggestion": "Move `from __future__ import annotations` to line 1, before the module docstring"
+    },
+    {
+      "file": "tests/unit/conftest.py",
+      "line": 8,
+      "severity": "info",
+      "msg": "Import `json as _json` is unnecessary \u2014 `_json` is only used in `make_customer_handler` inside a try/except, but no JSON parsing of column values occurs in analytics handlers",
+      "suggestion": "Audit whether `_json` is still needed; if no other handler deserializes a JSON string column, remove the import"
+    },
+    {
+      "file": "tests/unit/conftest.py",
+      "line": 16,
+      "severity": "info",
+      "msg": "Import of `MultipleResultsFound` from `sqlalchemy.exc` is only used in `MockResult.mappings().one_or_none()` but never raised in real paths of analytics tests",
+      "suggestion": "Keep if other domain handlers use it; otherwise consider whether this mock behavior is needed"
+    },
+    {
+      "file": "tests/unit/conftest.py",
+      "line": 631,
+      "severity": "warning",
+      "msg": "Stateless `dashboard_handler` does not enforce tenant_id filtering \u2014 returns dashboard fixtures even when tenant_id is mismatched, weakening test isolation",
+      "suggestion": "Add tenant_id check: if `params.get('tenant_id')` is provided and does not match fixture tenant_id (1), return `MockResult([])`"
+    },
+    {
+      "file": "tests/unit/conftest.py",
+      "line": 637,
+      "severity": "warning",
+      "msg": "`report_handler` does not enforce tenant_id filtering for INSERT or WHERE id queries, allowing cross-tenant data leakage in tests",
+      "suggestion": "Add tenant_id validation in `report_handler` \u2014 for INSERT and WHERE id paths, verify `params.get('tenant_id')` before returning fixture data"
+    },
+    {
+      "file": "tests/unit/conftest.py",
+      "line": 653,
+      "severity": "warning",
+      "msg": "`dashboard_handler` returns `widgets: \"[]\"` (JSON string) for INSERT, but `MockRow` only parses `tags` from JSON string \u2014 `widgets` stored as JSON string will not deserialize in tests that rely on it as a list",
+      "suggestion": "Have `dashboard_handler` INSERT return `widgets: []` (actual list) for consistency with how MockRow handles tags, or add widgets JSON parsing in MockRow.__init__"
+    },
+    {
+      "file": "tests/unit/conftest.py",
+      "line": 691,
+      "severity": "warning",
+      "msg": "`report_handler` INSERT returns `config: \"{}\"` and `date_range: \"{}\"` as strings, but `MockRow` only handles JSON parsing for the `tags` key \u2014 `config` and `date_range` will remain strings instead of dicts",
+      "suggestion": "Return `config: {}` and `date_range: {}` (actual dicts) in the mock row to match what SQLAlchemy JSON columns produce"
+    },
+    {
+      "file": "tests/unit/conftest.py",
+      "line": 693,
+      "severity": "warning",
+      "msg": "`report_handler` returns `\"{}\"` as string for config/date_range in the list query path as well, compounding the dict-vs-string inconsistency across all report code paths",
+      "suggestion": "Update the list query path of `report_handler` to return dict literals `{}` instead of string literals `\"{}\"`"
+    },
+    {
+      "file": "tests/unit/conftest.py",
+      "line": 779,
+      "severity": "info",
+      "msg": "In `make_mock_session`, the `_execute_side_effect` callback uses positional params (`h(sql_text, params)`), but `conftest`'s own `_build_analytics_session` in the test file passes params as keyword args \u2014 parameter passing convention is inconsistent between the two session builders",
+      "suggestion": "Standardize: have `_execute_side_effect` merge `params or {}` with `**kwargs` like `_build_analytics_session` does for robustness across both calling conventions"
+    },
+    {
+      "file": "tests/unit/test_analytics_service.py",
+      "line": 52,
+      "severity": "warning",
+      "msg": "`MockRow` uses bare `except Exception: pass` for JSON deserialization of tags \u2014 silently swallowing all JSON decode errors rather than surfacing them as test failures",
+      "suggestion": "Use `except (ValueError, TypeError)` instead of bare `except Exception` for the JSON parsing block"
+    },
+    {
+      "file": "tests/unit/test_analytics_service.py",
+      "line": 53,
+      "severity": "warning",
+      "msg": "Blanket `except Exception: pass` in JSON parsing hides the specific case of malformed JSON vs. other exceptions, making debugging failing tests harder",
+      "suggestion": "Narrow to `except (ValueError, TypeError)` to only suppress JSON decode errors while letting other unexpected exceptions propagate"
+    },
+    {
+      "file": "tests/unit/test_analytics_service.py",
+      "line": 105,
+      "severity": "warning",
+      "msg": "Regex compilation with `re.compile` is called inside `execute_side_effect` (on every SQL call) rather than at module level, causing unnecessary repeated compilation",
+      "suggestion": "Move `import re` and any regex compilation to module level, outside `execute_side_effect`"
+    },
+    {
+      "file": "tests/unit/test_analytics_service.py",
+      "line": 121,
+      "severity": "info",
+      "msg": "Import of `make_analytics_handlers` from conftest is unused \u2014 the test file builds its own session via `_build_analytics_session` and never calls the conftest factory",
+      "suggestion": "Remove the unused `make_analytics_handlers` import on line 14"
+    },
+    {
+      "file": "tests/unit/test_analytics_service.py",
+      "line": 106,
+      "severity": "warning",
+      "msg": "Bare `except Exception: pass` swallows all errors during best-effort SQL param extraction \u2014 an `AttributeError` from a malformed SQL object would silently pass, potentially masking test bugs",
+      "suggestion": "Use `except (AttributeError, TypeError): pass` to be explicit about which exceptions are acceptable to suppress during param extraction"
+    },
+    {
+      "file": "tests/unit/test_analytics_service.py",
+      "line": 106,
+      "severity": "info",
+      "msg": "Regex operations inside `execute_side_effect` run on every SQL call with no caching \u2014 the `_extract_id` function re-searches the same SQL text patterns repeatedly",
+      "suggestion": "Consider memoizing or pre-compiling the regex patterns at module level for performance"
+    },
+    {
+      "file": "tests/unit/test_analytics_service.py",
+      "line": 301,
+      "severity": "warning",
+      "msg": "In `TestGetCustomerGrowthReport`, `session_with_customer` fixture creates a session with `_build_analytics_session(state)` but never seeds customer data \u2014 the session's customer query path relies on the fallback conftest handlers, making the test potentially fragile if handler chain ordering changes",
+      "suggestion": "Ensure customer_handler is in the fallback chain or explicitly add it to `_build_analytics_session` to guarantee customer queries are handled"
+    },
+    {
+      "file": "tests/unit/test_analytics_service.py",
+      "line": 304,
+      "severity": "info",
+      "msg": "`TestGetCustomerGrowthReport.session_with_customer` fixture does not share state with other fixtures \u2014 `MockState()` is created independently, so `make_analytics_handlers(state)` in the fallback path has independent state",
+      "suggestion": "Consider passing a shared state object into the session fixture or document that the fixture intentionally uses independent state"
+    },
+    {
+      "file": "tests/unit/test_analytics_service.py",
+      "line": 0,
+      "severity": "info",
+      "msg": "Missing test for `get_chart_data` (sync utility method with no DB dependency) \u2014 this is a one-liner that would benefit from a simple unit test",
+      "suggestion": "Add `TestGetChartData` class with one test: assert output of `svc.get_chart_data('bar', [1,2,3], ['a','b','c'])` contains expected keys"
+    },
+    {
+      "file": "tests/unit/test_analytics_service.py",
+      "line": 0,
+      "severity": "info",
+      "msg": "Missing tests for `add_widget` and `remove_widget` methods \u2014 these are tested neither here nor in integration tests",
+      "suggestion": "Add `test_add_widget_success` and `test_remove_widget_success` to `TestDashboardCrud` to cover widget mutation paths"
+    },
+    {
+      "file": "tests/unit/test_analytics_service.py",
+      "line": 0,
+      "severity": "info",
+      "msg": "Missing test for `update_dashboard` \u2014 not covered in either unit or integration test suite",
+      "suggestion": "Add `test_update_dashboard_success` to `TestDashboardCrud`"
+    },
+    {
+      "file": "tests/unit/test_analytics_service.py",
+      "line": 0,
+      "severity": "info",
+      "msg": "Missing tests for `create_report` and `get_report` \u2014 report CRUD methods have no direct unit test coverage",
+      "suggestion": "Add `test_create_report_success` and `test_get_report_found` to `TestReportDispatch`"
     }
   ],
-  "summary": "Reviewed 3 file(s) between origin/master and origin/auto/issue-143.",
+  "summary": "Reviewed 3 file(s) between origin/master and origin/auto/issue-144.",
   "details": {
     "llm_parsed": {
       "verdict": "fail",
       "critical": [
         {
-          "file": "tests/unit/test_activity_service.py",
-          "line": 13,
+          "file": "tests/unit/test_analytics_service.py",
+          "line": 43,
           "severity": "critical",
-          "msg": "MockRow._fields is never accessed by _to_activity (which uses dot-access on the ORM model), but it is defined on the class. It is dead code \u2014 it shadows a private attribute convention and serves no role in these tests.",
-          "suggestion": "Remove the _fields property from MockRow in conftest.py; it is unused in test_activity_service.py."
+          "msg": "`dashboard_handler` in conftest returns `widgets: \"[]\"` (string) but `MockRow.__init__` only parses `tags` from JSON string \u2014 `widgets` stays a string, causing `assert result.widgets == []` to fail (list != string)",
+          "suggestion": "Fix `dashboard_handler` to return `widgets: []` (actual list) instead of `widgets: \"[]\"` (string) so the equality assertion passes"
         },
         {
-          "file": "tests/unit/test_activity_service.py",
-          "line": 0,
+          "file": "tests/unit/test_analytics_service.py",
+          "line": 43,
           "severity": "critical",
-          "msg": "No test covers ValidationException for invalid activity_type (ActivityService.create_activity raises ValidationException on ValueError from ActivityType()).",
-          "suggestion": "Add to TestCreateActivity: async def test_create_activity_invalid_type_raises(self, mock_db_session): service = ActivityService(mock_db_session); with pytest.raises(ValidationException, match='\u65e0\u6548\u7684\u6d3b\u52a8\u7c7b\u578b'): await service.create_activity(customer_id=1, activity_type='invalid_type', content='...', created_by=1, tenant_id=1)"
+          "msg": "`MockRow` only handles JSON-deserialization for the `tags` key; `widgets` string `\"[]\"` from dashboard INSERT will remain a string through the mock chain, breaking any assertion that expects a list",
+          "suggestion": "Extend `MockRow.__init__` to also parse `widgets` from JSON string when present, mirroring the existing `tags` handling"
         },
         {
-          "file": "tests/unit/test_activity_service.py",
-          "line": 119,
+          "file": "tests/unit/test_analytics_service.py",
+          "line": 373,
           "severity": "critical",
-          "msg": "update_activity with kwargs={} (no fields to update) calls _fetch then exits without any execute/flush call \u2014 the test mocks 3 execute calls but the real service only calls _fetch once in this path, so the side_effect list is misaligned with the actual call count.",
-          "suggestion": "Test the no-op branch explicitly: call update_activity(activity_id=1, tenant_id=1) with no kwargs; mock execute to return scalar_one_or_none=original; assert result.content=='Original content' and execute was called once."
+          "msg": "test_get_get_dashboard_not_found does not override the mock session to return an empty result for id=9999 \u2014 the default `dashboard_handler` already returns `MockResult([])` for unknown IDs, so the test passes correctly, but it is not using the `_empty_dashboard_handler` described in the plan (step 2j)",
+          "suggestion": "Verify the test still passes if conftest's `dashboard_handler` behavior changes; add an explicit empty handler in the test to guarantee independence from conftest internals"
         }
       ],
       "warnings": [
         {
-          "file": ".plans/issue-143.md",
-          "line": 36,
+          "file": ".plans/issue-144.md",
+          "line": 30,
           "severity": "warning",
-          "msg": "Test case name 'test_create_activity_returns_api_response' is misleading \u2014 the plan itself correctly notes the service returns an Activity domain object, not an ApiResponse envelope.",
-          "suggestion": "Rename to 'test_create_activity_returns_activity' to match the actual return type and align with the test class name TestCreateActivity."
+          "msg": "Test plan references nonexistent file `test_analytics_integration.py` instead of actual integration test file name",
+          "suggestion": "Verify the correct integration test filename and update the reference"
         },
         {
-          "file": ".plans/issue-143.md",
-          "line": 39,
-          "severity": "warning",
-          "msg": "Test case 'test_update_activity' describes using a pre-populated mock result for '_fetch', but '_fetch' is a private method \u2014 the test should document which public call triggers the _fetch internally.",
-          "suggestion": "No code change needed; add a clarifying comment in the plan noting that _fetch is called internally by update_activity."
-        },
-        {
-          "file": "tests/unit/conftest.py",
-          "line": 161,
-          "severity": "info",
-          "msg": "MockState docstring still says 'Per-test mutable state consumed by customer & user handlers' but now also covers activities \u2014 it is out of date.",
-          "suggestion": "Update docstring to: 'Per-test mutable state consumed by customer, user, and activity handlers.'"
-        },
-        {
-          "file": "tests/unit/conftest.py",
-          "line": 680,
-          "severity": "warning",
-          "msg": "SELECT list branch is guarded only by 'if state.activities' \u2014 this matches customer_handler but means any unmatched query on the activities table (e.g. a future JOIN or filtered list) will return all tenant rows instead of None, silently swallowing the query.",
-          "suggestion": "Narrow the guard to require that the query is specifically a list query, e.g.: 'if \"select\" in sql_text and \"where id\" not in sql_text:' before the state.activities check."
-        },
-        {
-          "file": "tests/unit/test_activity_service.py",
-          "line": 123,
-          "severity": "warning",
-          "msg": "update_activity flushes at line 91 of activity_service.py after the UPDATE query \u2014 the DELETE path (line 105) also flushes. These flushes are local to the router-owned transaction (rule 122), but no test verifies flush() call count for update or delete operations.",
-          "suggestion": "Add assertions in test_update_activity and test_delete_activity: mock_db_session.flush.assert_called() (or assert_called_once() if flush is called once per operation)."
-        },
-        {
-          "file": "tests/unit/test_activity_service.py",
-          "line": 201,
-          "severity": "warning",
-          "msg": "test_list_activities_pagination mocks COUNT returning 3 total but SELECT returning only 2 items \u2014 the ActivityModel row returned by SELECT uses the full Activity(...) domain model, not a dict. Passing Activity domain objects where the service expects to call _to_activity(row) is correct, but the mock's scalars().all() returns a list directly rather than a mock iterator, inconsistent with other tests that wrap in MagicMock.",
-          "suggestion": "Wrap the list return in MagicMock for consistency: MagicMock(all=MagicMock(return_value=[activity1, activity2])) already does this correctly \u2014 no change needed here, the existing code is consistent."
-        },
-        {
-          "file": "tests/unit/test_activity_service.py",
-          "line": 34,
-          "severity": "info",
-          "msg": "TestCreateActivity sets mock_db_session.execute to a new AsyncMock after fixture creation \u2014 this overrides the session-level execute mock set up in the fixture, which is the correct pattern but slightly harder to follow than re-initializing session per test as other test files do.",
-          "suggestion": "No code change needed \u2014 the pattern is valid and mirrors test_customer_service.py correctly."
-        },
-        {
-          "file": "tests/unit/test_activity_service.py",
+          "file": ".plans/issue-144.md",
           "line": 0,
           "severity": "info",
-          "msg": "list_activities supports customer_id and activity_type filter parameters but no test exercises these filters.",
-          "suggestion": "Add test_list_activities_with_filters covering customer_id and activity_type filtering to improve coverage of the list_activities surface."
+          "msg": "Plan does not specify how to handle widget-specific mock rows for `add_widget` / `remove_widget` tests",
+          "suggestion": "Add step to cover widget mutation tests or explicitly document them as out of scope"
+        },
+        {
+          "file": ".plans/issue-144.md",
+          "line": 0,
+          "severity": "info",
+          "msg": "Plan does not specify how `get_chart_data` (sync, no DB) is tested \u2014 currently no test covers it",
+          "suggestion": "Add a test case for `get_chart_data` in TestDashboardCrud or a dedicated class"
+        },
+        {
+          "file": "tests/unit/conftest.py",
+          "line": 4,
+          "severity": "info",
+          "msg": "Unused import `asynccontextmanager` from contextlib (never referenced after refactor to test-specific session builder)",
+          "suggestion": "Remove the unused import to keep the file clean"
+        },
+        {
+          "file": "tests/unit/conftest.py",
+          "line": 6,
+          "severity": "info",
+          "msg": "Docstring on line 3 precedes `from __future__ import annotations` on line 6 \u2014 style convention typically places the future import at the very top of the file",
+          "suggestion": "Move `from __future__ import annotations` to line 1, before the module docstring"
+        },
+        {
+          "file": "tests/unit/conftest.py",
+          "line": 8,
+          "severity": "info",
+          "msg": "Import `json as _json` is unnecessary \u2014 `_json` is only used in `make_customer_handler` inside a try/except, but no JSON parsing of column values occurs in analytics handlers",
+          "suggestion": "Audit whether `_json` is still needed; if no other handler deserializes a JSON string column, remove the import"
+        },
+        {
+          "file": "tests/unit/conftest.py",
+          "line": 16,
+          "severity": "info",
+          "msg": "Import of `MultipleResultsFound` from `sqlalchemy.exc` is only used in `MockResult.mappings().one_or_none()` but never raised in real paths of analytics tests",
+          "suggestion": "Keep if other domain handlers use it; otherwise consider whether this mock behavior is needed"
+        },
+        {
+          "file": "tests/unit/conftest.py",
+          "line": 631,
+          "severity": "warning",
+          "msg": "Stateless `dashboard_handler` does not enforce tenant_id filtering \u2014 returns dashboard fixtures even when tenant_id is mismatched, weakening test isolation",
+          "suggestion": "Add tenant_id check: if `params.get('tenant_id')` is provided and does not match fixture tenant_id (1), return `MockResult([])`"
+        },
+        {
+          "file": "tests/unit/conftest.py",
+          "line": 637,
+          "severity": "warning",
+          "msg": "`report_handler` does not enforce tenant_id filtering for INSERT or WHERE id queries, allowing cross-tenant data leakage in tests",
+          "suggestion": "Add tenant_id validation in `report_handler` \u2014 for INSERT and WHERE id paths, verify `params.get('tenant_id')` before returning fixture data"
+        },
+        {
+          "file": "tests/unit/conftest.py",
+          "line": 653,
+          "severity": "warning",
+          "msg": "`dashboard_handler` returns `widgets: \"[]\"` (JSON string) for INSERT, but `MockRow` only parses `tags` from JSON string \u2014 `widgets` stored as JSON string will not deserialize in tests that rely on it as a list",
+          "suggestion": "Have `dashboard_handler` INSERT return `widgets: []` (actual list) for consistency with how MockRow handles tags, or add widgets JSON parsing in MockRow.__init__"
+        },
+        {
+          "file": "tests/unit/conftest.py",
+          "line": 691,
+          "severity": "warning",
+          "msg": "`report_handler` INSERT returns `config: \"{}\"` and `date_range: \"{}\"` as strings, but `MockRow` only handles JSON parsing for the `tags` key \u2014 `config` and `date_range` will remain strings instead of dicts",
+          "suggestion": "Return `config: {}` and `date_range: {}` (actual dicts) in the mock row to match what SQLAlchemy JSON columns produce"
+        },
+        {
+          "file": "tests/unit/conftest.py",
+          "line": 693,
+          "severity": "warning",
+          "msg": "`report_handler` returns `\"{}\"` as string for config/date_range in the list query path as well, compounding the dict-vs-string inconsistency across all report code paths",
+          "suggestion": "Update the list query path of `report_handler` to return dict literals `{}` instead of string literals `\"{}\"`"
+        },
+        {
+          "file": "tests/unit/conftest.py",
+          "line": 779,
+          "severity": "info",
+          "msg": "In `make_mock_session`, the `_execute_side_effect` callback uses positional params (`h(sql_text, params)`), but `conftest`'s own `_build_analytics_session` in the test file passes params as keyword args \u2014 parameter passing convention is inconsistent between the two session builders",
+          "suggestion": "Standardize: have `_execute_side_effect` merge `params or {}` with `**kwargs` like `_build_analytics_session` does for robustness across both calling conventions"
+        },
+        {
+          "file": "tests/unit/test_analytics_service.py",
+          "line": 52,
+          "severity": "warning",
+          "msg": "`MockRow` uses bare `except Exception: pass` for JSON deserialization of tags \u2014 silently swallowing all JSON decode errors rather than surfacing them as test failures",
+          "suggestion": "Use `except (ValueError, TypeError)` instead of bare `except Exception` for the JSON parsing block"
+        },
+        {
+          "file": "tests/unit/test_analytics_service.py",
+          "line": 53,
+          "severity": "warning",
+          "msg": "Blanket `except Exception: pass` in JSON parsing hides the specific case of malformed JSON vs. other exceptions, making debugging failing tests harder",
+          "suggestion": "Narrow to `except (ValueError, TypeError)` to only suppress JSON decode errors while letting other unexpected exceptions propagate"
+        },
+        {
+          "file": "tests/unit/test_analytics_service.py",
+          "line": 105,
+          "severity": "warning",
+          "msg": "Regex compilation with `re.compile` is called inside `execute_side_effect` (on every SQL call) rather than at module level, causing unnecessary repeated compilation",
+          "suggestion": "Move `import re` and any regex compilation to module level, outside `execute_side_effect`"
+        },
+        {
+          "file": "tests/unit/test_analytics_service.py",
+          "line": 121,
+          "severity": "info",
+          "msg": "Import of `make_analytics_handlers` from conftest is unused \u2014 the test file builds its own session via `_build_analytics_session` and never calls the conftest factory",
+          "suggestion": "Remove the unused `make_analytics_handlers` import on line 14"
+        },
+        {
+          "file": "tests/unit/test_analytics_service.py",
+          "line": 106,
+          "severity": "warning",
+          "msg": "Bare `except Exception: pass` swallows all errors during best-effort SQL param extraction \u2014 an `AttributeError` from a malformed SQL object would silently pass, potentially masking test bugs",
+          "suggestion": "Use `except (AttributeError, TypeError): pass` to be explicit about which exceptions are acceptable to suppress during param extraction"
+        },
+        {
+          "file": "tests/unit/test_analytics_service.py",
+          "line": 106,
+          "severity": "info",
+          "msg": "Regex operations inside `execute_side_effect` run on every SQL call with no caching \u2014 the `_extract_id` function re-searches the same SQL text patterns repeatedly",
+          "suggestion": "Consider memoizing or pre-compiling the regex patterns at module level for performance"
+        },
+        {
+          "file": "tests/unit/test_analytics_service.py",
+          "line": 301,
+          "severity": "warning",
+          "msg": "In `TestGetCustomerGrowthReport`, `session_with_customer` fixture creates a session with `_build_analytics_session(state)` but never seeds customer data \u2014 the session's customer query path relies on the fallback conftest handlers, making the test potentially fragile if handler chain ordering changes",
+          "suggestion": "Ensure customer_handler is in the fallback chain or explicitly add it to `_build_analytics_session` to guarantee customer queries are handled"
+        },
+        {
+          "file": "tests/unit/test_analytics_service.py",
+          "line": 304,
+          "severity": "info",
+          "msg": "`TestGetCustomerGrowthReport.session_with_customer` fixture does not share state with other fixtures \u2014 `MockState()` is created independently, so `make_analytics_handlers(state)` in the fallback path has independent state",
+          "suggestion": "Consider passing a shared state object into the session fixture or document that the fixture intentionally uses independent state"
+        },
+        {
+          "file": "tests/unit/test_analytics_service.py",
+          "line": 0,
+          "severity": "info",
+          "msg": "Missing test for `get_chart_data` (sync utility method with no DB dependency) \u2014 this is a one-liner that would benefit from a simple unit test",
+          "suggestion": "Add `TestGetChartData` class with one test: assert output of `svc.get_chart_data('bar', [1,2,3], ['a','b','c'])` contains expected keys"
+        },
+        {
+          "file": "tests/unit/test_analytics_service.py",
+          "line": 0,
+          "severity": "info",
+          "msg": "Missing tests for `add_widget` and `remove_widget` methods \u2014 these are tested neither here nor in integration tests",
+          "suggestion": "Add `test_add_widget_success` and `test_remove_widget_success` to `TestDashboardCrud` to cover widget mutation paths"
+        },
+        {
+          "file": "tests/unit/test_analytics_service.py",
+          "line": 0,
+          "severity": "info",
+          "msg": "Missing test for `update_dashboard` \u2014 not covered in either unit or integration test suite",
+          "suggestion": "Add `test_update_dashboard_success` to `TestDashboardCrud`"
+        },
+        {
+          "file": "tests/unit/test_analytics_service.py",
+          "line": 0,
+          "severity": "info",
+          "msg": "Missing tests for `create_report` and `get_report` \u2014 report CRUD methods have no direct unit test coverage",
+          "suggestion": "Add `test_create_report_success` and `test_get_report_found` to `TestReportDispatch`"
         }
       ],
-      "summary": "Reviewed 3 file(s) between origin/master and origin/auto/issue-143."
+      "summary": "Reviewed 3 file(s) between origin/master and origin/auto/issue-144."
     },
     "reviewed_refs": {
       "base": "bd1929297a5a2a93a59748d759d4fa112e9e6cb7",
-      "head": "31f529c77e2df2674079eada909e6de7a1f24bb4",
+      "head": "9899ee1ca86b1ad95a8b46789f3b42c6433e969a",
       "base_label": "origin/master",
-      "head_label": "origin/auto/issue-143"
+      "head_label": "origin/auto/issue-144"
     },
     "reviewed_files": [
-      ".plans/issue-143.md",
+      ".plans/issue-144.md",
       "tests/unit/conftest.py",
-      "tests/unit/test_activity_service.py"
+      "tests/unit/test_analytics_service.py"
     ],
     "per_file_reviews": [
       {
-        "file": ".plans/issue-143.md",
+        "file": ".plans/issue-144.md",
         "returncode": 0,
-        "output": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"api_error_status\":null,\"duration_ms\":278616,\"duration_api_ms\":278183,\"num_turns\":16,\"result\":\"\\n\\n[\\n  {\\n    \\\"filename\\\": \\\".plans/issue-143.md\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 36,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"Test case name 'test_create_activity_returns_api_response' is misleading \u2014 the plan itself correctly notes the service returns an Activity domain object, not an ApiResponse envelope.\\\",\\n        \\\"suggestion\\\": \\\"Rename to 'test_create_activity_returns_activity' to match the actual return type and align with the test class name TestCreateActivity.\\\"\\n      },\\n      {\\n        \\\"line\\\": 39,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"Test case 'test_update_activity' describes using a pre-populated mock result for '_fetch', but '_fetch' is a private method \u2014 the test should document which public call triggers the _fetch internally.\\\",\\n        \\\"suggestion\\\": \\\"No code change needed; add a clarifying comment in the plan noting that _fetch is called internally by update_activity.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Plan correctly identifies the discrepancy between ApiResponse naming and actual Activity return type; test names and structure are sound with minor name-fix needed.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"tests/unit/conftest.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 161,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"MockState docstring still says 'Per-test mutable state consumed by customer & user handlers' but now also covers activities \u2014 it is out of date.\\\",\\n        \\\"suggestion\\\": \\\"Update docstring to: 'Per-test mutable state consumed by customer, user, and activity handlers.'\\\"\\n      },\\n      {\\n        \\\"line\\\": 680,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"SELECT list branch is guarded only by 'if state.activities' \u2014 this matches customer_handler but means any unmatched query on the activities table (e.g. a future JOIN or filtered list) will return all tenant rows instead of None, silently swallowing the query.\\\",\\n        \\\"suggestion\\\": \\\"Narrow the guard to require that the query is specifically a list query, e.g.: 'if \\\\\\\"select\\\\\\\" in sql_text and \\\\\\\"where id\\\\\\\" not in sql_text:' before the state.activities check.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Activity handler is correctly implemented and integrates cleanly; two minor issues \u2014 stale MockState docstring and a broad SELECT list guard that could silently swallow future query variants.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"tests/unit/test_activity_service.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 13,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"MockRow._fields is never accessed by _to_activity (which uses dot-access on the ORM model), but it is defined on the class. It is dead code \u2014 it shadows a private attribute convention and serves no role in these tests.\\\",\\n        \\\"suggestion\\\": \\\"Remove the _fields property from MockRow in conftest.py; it is unused in test_activity_service.py.\\\"\\n      },\\n      {\\n        \\\"line\\\": 0,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"No test covers ValidationException for invalid activity_type (ActivityService.create_activity raises ValidationException on ValueError from ActivityType()).\\\",\\n        \\\"suggestion\\\": \\\"Add to TestCreateActivity: async def test_create_activity_invalid_type_raises(self, mock_db_session): service = ActivityService(mock_db_session); with pytest.raises(ValidationException, match='\u65e0\u6548\u7684\u6d3b\u52a8\u7c7b\u578b'): await service.create_activity(customer_id=1, activity_type='invalid_type', content='...', created_by=1, tenant_id=1)\\\"\\n      },\\n      {\\n        \\\"line\\\": 119,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"update_activity with kwargs={} (no fields to update) calls _fetch then exits without any execute/flush call \u2014 the test mocks 3 execute calls but the real service only calls _fetch once in this path, so the side_effect list is misaligned with the actual call count.\\\",\\n        \\\"suggestion\\\": \\\"Test the no-op branch explicitly: call update_activity(activity_id=1, tenant_id=1) with no kwargs; mock execute to return scalar_one_or_none=original; assert result.content=='Original content' and execute was called once.\\\"\\n      },\\n      {\\n        \\\"line\\\": 123,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"update_activity flushes at line 91 of activity_service.py after the UPDATE query \u2014 the DELETE path (line 105) also flushes. These flushes are local to the router-owned transaction (rule 122), but no test verifies flush() call count for update or delete operations.\\\",\\n        \\\"suggestion\\\": \\\"Add assertions in test_update_activity and test_delete_activity: mock_db_session.flush.assert_called() (or assert_called_once() if flush is called once per operation).\\\"\\n      },\\n      {\\n        \\\"line\\\": 201,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"test_list_activities_pagination mocks COUNT returning 3 total but SELECT returning only 2 items \u2014 the ActivityModel row returned by SELECT uses the full Activity(...) domain model, not a dict. Passing Activity domain objects where the service expects to call _to_activity(row) is correct, but the mock's scalars().all() returns a list directly rather than a mock iterator, inconsistent with other tests that wrap in MagicMock.\\\",\\n        \\\"suggestion\\\": \\\"Wrap the list return in MagicMock for consistency: MagicMock(all=MagicMock(return_value=[activity1, activity2])) already does this correctly \u2014 no change needed here, the existing code is consistent.\\\"\\n      },\\n      {\\n        \\\"line\\\": 34,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"TestCreateActivity sets mock_db_session.execute to a new AsyncMock after fixture creation \u2014 this overrides the session-level execute mock set up in the fixture, which is the correct pattern but slightly harder to follow than re-initializing session per test as other test files do.\\\",\\n        \\\"suggestion\\\": \\\"No code change needed \u2014 the pattern is valid and mirrors test_customer_service.py correctly.\\\"\\n      },\\n      {\\n        \\\"line\\\": 0,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"list_activities supports customer_id and activity_type filter parameters but no test exercises these filters.\\\",\\n        \\\"suggestion\\\": \\\"Add test_list_activities_with_filters covering customer_id and activity_type filtering to improve coverage of the list_activities surface.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Core CRUD and pagination tests are correct and comprehensive, but three critical gaps exist: no ValidationException coverage for invalid activity_type, a misaligned execute side_effect count for the no-op update path, and missing flush() assertions for update/delete operations.\\\"\\n  }\\n]\",\"stop_reason\":\"end_turn\",\"session_id\":\"417dc948-3f79-4ff1-8c77-e124e7fcad07\",\"total_cost_usd\":0.7075278,\"usage\":{\"input_tokens\":51982,\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":618656,\"output_tokens\":24399,\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":0,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"\",\"iterations\":[],\"speed\":\"standard\"},\"modelUsage\":{\"claude-sonnet-4-6\":{\"inputTokens\":51982,\"outputTokens\":24399,\"cacheReadInputTokens\":618656,\"cacheCreationInputTokens\":0,\"webSearchRequests\":0,\"costUSD\":0.7075278,\"contextWindow\":200000,\"maxOutputTokens\":32000}},\"permission_denials\":[],\"terminal_reason\":\"completed\",\"fast_mode_state\":\"off\",\"uuid\":\"b901fa83-0c6d-4eb4-9ea5-4f7325fb057a\"}\n",
+        "output": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"api_error_status\":null,\"duration_ms\":269453,\"duration_api_ms\":269100,\"num_turns\":8,\"result\":\"\\n\\nNow I have all the information needed for a comprehensive review.\\n\\n[\\n  {\\n    \\\"filename\\\": \\\".plans/issue-144.md\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 30,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"Test plan references nonexistent file `test_analytics_integration.py` instead of actual integration test file name\\\",\\n        \\\"suggestion\\\": \\\"Verify the correct integration test filename and update the reference\\\"\\n      },\\n      {\\n        \\\"line\\\": 0,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"Plan does not specify how to handle widget-specific mock rows for `add_widget` / `remove_widget` tests\\\",\\n        \\\"suggestion\\\": \\\"Add step to cover widget mutation tests or explicitly document them as out of scope\\\"\\n      },\\n      {\\n        \\\"line\\\": 0,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"Plan does not specify how `get_chart_data` (sync, no DB) is tested \u2014 currently no test covers it\\\",\\n        \\\"suggestion\\\": \\\"Add a test case for `get_chart_data` in TestDashboardCrud or a dedicated class\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Implementation plan is detailed and mostly sound but contains an incorrect integration test filename reference and omits two uncovered methods (`get_chart_data`, widget mutations).\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"tests/unit/conftest.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 4,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"Unused import `asynccontextmanager` from contextlib (never referenced after refactor to test-specific session builder)\\\",\\n        \\\"suggestion\\\": \\\"Remove the unused import to keep the file clean\\\"\\n      },\\n      {\\n        \\\"line\\\": 6,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"Docstring on line 3 precedes `from __future__ import annotations` on line 6 \u2014 style convention typically places the future import at the very top of the file\\\",\\n        \\\"suggestion\\\": \\\"Move `from __future__ import annotations` to line 1, before the module docstring\\\"\\n      },\\n      {\\n        \\\"line\\\": 8,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"Import `json as _json` is unnecessary \u2014 `_json` is only used in `make_customer_handler` inside a try/except, but no JSON parsing of column values occurs in analytics handlers\\\",\\n        \\\"suggestion\\\": \\\"Audit whether `_json` is still needed; if no other handler deserializes a JSON string column, remove the import\\\"\\n      },\\n      {\\n        \\\"line\\\": 16,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"Import of `MultipleResultsFound` from `sqlalchemy.exc` is only used in `MockResult.mappings().one_or_none()` but never raised in real paths of analytics tests\\\",\\n        \\\"suggestion\\\": \\\"Keep if other domain handlers use it; otherwise consider whether this mock behavior is needed\\\"\\n      },\\n      {\\n        \\\"line\\\": 631,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"Stateless `dashboard_handler` does not enforce tenant_id filtering \u2014 returns dashboard fixtures even when tenant_id is mismatched, weakening test isolation\\\",\\n        \\\"suggestion\\\": \\\"Add tenant_id check: if `params.get('tenant_id')` is provided and does not match fixture tenant_id (1), return `MockResult([])`\\\"\\n      },\\n      {\\n        \\\"line\\\": 637,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"`report_handler` does not enforce tenant_id filtering for INSERT or WHERE id queries, allowing cross-tenant data leakage in tests\\\",\\n        \\\"suggestion\\\": \\\"Add tenant_id validation in `report_handler` \u2014 for INSERT and WHERE id paths, verify `params.get('tenant_id')` before returning fixture data\\\"\\n      },\\n      {\\n        \\\"line\\\": 653,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"`dashboard_handler` returns `widgets: \\\\\\\"[]\\\\\\\"` (JSON string) for INSERT, but `MockRow` only parses `tags` from JSON string \u2014 `widgets` stored as JSON string will not deserialize in tests that rely on it as a list\\\",\\n        \\\"suggestion\\\": \\\"Have `dashboard_handler` INSERT return `widgets: []` (actual list) for consistency with how MockRow handles tags, or add widgets JSON parsing in MockRow.__init__\\\"\\n      },\\n      {\\n        \\\"line\\\": 691,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"`report_handler` INSERT returns `config: \\\\\\\"{}\\\\\\\"` and `date_range: \\\\\\\"{}\\\\\\\"` as strings, but `MockRow` only handles JSON parsing for the `tags` key \u2014 `config` and `date_range` will remain strings instead of dicts\\\",\\n        \\\"suggestion\\\": \\\"Return `config: {}` and `date_range: {}` (actual dicts) in the mock row to match what SQLAlchemy JSON columns produce\\\"\\n      },\\n      {\\n        \\\"line\\\": 693,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"`report_handler` returns `\\\\\\\"{}\\\\\\\"` as string for config/date_range in the list query path as well, compounding the dict-vs-string inconsistency across all report code paths\\\",\\n        \\\"suggestion\\\": \\\"Update the list query path of `report_handler` to return dict literals `{}` instead of string literals `\\\\\\\"{}\\\\\\\"`\\\"\\n      },\\n      {\\n        \\\"line\\\": 779,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"In `make_mock_session`, the `_execute_side_effect` callback uses positional params (`h(sql_text, params)`), but `conftest`'s own `_build_analytics_session` in the test file passes params as keyword args \u2014 parameter passing convention is inconsistent between the two session builders\\\",\\n        \\\"suggestion\\\": \\\"Standardize: have `_execute_side_effect` merge `params or {}` with `**kwargs` like `_build_analytics_session` does for robustness across both calling conventions\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"conftest.py provides solid SQL mock infrastructure but has several issues: JSON-string vs dict inconsistencies in dashboard/report mock rows (breaking type contracts), missing tenant_id enforcement in analytics handlers, and minor style/cleanup opportunities.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"tests/unit/test_analytics_service.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 43,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"`dashboard_handler` in conftest returns `widgets: \\\\\\\"[]\\\\\\\"` (string) but `MockRow.__init__` only parses `tags` from JSON string \u2014 `widgets` stays a string, causing `assert result.widgets == []` to fail (list != string)\\\",\\n        \\\"suggestion\\\": \\\"Fix `dashboard_handler` to return `widgets: []` (actual list) instead of `widgets: \\\\\\\"[]\\\\\\\"` (string) so the equality assertion passes\\\"\\n      },\\n      {\\n        \\\"line\\\": 43,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"`MockRow` only handles JSON-deserialization for the `tags` key; `widgets` string `\\\\\\\"[]\\\\\\\"` from dashboard INSERT will remain a string through the mock chain, breaking any assertion that expects a list\\\",\\n        \\\"suggestion\\\": \\\"Extend `MockRow.__init__` to also parse `widgets` from JSON string when present, mirroring the existing `tags` handling\\\"\\n      },\\n      {\\n        \\\"line\\\": 52,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"`MockRow` uses bare `except Exception: pass` for JSON deserialization of tags \u2014 silently swallowing all JSON decode errors rather than surfacing them as test failures\\\",\\n        \\\"suggestion\\\": \\\"Use `except (ValueError, TypeError)` instead of bare `except Exception` for the JSON parsing block\\\"\\n      },\\n      {\\n        \\\"line\\\": 53,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"Blanket `except Exception: pass` in JSON parsing hides the specific case of malformed JSON vs. other exceptions, making debugging failing tests harder\\\",\\n        \\\"suggestion\\\": \\\"Narrow to `except (ValueError, TypeError)` to only suppress JSON decode errors while letting other unexpected exceptions propagate\\\"\\n      },\\n      {\\n        \\\"line\\\": 105,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"Regex compilation with `re.compile` is called inside `execute_side_effect` (on every SQL call) rather than at module level, causing unnecessary repeated compilation\\\",\\n        \\\"suggestion\\\": \\\"Move `import re` and any regex compilation to module level, outside `execute_side_effect`\\\"\\n      },\\n      {\\n        \\\"line\\\": 121,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"Import of `make_analytics_handlers` from conftest is unused \u2014 the test file builds its own session via `_build_analytics_session` and never calls the conftest factory\\\",\\n        \\\"suggestion\\\": \\\"Remove the unused `make_analytics_handlers` import on line 14\\\"\\n      },\\n      {\\n        \\\"line\\\": 106,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"Bare `except Exception: pass` swallows all errors during best-effort SQL param extraction \u2014 an `AttributeError` from a malformed SQL object would silently pass, potentially masking test bugs\\\",\\n        \\\"suggestion\\\": \\\"Use `except (AttributeError, TypeError): pass` to be explicit about which exceptions are acceptable to suppress during param extraction\\\"\\n      },\\n      {\\n        \\\"line\\\": 106,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"Regex operations inside `execute_side_effect` run on every SQL call with no caching \u2014 the `_extract_id` function re-searches the same SQL text patterns repeatedly\\\",\\n        \\\"suggestion\\\": \\\"Consider memoizing or pre-compiling the regex patterns at module level for performance\\\"\\n      },\\n      {\\n        \\\"line\\\": 301,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"In `TestGetCustomerGrowthReport`, `session_with_customer` fixture creates a session with `_build_analytics_session(state)` but never seeds customer data \u2014 the session's customer query path relies on the fallback conftest handlers, making the test potentially fragile if handler chain ordering changes\\\",\\n        \\\"suggestion\\\": \\\"Ensure customer_handler is in the fallback chain or explicitly add it to `_build_analytics_session` to guarantee customer queries are handled\\\"\\n      },\\n      {\\n        \\\"line\\\": 304,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"`TestGetCustomerGrowthReport.session_with_customer` fixture does not share state with other fixtures \u2014 `MockState()` is created independently, so `make_analytics_handlers(state)` in the fallback path has independent state\\\",\\n        \\\"suggestion\\\": \\\"Consider passing a shared state object into the session fixture or document that the fixture intentionally uses independent state\\\"\\n      },\\n      {\\n        \\\"line\\\": 373,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"test_get_get_dashboard_not_found does not override the mock session to return an empty result for id=9999 \u2014 the default `dashboard_handler` already returns `MockResult([])` for unknown IDs, so the test passes correctly, but it is not using the `_empty_dashboard_handler` described in the plan (step 2j)\\\",\\n        \\\"suggestion\\\": \\\"Verify the test still passes if conftest's `dashboard_handler` behavior changes; add an explicit empty handler in the test to guarantee independence from conftest internals\\\"\\n      },\\n      {\\n        \\\"line\\\": 0,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"Missing test for `get_chart_data` (sync utility method with no DB dependency) \u2014 this is a one-liner that would benefit from a simple unit test\\\",\\n        \\\"suggestion\\\": \\\"Add `TestGetChartData` class with one test: assert output of `svc.get_chart_data('bar', [1,2,3], ['a','b','c'])` contains expected keys\\\"\\n      },\\n      {\\n        \\\"line\\\": 0,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"Missing tests for `add_widget` and `remove_widget` methods \u2014 these are tested neither here nor in integration tests\\\",\\n        \\\"suggestion\\\": \\\"Add `test_add_widget_success` and `test_remove_widget_success` to `TestDashboardCrud` to cover widget mutation paths\\\"\\n      },\\n      {\\n        \\\"line\\\": 0,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"Missing test for `update_dashboard` \u2014 not covered in either unit or integration test suite\\\",\\n        \\\"suggestion\\\": \\\"Add `test_update_dashboard_success` to `TestDashboardCrud`\\\"\\n      },\\n      {\\n        \\\"line\\\": 0,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"Missing tests for `create_report` and `get_report` \u2014 report CRUD methods have no direct unit test coverage\\\",\\n        \\\"suggestion\\\": \\\"Add `test_create_report_success` and `test_get_report_found` to `TestReportDispatch`\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Test file has a critical mock data type mismatch (widgets as string \\\\\\\"[]\\\\\\\" vs. expected list []) and bare `except Exception` suppression in two places. Additionally, several CRUD methods and the sync `get_chart_data` utility lack test coverage, and the test for `get_dashboard_not_found` is not isolated from conftest internals as the plan intended.\\\"\\n  }\\n]\",\"stop_reason\":\"end_turn\",\"session_id\":\"2047e71b-4e8d-4fb3-a304-09f0581b442b\",\"total_cost_usd\":0.4057259999999999,\"usage\":{\"input_tokens\":47775,\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":225920,\"output_tokens\":12975,\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":0,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"\",\"iterations\":[],\"speed\":\"standard\"},\"modelUsage\":{\"claude-sonnet-4-6\":{\"inputTokens\":47775,\"outputTokens\":12975,\"cacheReadInputTokens\":225920,\"cacheCreationInputTokens\":0,\"webSearchRequests\":0,\"costUSD\":0.4057259999999999,\"contextWindow\":200000,\"maxOutputTokens\":32000}},\"permission_denials\":[],\"terminal_reason\":\"completed\",\"fast_mode_state\":\"off\",\"uuid\":\"6745cea1-fdaf-4881-a6be-b90d4b2627e6\"}\n",
         "parsed": {
-          "filename": ".plans/issue-143.md",
+          "filename": ".plans/issue-144.md",
           "issues": [
             {
-              "line": 36,
+              "line": 30,
               "severity": "warning",
-              "message": "Test case name 'test_create_activity_returns_api_response' is misleading \u2014 the plan itself correctly notes the service returns an Activity domain object, not an ApiResponse envelope.",
-              "suggestion": "Rename to 'test_create_activity_returns_activity' to match the actual return type and align with the test class name TestCreateActivity."
+              "message": "Test plan references nonexistent file `test_analytics_integration.py` instead of actual integration test file name",
+              "suggestion": "Verify the correct integration test filename and update the reference"
             },
             {
-              "line": 39,
-              "severity": "warning",
-              "message": "Test case 'test_update_activity' describes using a pre-populated mock result for '_fetch', but '_fetch' is a private method \u2014 the test should document which public call triggers the _fetch internally.",
-              "suggestion": "No code change needed; add a clarifying comment in the plan noting that _fetch is called internally by update_activity."
+              "line": 0,
+              "severity": "info",
+              "message": "Plan does not specify how to handle widget-specific mock rows for `add_widget` / `remove_widget` tests",
+              "suggestion": "Add step to cover widget mutation tests or explicitly document them as out of scope"
+            },
+            {
+              "line": 0,
+              "severity": "info",
+              "message": "Plan does not specify how `get_chart_data` (sync, no DB) is tested \u2014 currently no test covers it",
+              "suggestion": "Add a test case for `get_chart_data` in TestDashboardCrud or a dedicated class"
             }
           ],
-          "summary": "Plan correctly identifies the discrepancy between ApiResponse naming and actual Activity return type; test names and structure are sound with minor name-fix needed."
+          "summary": "Implementation plan is detailed and mostly sound but contains an incorrect integration test filename reference and omits two uncovered methods (`get_chart_data`, widget mutations)."
         }
       },
       {
         "file": "tests/unit/conftest.py",
         "returncode": 0,
-        "output": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"api_error_status\":null,\"duration_ms\":278616,\"duration_api_ms\":278183,\"num_turns\":16,\"result\":\"\\n\\n[\\n  {\\n    \\\"filename\\\": \\\".plans/issue-143.md\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 36,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"Test case name 'test_create_activity_returns_api_response' is misleading \u2014 the plan itself correctly notes the service returns an Activity domain object, not an ApiResponse envelope.\\\",\\n        \\\"suggestion\\\": \\\"Rename to 'test_create_activity_returns_activity' to match the actual return type and align with the test class name TestCreateActivity.\\\"\\n      },\\n      {\\n        \\\"line\\\": 39,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"Test case 'test_update_activity' describes using a pre-populated mock result for '_fetch', but '_fetch' is a private method \u2014 the test should document which public call triggers the _fetch internally.\\\",\\n        \\\"suggestion\\\": \\\"No code change needed; add a clarifying comment in the plan noting that _fetch is called internally by update_activity.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Plan correctly identifies the discrepancy between ApiResponse naming and actual Activity return type; test names and structure are sound with minor name-fix needed.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"tests/unit/conftest.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 161,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"MockState docstring still says 'Per-test mutable state consumed by customer & user handlers' but now also covers activities \u2014 it is out of date.\\\",\\n        \\\"suggestion\\\": \\\"Update docstring to: 'Per-test mutable state consumed by customer, user, and activity handlers.'\\\"\\n      },\\n      {\\n        \\\"line\\\": 680,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"SELECT list branch is guarded only by 'if state.activities' \u2014 this matches customer_handler but means any unmatched query on the activities table (e.g. a future JOIN or filtered list) will return all tenant rows instead of None, silently swallowing the query.\\\",\\n        \\\"suggestion\\\": \\\"Narrow the guard to require that the query is specifically a list query, e.g.: 'if \\\\\\\"select\\\\\\\" in sql_text and \\\\\\\"where id\\\\\\\" not in sql_text:' before the state.activities check.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Activity handler is correctly implemented and integrates cleanly; two minor issues \u2014 stale MockState docstring and a broad SELECT list guard that could silently swallow future query variants.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"tests/unit/test_activity_service.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 13,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"MockRow._fields is never accessed by _to_activity (which uses dot-access on the ORM model), but it is defined on the class. It is dead code \u2014 it shadows a private attribute convention and serves no role in these tests.\\\",\\n        \\\"suggestion\\\": \\\"Remove the _fields property from MockRow in conftest.py; it is unused in test_activity_service.py.\\\"\\n      },\\n      {\\n        \\\"line\\\": 0,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"No test covers ValidationException for invalid activity_type (ActivityService.create_activity raises ValidationException on ValueError from ActivityType()).\\\",\\n        \\\"suggestion\\\": \\\"Add to TestCreateActivity: async def test_create_activity_invalid_type_raises(self, mock_db_session): service = ActivityService(mock_db_session); with pytest.raises(ValidationException, match='\u65e0\u6548\u7684\u6d3b\u52a8\u7c7b\u578b'): await service.create_activity(customer_id=1, activity_type='invalid_type', content='...', created_by=1, tenant_id=1)\\\"\\n      },\\n      {\\n        \\\"line\\\": 119,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"update_activity with kwargs={} (no fields to update) calls _fetch then exits without any execute/flush call \u2014 the test mocks 3 execute calls but the real service only calls _fetch once in this path, so the side_effect list is misaligned with the actual call count.\\\",\\n        \\\"suggestion\\\": \\\"Test the no-op branch explicitly: call update_activity(activity_id=1, tenant_id=1) with no kwargs; mock execute to return scalar_one_or_none=original; assert result.content=='Original content' and execute was called once.\\\"\\n      },\\n      {\\n        \\\"line\\\": 123,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"update_activity flushes at line 91 of activity_service.py after the UPDATE query \u2014 the DELETE path (line 105) also flushes. These flushes are local to the router-owned transaction (rule 122), but no test verifies flush() call count for update or delete operations.\\\",\\n        \\\"suggestion\\\": \\\"Add assertions in test_update_activity and test_delete_activity: mock_db_session.flush.assert_called() (or assert_called_once() if flush is called once per operation).\\\"\\n      },\\n      {\\n        \\\"line\\\": 201,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"test_list_activities_pagination mocks COUNT returning 3 total but SELECT returning only 2 items \u2014 the ActivityModel row returned by SELECT uses the full Activity(...) domain model, not a dict. Passing Activity domain objects where the service expects to call _to_activity(row) is correct, but the mock's scalars().all() returns a list directly rather than a mock iterator, inconsistent with other tests that wrap in MagicMock.\\\",\\n        \\\"suggestion\\\": \\\"Wrap the list return in MagicMock for consistency: MagicMock(all=MagicMock(return_value=[activity1, activity2])) already does this correctly \u2014 no change needed here, the existing code is consistent.\\\"\\n      },\\n      {\\n        \\\"line\\\": 34,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"TestCreateActivity sets mock_db_session.execute to a new AsyncMock after fixture creation \u2014 this overrides the session-level execute mock set up in the fixture, which is the correct pattern but slightly harder to follow than re-initializing session per test as other test files do.\\\",\\n        \\\"suggestion\\\": \\\"No code change needed \u2014 the pattern is valid and mirrors test_customer_service.py correctly.\\\"\\n      },\\n      {\\n        \\\"line\\\": 0,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"list_activities supports customer_id and activity_type filter parameters but no test exercises these filters.\\\",\\n        \\\"suggestion\\\": \\\"Add test_list_activities_with_filters covering customer_id and activity_type filtering to improve coverage of the list_activities surface.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Core CRUD and pagination tests are correct and comprehensive, but three critical gaps exist: no ValidationException coverage for invalid activity_type, a misaligned execute side_effect count for the no-op update path, and missing flush() assertions for update/delete operations.\\\"\\n  }\\n]\",\"stop_reason\":\"end_turn\",\"session_id\":\"417dc948-3f79-4ff1-8c77-e124e7fcad07\",\"total_cost_usd\":0.7075278,\"usage\":{\"input_tokens\":51982,\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":618656,\"output_tokens\":24399,\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":0,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"\",\"iterations\":[],\"speed\":\"standard\"},\"modelUsage\":{\"claude-sonnet-4-6\":{\"inputTokens\":51982,\"outputTokens\":24399,\"cacheReadInputTokens\":618656,\"cacheCreationInputTokens\":0,\"webSearchRequests\":0,\"costUSD\":0.7075278,\"contextWindow\":200000,\"maxOutputTokens\":32000}},\"permission_denials\":[],\"terminal_reason\":\"completed\",\"fast_mode_state\":\"off\",\"uuid\":\"b901fa83-0c6d-4eb4-9ea5-4f7325fb057a\"}\n",
+        "output": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"api_error_status\":null,\"duration_ms\":269453,\"duration_api_ms\":269100,\"num_turns\":8,\"result\":\"\\n\\nNow I have all the information needed for a comprehensive review.\\n\\n[\\n  {\\n    \\\"filename\\\": \\\".plans/issue-144.md\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 30,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"Test plan references nonexistent file `test_analytics_integration.py` instead of actual integration test file name\\\",\\n        \\\"suggestion\\\": \\\"Verify the correct integration test filename and update the reference\\\"\\n      },\\n      {\\n        \\\"line\\\": 0,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"Plan does not specify how to handle widget-specific mock rows for `add_widget` / `remove_widget` tests\\\",\\n        \\\"suggestion\\\": \\\"Add step to cover widget mutation tests or explicitly document them as out of scope\\\"\\n      },\\n      {\\n        \\\"line\\\": 0,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"Plan does not specify how `get_chart_data` (sync, no DB) is tested \u2014 currently no test covers it\\\",\\n        \\\"suggestion\\\": \\\"Add a test case for `get_chart_data` in TestDashboardCrud or a dedicated class\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Implementation plan is detailed and mostly sound but contains an incorrect integration test filename reference and omits two uncovered methods (`get_chart_data`, widget mutations).\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"tests/unit/conftest.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 4,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"Unused import `asynccontextmanager` from contextlib (never referenced after refactor to test-specific session builder)\\\",\\n        \\\"suggestion\\\": \\\"Remove the unused import to keep the file clean\\\"\\n      },\\n      {\\n        \\\"line\\\": 6,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"Docstring on line 3 precedes `from __future__ import annotations` on line 6 \u2014 style convention typically places the future import at the very top of the file\\\",\\n        \\\"suggestion\\\": \\\"Move `from __future__ import annotations` to line 1, before the module docstring\\\"\\n      },\\n      {\\n        \\\"line\\\": 8,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"Import `json as _json` is unnecessary \u2014 `_json` is only used in `make_customer_handler` inside a try/except, but no JSON parsing of column values occurs in analytics handlers\\\",\\n        \\\"suggestion\\\": \\\"Audit whether `_json` is still needed; if no other handler deserializes a JSON string column, remove the import\\\"\\n      },\\n      {\\n        \\\"line\\\": 16,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"Import of `MultipleResultsFound` from `sqlalchemy.exc` is only used in `MockResult.mappings().one_or_none()` but never raised in real paths of analytics tests\\\",\\n        \\\"suggestion\\\": \\\"Keep if other domain handlers use it; otherwise consider whether this mock behavior is needed\\\"\\n      },\\n      {\\n        \\\"line\\\": 631,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"Stateless `dashboard_handler` does not enforce tenant_id filtering \u2014 returns dashboard fixtures even when tenant_id is mismatched, weakening test isolation\\\",\\n        \\\"suggestion\\\": \\\"Add tenant_id check: if `params.get('tenant_id')` is provided and does not match fixture tenant_id (1), return `MockResult([])`\\\"\\n      },\\n      {\\n        \\\"line\\\": 637,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"`report_handler` does not enforce tenant_id filtering for INSERT or WHERE id queries, allowing cross-tenant data leakage in tests\\\",\\n        \\\"suggestion\\\": \\\"Add tenant_id validation in `report_handler` \u2014 for INSERT and WHERE id paths, verify `params.get('tenant_id')` before returning fixture data\\\"\\n      },\\n      {\\n        \\\"line\\\": 653,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"`dashboard_handler` returns `widgets: \\\\\\\"[]\\\\\\\"` (JSON string) for INSERT, but `MockRow` only parses `tags` from JSON string \u2014 `widgets` stored as JSON string will not deserialize in tests that rely on it as a list\\\",\\n        \\\"suggestion\\\": \\\"Have `dashboard_handler` INSERT return `widgets: []` (actual list) for consistency with how MockRow handles tags, or add widgets JSON parsing in MockRow.__init__\\\"\\n      },\\n      {\\n        \\\"line\\\": 691,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"`report_handler` INSERT returns `config: \\\\\\\"{}\\\\\\\"` and `date_range: \\\\\\\"{}\\\\\\\"` as strings, but `MockRow` only handles JSON parsing for the `tags` key \u2014 `config` and `date_range` will remain strings instead of dicts\\\",\\n        \\\"suggestion\\\": \\\"Return `config: {}` and `date_range: {}` (actual dicts) in the mock row to match what SQLAlchemy JSON columns produce\\\"\\n      },\\n      {\\n        \\\"line\\\": 693,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"`report_handler` returns `\\\\\\\"{}\\\\\\\"` as string for config/date_range in the list query path as well, compounding the dict-vs-string inconsistency across all report code paths\\\",\\n        \\\"suggestion\\\": \\\"Update the list query path of `report_handler` to return dict literals `{}` instead of string literals `\\\\\\\"{}\\\\\\\"`\\\"\\n      },\\n      {\\n        \\\"line\\\": 779,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"In `make_mock_session`, the `_execute_side_effect` callback uses positional params (`h(sql_text, params)`), but `conftest`'s own `_build_analytics_session` in the test file passes params as keyword args \u2014 parameter passing convention is inconsistent between the two session builders\\\",\\n        \\\"suggestion\\\": \\\"Standardize: have `_execute_side_effect` merge `params or {}` with `**kwargs` like `_build_analytics_session` does for robustness across both calling conventions\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"conftest.py provides solid SQL mock infrastructure but has several issues: JSON-string vs dict inconsistencies in dashboard/report mock rows (breaking type contracts), missing tenant_id enforcement in analytics handlers, and minor style/cleanup opportunities.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"tests/unit/test_analytics_service.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 43,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"`dashboard_handler` in conftest returns `widgets: \\\\\\\"[]\\\\\\\"` (string) but `MockRow.__init__` only parses `tags` from JSON string \u2014 `widgets` stays a string, causing `assert result.widgets == []` to fail (list != string)\\\",\\n        \\\"suggestion\\\": \\\"Fix `dashboard_handler` to return `widgets: []` (actual list) instead of `widgets: \\\\\\\"[]\\\\\\\"` (string) so the equality assertion passes\\\"\\n      },\\n      {\\n        \\\"line\\\": 43,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"`MockRow` only handles JSON-deserialization for the `tags` key; `widgets` string `\\\\\\\"[]\\\\\\\"` from dashboard INSERT will remain a string through the mock chain, breaking any assertion that expects a list\\\",\\n        \\\"suggestion\\\": \\\"Extend `MockRow.__init__` to also parse `widgets` from JSON string when present, mirroring the existing `tags` handling\\\"\\n      },\\n      {\\n        \\\"line\\\": 52,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"`MockRow` uses bare `except Exception: pass` for JSON deserialization of tags \u2014 silently swallowing all JSON decode errors rather than surfacing them as test failures\\\",\\n        \\\"suggestion\\\": \\\"Use `except (ValueError, TypeError)` instead of bare `except Exception` for the JSON parsing block\\\"\\n      },\\n      {\\n        \\\"line\\\": 53,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"Blanket `except Exception: pass` in JSON parsing hides the specific case of malformed JSON vs. other exceptions, making debugging failing tests harder\\\",\\n        \\\"suggestion\\\": \\\"Narrow to `except (ValueError, TypeError)` to only suppress JSON decode errors while letting other unexpected exceptions propagate\\\"\\n      },\\n      {\\n        \\\"line\\\": 105,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"Regex compilation with `re.compile` is called inside `execute_side_effect` (on every SQL call) rather than at module level, causing unnecessary repeated compilation\\\",\\n        \\\"suggestion\\\": \\\"Move `import re` and any regex compilation to module level, outside `execute_side_effect`\\\"\\n      },\\n      {\\n        \\\"line\\\": 121,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"Import of `make_analytics_handlers` from conftest is unused \u2014 the test file builds its own session via `_build_analytics_session` and never calls the conftest factory\\\",\\n        \\\"suggestion\\\": \\\"Remove the unused `make_analytics_handlers` import on line 14\\\"\\n      },\\n      {\\n        \\\"line\\\": 106,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"Bare `except Exception: pass` swallows all errors during best-effort SQL param extraction \u2014 an `AttributeError` from a malformed SQL object would silently pass, potentially masking test bugs\\\",\\n        \\\"suggestion\\\": \\\"Use `except (AttributeError, TypeError): pass` to be explicit about which exceptions are acceptable to suppress during param extraction\\\"\\n      },\\n      {\\n        \\\"line\\\": 106,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"Regex operations inside `execute_side_effect` run on every SQL call with no caching \u2014 the `_extract_id` function re-searches the same SQL text patterns repeatedly\\\",\\n        \\\"suggestion\\\": \\\"Consider memoizing or pre-compiling the regex patterns at module level for performance\\\"\\n      },\\n      {\\n        \\\"line\\\": 301,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"In `TestGetCustomerGrowthReport`, `session_with_customer` fixture creates a session with `_build_analytics_session(state)` but never seeds customer data \u2014 the session's customer query path relies on the fallback conftest handlers, making the test potentially fragile if handler chain ordering changes\\\",\\n        \\\"suggestion\\\": \\\"Ensure customer_handler is in the fallback chain or explicitly add it to `_build_analytics_session` to guarantee customer queries are handled\\\"\\n      },\\n      {\\n        \\\"line\\\": 304,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"`TestGetCustomerGrowthReport.session_with_customer` fixture does not share state with other fixtures \u2014 `MockState()` is created independently, so `make_analytics_handlers(state)` in the fallback path has independent state\\\",\\n        \\\"suggestion\\\": \\\"Consider passing a shared state object into the session fixture or document that the fixture intentionally uses independent state\\\"\\n      },\\n      {\\n        \\\"line\\\": 373,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"test_get_get_dashboard_not_found does not override the mock session to return an empty result for id=9999 \u2014 the default `dashboard_handler` already returns `MockResult([])` for unknown IDs, so the test passes correctly, but it is not using the `_empty_dashboard_handler` described in the plan (step 2j)\\\",\\n        \\\"suggestion\\\": \\\"Verify the test still passes if conftest's `dashboard_handler` behavior changes; add an explicit empty handler in the test to guarantee independence from conftest internals\\\"\\n      },\\n      {\\n        \\\"line\\\": 0,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"Missing test for `get_chart_data` (sync utility method with no DB dependency) \u2014 this is a one-liner that would benefit from a simple unit test\\\",\\n        \\\"suggestion\\\": \\\"Add `TestGetChartData` class with one test: assert output of `svc.get_chart_data('bar', [1,2,3], ['a','b','c'])` contains expected keys\\\"\\n      },\\n      {\\n        \\\"line\\\": 0,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"Missing tests for `add_widget` and `remove_widget` methods \u2014 these are tested neither here nor in integration tests\\\",\\n        \\\"suggestion\\\": \\\"Add `test_add_widget_success` and `test_remove_widget_success` to `TestDashboardCrud` to cover widget mutation paths\\\"\\n      },\\n      {\\n        \\\"line\\\": 0,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"Missing test for `update_dashboard` \u2014 not covered in either unit or integration test suite\\\",\\n        \\\"suggestion\\\": \\\"Add `test_update_dashboard_success` to `TestDashboardCrud`\\\"\\n      },\\n      {\\n        \\\"line\\\": 0,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"Missing tests for `create_report` and `get_report` \u2014 report CRUD methods have no direct unit test coverage\\\",\\n        \\\"suggestion\\\": \\\"Add `test_create_report_success` and `test_get_report_found` to `TestReportDispatch`\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Test file has a critical mock data type mismatch (widgets as string \\\\\\\"[]\\\\\\\" vs. expected list []) and bare `except Exception` suppression in two places. Additionally, several CRUD methods and the sync `get_chart_data` utility lack test coverage, and the test for `get_dashboard_not_found` is not isolated from conftest internals as the plan intended.\\\"\\n  }\\n]\",\"stop_reason\":\"end_turn\",\"session_id\":\"2047e71b-4e8d-4fb3-a304-09f0581b442b\",\"total_cost_usd\":0.4057259999999999,\"usage\":{\"input_tokens\":47775,\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":225920,\"output_tokens\":12975,\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":0,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"\",\"iterations\":[],\"speed\":\"standard\"},\"modelUsage\":{\"claude-sonnet-4-6\":{\"inputTokens\":47775,\"outputTokens\":12975,\"cacheReadInputTokens\":225920,\"cacheCreationInputTokens\":0,\"webSearchRequests\":0,\"costUSD\":0.4057259999999999,\"contextWindow\":200000,\"maxOutputTokens\":32000}},\"permission_denials\":[],\"terminal_reason\":\"completed\",\"fast_mode_state\":\"off\",\"uuid\":\"6745cea1-fdaf-4881-a6be-b90d4b2627e6\"}\n",
         "parsed": {
           "filename": "tests/unit/conftest.py",
           "issues": [
             {
-              "line": 161,
+              "line": 4,
               "severity": "info",
-              "message": "MockState docstring still says 'Per-test mutable state consumed by customer & user handlers' but now also covers activities \u2014 it is out of date.",
-              "suggestion": "Update docstring to: 'Per-test mutable state consumed by customer, user, and activity handlers.'"
+              "message": "Unused import `asynccontextmanager` from contextlib (never referenced after refactor to test-specific session builder)",
+              "suggestion": "Remove the unused import to keep the file clean"
             },
             {
-              "line": 680,
+              "line": 6,
+              "severity": "info",
+              "message": "Docstring on line 3 precedes `from __future__ import annotations` on line 6 \u2014 style convention typically places the future import at the very top of the file",
+              "suggestion": "Move `from __future__ import annotations` to line 1, before the module docstring"
+            },
+            {
+              "line": 8,
+              "severity": "info",
+              "message": "Import `json as _json` is unnecessary \u2014 `_json` is only used in `make_customer_handler` inside a try/except, but no JSON parsing of column values occurs in analytics handlers",
+              "suggestion": "Audit whether `_json` is still needed; if no other handler deserializes a JSON string column, remove the import"
+            },
+            {
+              "line": 16,
+              "severity": "info",
+              "message": "Import of `MultipleResultsFound` from `sqlalchemy.exc` is only used in `MockResult.mappings().one_or_none()` but never raised in real paths of analytics tests",
+              "suggestion": "Keep if other domain handlers use it; otherwise consider whether this mock behavior is needed"
+            },
+            {
+              "line": 631,
               "severity": "warning",
-              "message": "SELECT list branch is guarded only by 'if state.activities' \u2014 this matches customer_handler but means any unmatched query on the activities table (e.g. a future JOIN or filtered list) will return all tenant rows instead of None, silently swallowing the query.",
-              "suggestion": "Narrow the guard to require that the query is specifically a list query, e.g.: 'if \"select\" in sql_text and \"where id\" not in sql_text:' before the state.activities check."
+              "message": "Stateless `dashboard_handler` does not enforce tenant_id filtering \u2014 returns dashboard fixtures even when tenant_id is mismatched, weakening test isolation",
+              "suggestion": "Add tenant_id check: if `params.get('tenant_id')` is provided and does not match fixture tenant_id (1), return `MockResult([])`"
+            },
+            {
+              "line": 637,
+              "severity": "warning",
+              "message": "`report_handler` does not enforce tenant_id filtering for INSERT or WHERE id queries, allowing cross-tenant data leakage in tests",
+              "suggestion": "Add tenant_id validation in `report_handler` \u2014 for INSERT and WHERE id paths, verify `params.get('tenant_id')` before returning fixture data"
+            },
+            {
+              "line": 653,
+              "severity": "warning",
+              "message": "`dashboard_handler` returns `widgets: \"[]\"` (JSON string) for INSERT, but `MockRow` only parses `tags` from JSON string \u2014 `widgets` stored as JSON string will not deserialize in tests that rely on it as a list",
+              "suggestion": "Have `dashboard_handler` INSERT return `widgets: []` (actual list) for consistency with how MockRow handles tags, or add widgets JSON parsing in MockRow.__init__"
+            },
+            {
+              "line": 691,
+              "severity": "warning",
+              "message": "`report_handler` INSERT returns `config: \"{}\"` and `date_range: \"{}\"` as strings, but `MockRow` only handles JSON parsing for the `tags` key \u2014 `config` and `date_range` will remain strings instead of dicts",
+              "suggestion": "Return `config: {}` and `date_range: {}` (actual dicts) in the mock row to match what SQLAlchemy JSON columns produce"
+            },
+            {
+              "line": 693,
+              "severity": "warning",
+              "message": "`report_handler` returns `\"{}\"` as string for config/date_range in the list query path as well, compounding the dict-vs-string inconsistency across all report code paths",
+              "suggestion": "Update the list query path of `report_handler` to return dict literals `{}` instead of string literals `\"{}\"`"
+            },
+            {
+              "line": 779,
+              "severity": "info",
+              "message": "In `make_mock_session`, the `_execute_side_effect` callback uses positional params (`h(sql_text, params)`), but `conftest`'s own `_build_analytics_session` in the test file passes params as keyword args \u2014 parameter passing convention is inconsistent between the two session builders",
+              "suggestion": "Standardize: have `_execute_side_effect` merge `params or {}` with `**kwargs` like `_build_analytics_session` does for robustness across both calling conventions"
             }
           ],
-          "summary": "Activity handler is correctly implemented and integrates cleanly; two minor issues \u2014 stale MockState docstring and a broad SELECT list guard that could silently swallow future query variants."
+          "summary": "conftest.py provides solid SQL mock infrastructure but has several issues: JSON-string vs dict inconsistencies in dashboard/report mock rows (breaking type contracts), missing tenant_id enforcement in analytics handlers, and minor style/cleanup opportunities."
         }
       },
       {
-        "file": "tests/unit/test_activity_service.py",
+        "file": "tests/unit/test_analytics_service.py",
         "returncode": 0,
-        "output": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"api_error_status\":null,\"duration_ms\":278616,\"duration_api_ms\":278183,\"num_turns\":16,\"result\":\"\\n\\n[\\n  {\\n    \\\"filename\\\": \\\".plans/issue-143.md\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 36,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"Test case name 'test_create_activity_returns_api_response' is misleading \u2014 the plan itself correctly notes the service returns an Activity domain object, not an ApiResponse envelope.\\\",\\n        \\\"suggestion\\\": \\\"Rename to 'test_create_activity_returns_activity' to match the actual return type and align with the test class name TestCreateActivity.\\\"\\n      },\\n      {\\n        \\\"line\\\": 39,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"Test case 'test_update_activity' describes using a pre-populated mock result for '_fetch', but '_fetch' is a private method \u2014 the test should document which public call triggers the _fetch internally.\\\",\\n        \\\"suggestion\\\": \\\"No code change needed; add a clarifying comment in the plan noting that _fetch is called internally by update_activity.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Plan correctly identifies the discrepancy between ApiResponse naming and actual Activity return type; test names and structure are sound with minor name-fix needed.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"tests/unit/conftest.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 161,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"MockState docstring still says 'Per-test mutable state consumed by customer & user handlers' but now also covers activities \u2014 it is out of date.\\\",\\n        \\\"suggestion\\\": \\\"Update docstring to: 'Per-test mutable state consumed by customer, user, and activity handlers.'\\\"\\n      },\\n      {\\n        \\\"line\\\": 680,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"SELECT list branch is guarded only by 'if state.activities' \u2014 this matches customer_handler but means any unmatched query on the activities table (e.g. a future JOIN or filtered list) will return all tenant rows instead of None, silently swallowing the query.\\\",\\n        \\\"suggestion\\\": \\\"Narrow the guard to require that the query is specifically a list query, e.g.: 'if \\\\\\\"select\\\\\\\" in sql_text and \\\\\\\"where id\\\\\\\" not in sql_text:' before the state.activities check.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Activity handler is correctly implemented and integrates cleanly; two minor issues \u2014 stale MockState docstring and a broad SELECT list guard that could silently swallow future query variants.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"tests/unit/test_activity_service.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 13,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"MockRow._fields is never accessed by _to_activity (which uses dot-access on the ORM model), but it is defined on the class. It is dead code \u2014 it shadows a private attribute convention and serves no role in these tests.\\\",\\n        \\\"suggestion\\\": \\\"Remove the _fields property from MockRow in conftest.py; it is unused in test_activity_service.py.\\\"\\n      },\\n      {\\n        \\\"line\\\": 0,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"No test covers ValidationException for invalid activity_type (ActivityService.create_activity raises ValidationException on ValueError from ActivityType()).\\\",\\n        \\\"suggestion\\\": \\\"Add to TestCreateActivity: async def test_create_activity_invalid_type_raises(self, mock_db_session): service = ActivityService(mock_db_session); with pytest.raises(ValidationException, match='\u65e0\u6548\u7684\u6d3b\u52a8\u7c7b\u578b'): await service.create_activity(customer_id=1, activity_type='invalid_type', content='...', created_by=1, tenant_id=1)\\\"\\n      },\\n      {\\n        \\\"line\\\": 119,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"update_activity with kwargs={} (no fields to update) calls _fetch then exits without any execute/flush call \u2014 the test mocks 3 execute calls but the real service only calls _fetch once in this path, so the side_effect list is misaligned with the actual call count.\\\",\\n        \\\"suggestion\\\": \\\"Test the no-op branch explicitly: call update_activity(activity_id=1, tenant_id=1) with no kwargs; mock execute to return scalar_one_or_none=original; assert result.content=='Original content' and execute was called once.\\\"\\n      },\\n      {\\n        \\\"line\\\": 123,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"update_activity flushes at line 91 of activity_service.py after the UPDATE query \u2014 the DELETE path (line 105) also flushes. These flushes are local to the router-owned transaction (rule 122), but no test verifies flush() call count for update or delete operations.\\\",\\n        \\\"suggestion\\\": \\\"Add assertions in test_update_activity and test_delete_activity: mock_db_session.flush.assert_called() (or assert_called_once() if flush is called once per operation).\\\"\\n      },\\n      {\\n        \\\"line\\\": 201,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"test_list_activities_pagination mocks COUNT returning 3 total but SELECT returning only 2 items \u2014 the ActivityModel row returned by SELECT uses the full Activity(...) domain model, not a dict. Passing Activity domain objects where the service expects to call _to_activity(row) is correct, but the mock's scalars().all() returns a list directly rather than a mock iterator, inconsistent with other tests that wrap in MagicMock.\\\",\\n        \\\"suggestion\\\": \\\"Wrap the list return in MagicMock for consistency: MagicMock(all=MagicMock(return_value=[activity1, activity2])) already does this correctly \u2014 no change needed here, the existing code is consistent.\\\"\\n      },\\n      {\\n        \\\"line\\\": 34,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"TestCreateActivity sets mock_db_session.execute to a new AsyncMock after fixture creation \u2014 this overrides the session-level execute mock set up in the fixture, which is the correct pattern but slightly harder to follow than re-initializing session per test as other test files do.\\\",\\n        \\\"suggestion\\\": \\\"No code change needed \u2014 the pattern is valid and mirrors test_customer_service.py correctly.\\\"\\n      },\\n      {\\n        \\\"line\\\": 0,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"list_activities supports customer_id and activity_type filter parameters but no test exercises these filters.\\\",\\n        \\\"suggestion\\\": \\\"Add test_list_activities_with_filters covering customer_id and activity_type filtering to improve coverage of the list_activities surface.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Core CRUD and pagination tests are correct and comprehensive, but three critical gaps exist: no ValidationException coverage for invalid activity_type, a misaligned execute side_effect count for the no-op update path, and missing flush() assertions for update/delete operations.\\\"\\n  }\\n]\",\"stop_reason\":\"end_turn\",\"session_id\":\"417dc948-3f79-4ff1-8c77-e124e7fcad07\",\"total_cost_usd\":0.7075278,\"usage\":{\"input_tokens\":51982,\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":618656,\"output_tokens\":24399,\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":0,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"\",\"iterations\":[],\"speed\":\"standard\"},\"modelUsage\":{\"claude-sonnet-4-6\":{\"inputTokens\":51982,\"outputTokens\":24399,\"cacheReadInputTokens\":618656,\"cacheCreationInputTokens\":0,\"webSearchRequests\":0,\"costUSD\":0.7075278,\"contextWindow\":200000,\"maxOutputTokens\":32000}},\"permission_denials\":[],\"terminal_reason\":\"completed\",\"fast_mode_state\":\"off\",\"uuid\":\"b901fa83-0c6d-4eb4-9ea5-4f7325fb057a\"}\n",
+        "output": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"api_error_status\":null,\"duration_ms\":269453,\"duration_api_ms\":269100,\"num_turns\":8,\"result\":\"\\n\\nNow I have all the information needed for a comprehensive review.\\n\\n[\\n  {\\n    \\\"filename\\\": \\\".plans/issue-144.md\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 30,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"Test plan references nonexistent file `test_analytics_integration.py` instead of actual integration test file name\\\",\\n        \\\"suggestion\\\": \\\"Verify the correct integration test filename and update the reference\\\"\\n      },\\n      {\\n        \\\"line\\\": 0,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"Plan does not specify how to handle widget-specific mock rows for `add_widget` / `remove_widget` tests\\\",\\n        \\\"suggestion\\\": \\\"Add step to cover widget mutation tests or explicitly document them as out of scope\\\"\\n      },\\n      {\\n        \\\"line\\\": 0,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"Plan does not specify how `get_chart_data` (sync, no DB) is tested \u2014 currently no test covers it\\\",\\n        \\\"suggestion\\\": \\\"Add a test case for `get_chart_data` in TestDashboardCrud or a dedicated class\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Implementation plan is detailed and mostly sound but contains an incorrect integration test filename reference and omits two uncovered methods (`get_chart_data`, widget mutations).\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"tests/unit/conftest.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 4,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"Unused import `asynccontextmanager` from contextlib (never referenced after refactor to test-specific session builder)\\\",\\n        \\\"suggestion\\\": \\\"Remove the unused import to keep the file clean\\\"\\n      },\\n      {\\n        \\\"line\\\": 6,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"Docstring on line 3 precedes `from __future__ import annotations` on line 6 \u2014 style convention typically places the future import at the very top of the file\\\",\\n        \\\"suggestion\\\": \\\"Move `from __future__ import annotations` to line 1, before the module docstring\\\"\\n      },\\n      {\\n        \\\"line\\\": 8,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"Import `json as _json` is unnecessary \u2014 `_json` is only used in `make_customer_handler` inside a try/except, but no JSON parsing of column values occurs in analytics handlers\\\",\\n        \\\"suggestion\\\": \\\"Audit whether `_json` is still needed; if no other handler deserializes a JSON string column, remove the import\\\"\\n      },\\n      {\\n        \\\"line\\\": 16,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"Import of `MultipleResultsFound` from `sqlalchemy.exc` is only used in `MockResult.mappings().one_or_none()` but never raised in real paths of analytics tests\\\",\\n        \\\"suggestion\\\": \\\"Keep if other domain handlers use it; otherwise consider whether this mock behavior is needed\\\"\\n      },\\n      {\\n        \\\"line\\\": 631,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"Stateless `dashboard_handler` does not enforce tenant_id filtering \u2014 returns dashboard fixtures even when tenant_id is mismatched, weakening test isolation\\\",\\n        \\\"suggestion\\\": \\\"Add tenant_id check: if `params.get('tenant_id')` is provided and does not match fixture tenant_id (1), return `MockResult([])`\\\"\\n      },\\n      {\\n        \\\"line\\\": 637,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"`report_handler` does not enforce tenant_id filtering for INSERT or WHERE id queries, allowing cross-tenant data leakage in tests\\\",\\n        \\\"suggestion\\\": \\\"Add tenant_id validation in `report_handler` \u2014 for INSERT and WHERE id paths, verify `params.get('tenant_id')` before returning fixture data\\\"\\n      },\\n      {\\n        \\\"line\\\": 653,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"`dashboard_handler` returns `widgets: \\\\\\\"[]\\\\\\\"` (JSON string) for INSERT, but `MockRow` only parses `tags` from JSON string \u2014 `widgets` stored as JSON string will not deserialize in tests that rely on it as a list\\\",\\n        \\\"suggestion\\\": \\\"Have `dashboard_handler` INSERT return `widgets: []` (actual list) for consistency with how MockRow handles tags, or add widgets JSON parsing in MockRow.__init__\\\"\\n      },\\n      {\\n        \\\"line\\\": 691,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"`report_handler` INSERT returns `config: \\\\\\\"{}\\\\\\\"` and `date_range: \\\\\\\"{}\\\\\\\"` as strings, but `MockRow` only handles JSON parsing for the `tags` key \u2014 `config` and `date_range` will remain strings instead of dicts\\\",\\n        \\\"suggestion\\\": \\\"Return `config: {}` and `date_range: {}` (actual dicts) in the mock row to match what SQLAlchemy JSON columns produce\\\"\\n      },\\n      {\\n        \\\"line\\\": 693,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"`report_handler` returns `\\\\\\\"{}\\\\\\\"` as string for config/date_range in the list query path as well, compounding the dict-vs-string inconsistency across all report code paths\\\",\\n        \\\"suggestion\\\": \\\"Update the list query path of `report_handler` to return dict literals `{}` instead of string literals `\\\\\\\"{}\\\\\\\"`\\\"\\n      },\\n      {\\n        \\\"line\\\": 779,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"In `make_mock_session`, the `_execute_side_effect` callback uses positional params (`h(sql_text, params)`), but `conftest`'s own `_build_analytics_session` in the test file passes params as keyword args \u2014 parameter passing convention is inconsistent between the two session builders\\\",\\n        \\\"suggestion\\\": \\\"Standardize: have `_execute_side_effect` merge `params or {}` with `**kwargs` like `_build_analytics_session` does for robustness across both calling conventions\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"conftest.py provides solid SQL mock infrastructure but has several issues: JSON-string vs dict inconsistencies in dashboard/report mock rows (breaking type contracts), missing tenant_id enforcement in analytics handlers, and minor style/cleanup opportunities.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"tests/unit/test_analytics_service.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 43,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"`dashboard_handler` in conftest returns `widgets: \\\\\\\"[]\\\\\\\"` (string) but `MockRow.__init__` only parses `tags` from JSON string \u2014 `widgets` stays a string, causing `assert result.widgets == []` to fail (list != string)\\\",\\n        \\\"suggestion\\\": \\\"Fix `dashboard_handler` to return `widgets: []` (actual list) instead of `widgets: \\\\\\\"[]\\\\\\\"` (string) so the equality assertion passes\\\"\\n      },\\n      {\\n        \\\"line\\\": 43,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"`MockRow` only handles JSON-deserialization for the `tags` key; `widgets` string `\\\\\\\"[]\\\\\\\"` from dashboard INSERT will remain a string through the mock chain, breaking any assertion that expects a list\\\",\\n        \\\"suggestion\\\": \\\"Extend `MockRow.__init__` to also parse `widgets` from JSON string when present, mirroring the existing `tags` handling\\\"\\n      },\\n      {\\n        \\\"line\\\": 52,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"`MockRow` uses bare `except Exception: pass` for JSON deserialization of tags \u2014 silently swallowing all JSON decode errors rather than surfacing them as test failures\\\",\\n        \\\"suggestion\\\": \\\"Use `except (ValueError, TypeError)` instead of bare `except Exception` for the JSON parsing block\\\"\\n      },\\n      {\\n        \\\"line\\\": 53,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"Blanket `except Exception: pass` in JSON parsing hides the specific case of malformed JSON vs. other exceptions, making debugging failing tests harder\\\",\\n        \\\"suggestion\\\": \\\"Narrow to `except (ValueError, TypeError)` to only suppress JSON decode errors while letting other unexpected exceptions propagate\\\"\\n      },\\n      {\\n        \\\"line\\\": 105,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"Regex compilation with `re.compile` is called inside `execute_side_effect` (on every SQL call) rather than at module level, causing unnecessary repeated compilation\\\",\\n        \\\"suggestion\\\": \\\"Move `import re` and any regex compilation to module level, outside `execute_side_effect`\\\"\\n      },\\n      {\\n        \\\"line\\\": 121,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"Import of `make_analytics_handlers` from conftest is unused \u2014 the test file builds its own session via `_build_analytics_session` and never calls the conftest factory\\\",\\n        \\\"suggestion\\\": \\\"Remove the unused `make_analytics_handlers` import on line 14\\\"\\n      },\\n      {\\n        \\\"line\\\": 106,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"Bare `except Exception: pass` swallows all errors during best-effort SQL param extraction \u2014 an `AttributeError` from a malformed SQL object would silently pass, potentially masking test bugs\\\",\\n        \\\"suggestion\\\": \\\"Use `except (AttributeError, TypeError): pass` to be explicit about which exceptions are acceptable to suppress during param extraction\\\"\\n      },\\n      {\\n        \\\"line\\\": 106,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"Regex operations inside `execute_side_effect` run on every SQL call with no caching \u2014 the `_extract_id` function re-searches the same SQL text patterns repeatedly\\\",\\n        \\\"suggestion\\\": \\\"Consider memoizing or pre-compiling the regex patterns at module level for performance\\\"\\n      },\\n      {\\n        \\\"line\\\": 301,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"In `TestGetCustomerGrowthReport`, `session_with_customer` fixture creates a session with `_build_analytics_session(state)` but never seeds customer data \u2014 the session's customer query path relies on the fallback conftest handlers, making the test potentially fragile if handler chain ordering changes\\\",\\n        \\\"suggestion\\\": \\\"Ensure customer_handler is in the fallback chain or explicitly add it to `_build_analytics_session` to guarantee customer queries are handled\\\"\\n      },\\n      {\\n        \\\"line\\\": 304,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"`TestGetCustomerGrowthReport.session_with_customer` fixture does not share state with other fixtures \u2014 `MockState()` is created independently, so `make_analytics_handlers(state)` in the fallback path has independent state\\\",\\n        \\\"suggestion\\\": \\\"Consider passing a shared state object into the session fixture or document that the fixture intentionally uses independent state\\\"\\n      },\\n      {\\n        \\\"line\\\": 373,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"test_get_get_dashboard_not_found does not override the mock session to return an empty result for id=9999 \u2014 the default `dashboard_handler` already returns `MockResult([])` for unknown IDs, so the test passes correctly, but it is not using the `_empty_dashboard_handler` described in the plan (step 2j)\\\",\\n        \\\"suggestion\\\": \\\"Verify the test still passes if conftest's `dashboard_handler` behavior changes; add an explicit empty handler in the test to guarantee independence from conftest internals\\\"\\n      },\\n      {\\n        \\\"line\\\": 0,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"Missing test for `get_chart_data` (sync utility method with no DB dependency) \u2014 this is a one-liner that would benefit from a simple unit test\\\",\\n        \\\"suggestion\\\": \\\"Add `TestGetChartData` class with one test: assert output of `svc.get_chart_data('bar', [1,2,3], ['a','b','c'])` contains expected keys\\\"\\n      },\\n      {\\n        \\\"line\\\": 0,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"Missing tests for `add_widget` and `remove_widget` methods \u2014 these are tested neither here nor in integration tests\\\",\\n        \\\"suggestion\\\": \\\"Add `test_add_widget_success` and `test_remove_widget_success` to `TestDashboardCrud` to cover widget mutation paths\\\"\\n      },\\n      {\\n        \\\"line\\\": 0,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"Missing test for `update_dashboard` \u2014 not covered in either unit or integration test suite\\\",\\n        \\\"suggestion\\\": \\\"Add `test_update_dashboard_success` to `TestDashboardCrud`\\\"\\n      },\\n      {\\n        \\\"line\\\": 0,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"Missing tests for `create_report` and `get_report` \u2014 report CRUD methods have no direct unit test coverage\\\",\\n        \\\"suggestion\\\": \\\"Add `test_create_report_success` and `test_get_report_found` to `TestReportDispatch`\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Test file has a critical mock data type mismatch (widgets as string \\\\\\\"[]\\\\\\\" vs. expected list []) and bare `except Exception` suppression in two places. Additionally, several CRUD methods and the sync `get_chart_data` utility lack test coverage, and the test for `get_dashboard_not_found` is not isolated from conftest internals as the plan intended.\\\"\\n  }\\n]\",\"stop_reason\":\"end_turn\",\"session_id\":\"2047e71b-4e8d-4fb3-a304-09f0581b442b\",\"total_cost_usd\":0.4057259999999999,\"usage\":{\"input_tokens\":47775,\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":225920,\"output_tokens\":12975,\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":0,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"\",\"iterations\":[],\"speed\":\"standard\"},\"modelUsage\":{\"claude-sonnet-4-6\":{\"inputTokens\":47775,\"outputTokens\":12975,\"cacheReadInputTokens\":225920,\"cacheCreationInputTokens\":0,\"webSearchRequests\":0,\"costUSD\":0.4057259999999999,\"contextWindow\":200000,\"maxOutputTokens\":32000}},\"permission_denials\":[],\"terminal_reason\":\"completed\",\"fast_mode_state\":\"off\",\"uuid\":\"6745cea1-fdaf-4881-a6be-b90d4b2627e6\"}\n",
         "parsed": {
-          "filename": "tests/unit/test_activity_service.py",
+          "filename": "tests/unit/test_analytics_service.py",
           "issues": [
             {
-              "line": 13,
+              "line": 43,
               "severity": "critical",
-              "message": "MockRow._fields is never accessed by _to_activity (which uses dot-access on the ORM model), but it is defined on the class. It is dead code \u2014 it shadows a private attribute convention and serves no role in these tests.",
-              "suggestion": "Remove the _fields property from MockRow in conftest.py; it is unused in test_activity_service.py."
+              "message": "`dashboard_handler` in conftest returns `widgets: \"[]\"` (string) but `MockRow.__init__` only parses `tags` from JSON string \u2014 `widgets` stays a string, causing `assert result.widgets == []` to fail (list != string)",
+              "suggestion": "Fix `dashboard_handler` to return `widgets: []` (actual list) instead of `widgets: \"[]\"` (string) so the equality assertion passes"
+            },
+            {
+              "line": 43,
+              "severity": "critical",
+              "message": "`MockRow` only handles JSON-deserialization for the `tags` key; `widgets` string `\"[]\"` from dashboard INSERT will remain a string through the mock chain, breaking any assertion that expects a list",
+              "suggestion": "Extend `MockRow.__init__` to also parse `widgets` from JSON string when present, mirroring the existing `tags` handling"
+            },
+            {
+              "line": 52,
+              "severity": "warning",
+              "message": "`MockRow` uses bare `except Exception: pass` for JSON deserialization of tags \u2014 silently swallowing all JSON decode errors rather than surfacing them as test failures",
+              "suggestion": "Use `except (ValueError, TypeError)` instead of bare `except Exception` for the JSON parsing block"
+            },
+            {
+              "line": 53,
+              "severity": "warning",
+              "message": "Blanket `except Exception: pass` in JSON parsing hides the specific case of malformed JSON vs. other exceptions, making debugging failing tests harder",
+              "suggestion": "Narrow to `except (ValueError, TypeError)` to only suppress JSON decode errors while letting other unexpected exceptions propagate"
+            },
+            {
+              "line": 105,
+              "severity": "warning",
+              "message": "Regex compilation with `re.compile` is called inside `execute_side_effect` (on every SQL call) rather than at module level, causing unnecessary repeated compilation",
+              "suggestion": "Move `import re` and any regex compilation to module level, outside `execute_side_effect`"
+            },
+            {
+              "line": 121,
+              "severity": "info",
+              "message": "Import of `make_analytics_handlers` from conftest is unused \u2014 the test file builds its own session via `_build_analytics_session` and never calls the conftest factory",
+              "suggestion": "Remove the unused `make_analytics_handlers` import on line 14"
+            },
+            {
+              "line": 106,
+              "severity": "warning",
+              "message": "Bare `except Exception: pass` swallows all errors during best-effort SQL param extraction \u2014 an `AttributeError` from a malformed SQL object would silently pass, potentially masking test bugs",
+              "suggestion": "Use `except (AttributeError, TypeError): pass` to be explicit about which exceptions are acceptable to suppress during param extraction"
+            },
+            {
+              "line": 106,
+              "severity": "info",
+              "message": "Regex operations inside `execute_side_effect` run on every SQL call with no caching \u2014 the `_extract_id` function re-searches the same SQL text patterns repeatedly",
+              "suggestion": "Consider memoizing or pre-compiling the regex patterns at module level for performance"
+            },
+            {
+              "line": 301,
+              "severity": "warning",
+              "message": "In `TestGetCustomerGrowthReport`, `session_with_customer` fixture creates a session with `_build_analytics_session(state)` but never seeds customer data \u2014 the session's customer query path relies on the fallback conftest handlers, making the test potentially fragile if handler chain ordering changes",
+              "suggestion": "Ensure customer_handler is in the fallback chain or explicitly add it to `_build_analytics_session` to guarantee customer queries are handled"
+            },
+            {
+              "line": 304,
+              "severity": "info",
+              "message": "`TestGetCustomerGrowthReport.session_with_customer` fixture does not share state with other fixtures \u2014 `MockState()` is created independently, so `make_analytics_handlers(state)` in the fallback path has independent state",
+              "suggestion": "Consider passing a shared state object into the session fixture or document that the fixture intentionally uses independent state"
+            },
+            {
+              "line": 373,
+              "severity": "critical",
+              "message": "test_get_get_dashboard_not_found does not override the mock session to return an empty result for id=9999 \u2014 the default `dashboard_handler` already returns `MockResult([])` for unknown IDs, so the test passes correctly, but it is not using the `_empty_dashboard_handler` described in the plan (step 2j)",
+              "suggestion": "Verify the test still passes if conftest's `dashboard_handler` behavior changes; add an explicit empty handler in the test to guarantee independence from conftest internals"
             },
             {
               "line": 0,
-              "severity": "critical",
-              "message": "No test covers ValidationException for invalid activity_type (ActivityService.create_activity raises ValidationException on ValueError from ActivityType()).",
-              "suggestion": "Add to TestCreateActivity: async def test_create_activity_invalid_type_raises(self, mock_db_session): service = ActivityService(mock_db_session); with pytest.raises(ValidationException, match='\u65e0\u6548\u7684\u6d3b\u52a8\u7c7b\u578b'): await service.create_activity(customer_id=1, activity_type='invalid_type', content='...', created_by=1, tenant_id=1)"
-            },
-            {
-              "line": 119,
-              "severity": "critical",
-              "message": "update_activity with kwargs={} (no fields to update) calls _fetch then exits without any execute/flush call \u2014 the test mocks 3 execute calls but the real service only calls _fetch once in this path, so the side_effect list is misaligned with the actual call count.",
-              "suggestion": "Test the no-op branch explicitly: call update_activity(activity_id=1, tenant_id=1) with no kwargs; mock execute to return scalar_one_or_none=original; assert result.content=='Original content' and execute was called once."
-            },
-            {
-              "line": 123,
-              "severity": "warning",
-              "message": "update_activity flushes at line 91 of activity_service.py after the UPDATE query \u2014 the DELETE path (line 105) also flushes. These flushes are local to the router-owned transaction (rule 122), but no test verifies flush() call count for update or delete operations.",
-              "suggestion": "Add assertions in test_update_activity and test_delete_activity: mock_db_session.flush.assert_called() (or assert_called_once() if flush is called once per operation)."
-            },
-            {
-              "line": 201,
-              "severity": "warning",
-              "message": "test_list_activities_pagination mocks COUNT returning 3 total but SELECT returning only 2 items \u2014 the ActivityModel row returned by SELECT uses the full Activity(...) domain model, not a dict. Passing Activity domain objects where the service expects to call _to_activity(row) is correct, but the mock's scalars().all() returns a list directly rather than a mock iterator, inconsistent with other tests that wrap in MagicMock.",
-              "suggestion": "Wrap the list return in MagicMock for consistency: MagicMock(all=MagicMock(return_value=[activity1, activity2])) already does this correctly \u2014 no change needed here, the existing code is consistent."
-            },
-            {
-              "line": 34,
               "severity": "info",
-              "message": "TestCreateActivity sets mock_db_session.execute to a new AsyncMock after fixture creation \u2014 this overrides the session-level execute mock set up in the fixture, which is the correct pattern but slightly harder to follow than re-initializing session per test as other test files do.",
-              "suggestion": "No code change needed \u2014 the pattern is valid and mirrors test_customer_service.py correctly."
+              "message": "Missing test for `get_chart_data` (sync utility method with no DB dependency) \u2014 this is a one-liner that would benefit from a simple unit test",
+              "suggestion": "Add `TestGetChartData` class with one test: assert output of `svc.get_chart_data('bar', [1,2,3], ['a','b','c'])` contains expected keys"
             },
             {
               "line": 0,
               "severity": "info",
-              "message": "list_activities supports customer_id and activity_type filter parameters but no test exercises these filters.",
-              "suggestion": "Add test_list_activities_with_filters covering customer_id and activity_type filtering to improve coverage of the list_activities surface."
+              "message": "Missing tests for `add_widget` and `remove_widget` methods \u2014 these are tested neither here nor in integration tests",
+              "suggestion": "Add `test_add_widget_success` and `test_remove_widget_success` to `TestDashboardCrud` to cover widget mutation paths"
+            },
+            {
+              "line": 0,
+              "severity": "info",
+              "message": "Missing test for `update_dashboard` \u2014 not covered in either unit or integration test suite",
+              "suggestion": "Add `test_update_dashboard_success` to `TestDashboardCrud`"
+            },
+            {
+              "line": 0,
+              "severity": "info",
+              "message": "Missing tests for `create_report` and `get_report` \u2014 report CRUD methods have no direct unit test coverage",
+              "suggestion": "Add `test_create_report_success` and `test_get_report_found` to `TestReportDispatch`"
             }
           ],
-          "summary": "Core CRUD and pagination tests are correct and comprehensive, but three critical gaps exist: no ValidationException coverage for invalid activity_type, a misaligned execute side_effect count for the no-op update path, and missing flush() assertions for update/delete operations."
+          "summary": "Test file has a critical mock data type mismatch (widgets as string \"[]\" vs. expected list []) and bare `except Exception` suppression in two places. Additionally, several CRUD methods and the sync `get_chart_data` utility lack test coverage, and the test for `get_dashboard_not_found` is not isolated from conftest internals as the plan intended."
         }
       }
     ]
