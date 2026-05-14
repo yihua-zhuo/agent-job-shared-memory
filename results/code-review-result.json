@@ -1,80 +1,283 @@
 {
-  "status": "pass",
-  "verdict": "pass",
-  "critical_issues": [],
-  "suggestions": [
+  "status": "fail",
+  "verdict": "fail",
+  "critical_issues": [
     {
-      "file": ".plans/issue-142.md",
-      "line": "",
-      "severity": "info",
-      "msg": "Implementation plan is clear and well-scoped; no issues found."
+      "file": "tests/unit/test_activity_service.py",
+      "line": 13,
+      "severity": "critical",
+      "msg": "MockRow._fields is never accessed by _to_activity (which uses dot-access on the ORM model), but it is defined on the class. It is dead code \u2014 it shadows a private attribute convention and serves no role in these tests.",
+      "suggestion": "Remove the _fields property from MockRow in conftest.py; it is unused in test_activity_service.py."
     },
     {
-      "file": "tests/unit/test_auth_service.py",
-      "line": 66,
-      "severity": "warning",
-      "msg": "time.sleep(1.1) slows the test suite and makes it depend on real clock passage instead of mocking time (Rule 63, 35)",
-      "suggestion": "Use freezegun or monkeypatch datetime to advance time deterministically, removing the 1.1s sleep"
+      "file": "tests/unit/test_activity_service.py",
+      "line": 0,
+      "severity": "critical",
+      "msg": "No test covers ValidationException for invalid activity_type (ActivityService.create_activity raises ValidationException on ValueError from ActivityType()).",
+      "suggestion": "Add to TestCreateActivity: async def test_create_activity_invalid_type_raises(self, mock_db_session): service = ActivityService(mock_db_session); with pytest.raises(ValidationException, match='\u65e0\u6548\u7684\u6d3b\u52a8\u7c7b\u578b'): await service.create_activity(customer_id=1, activity_type='invalid_type', content='...', created_by=1, tenant_id=1)"
+    },
+    {
+      "file": "tests/unit/test_activity_service.py",
+      "line": 119,
+      "severity": "critical",
+      "msg": "update_activity with kwargs={} (no fields to update) calls _fetch then exits without any execute/flush call \u2014 the test mocks 3 execute calls but the real service only calls _fetch once in this path, so the side_effect list is misaligned with the actual call count.",
+      "suggestion": "Test the no-op branch explicitly: call update_activity(activity_id=1, tenant_id=1) with no kwargs; mock execute to return scalar_one_or_none=original; assert result.content=='Original content' and execute was called once."
     }
   ],
-  "summary": "Reviewed 2 file(s) between origin/master and origin/auto/issue-142.",
+  "suggestions": [
+    {
+      "file": ".plans/issue-143.md",
+      "line": 36,
+      "severity": "warning",
+      "msg": "Test case name 'test_create_activity_returns_api_response' is misleading \u2014 the plan itself correctly notes the service returns an Activity domain object, not an ApiResponse envelope.",
+      "suggestion": "Rename to 'test_create_activity_returns_activity' to match the actual return type and align with the test class name TestCreateActivity."
+    },
+    {
+      "file": ".plans/issue-143.md",
+      "line": 39,
+      "severity": "warning",
+      "msg": "Test case 'test_update_activity' describes using a pre-populated mock result for '_fetch', but '_fetch' is a private method \u2014 the test should document which public call triggers the _fetch internally.",
+      "suggestion": "No code change needed; add a clarifying comment in the plan noting that _fetch is called internally by update_activity."
+    },
+    {
+      "file": "tests/unit/conftest.py",
+      "line": 161,
+      "severity": "info",
+      "msg": "MockState docstring still says 'Per-test mutable state consumed by customer & user handlers' but now also covers activities \u2014 it is out of date.",
+      "suggestion": "Update docstring to: 'Per-test mutable state consumed by customer, user, and activity handlers.'"
+    },
+    {
+      "file": "tests/unit/conftest.py",
+      "line": 680,
+      "severity": "warning",
+      "msg": "SELECT list branch is guarded only by 'if state.activities' \u2014 this matches customer_handler but means any unmatched query on the activities table (e.g. a future JOIN or filtered list) will return all tenant rows instead of None, silently swallowing the query.",
+      "suggestion": "Narrow the guard to require that the query is specifically a list query, e.g.: 'if \"select\" in sql_text and \"where id\" not in sql_text:' before the state.activities check."
+    },
+    {
+      "file": "tests/unit/test_activity_service.py",
+      "line": 123,
+      "severity": "warning",
+      "msg": "update_activity flushes at line 91 of activity_service.py after the UPDATE query \u2014 the DELETE path (line 105) also flushes. These flushes are local to the router-owned transaction (rule 122), but no test verifies flush() call count for update or delete operations.",
+      "suggestion": "Add assertions in test_update_activity and test_delete_activity: mock_db_session.flush.assert_called() (or assert_called_once() if flush is called once per operation)."
+    },
+    {
+      "file": "tests/unit/test_activity_service.py",
+      "line": 201,
+      "severity": "warning",
+      "msg": "test_list_activities_pagination mocks COUNT returning 3 total but SELECT returning only 2 items \u2014 the ActivityModel row returned by SELECT uses the full Activity(...) domain model, not a dict. Passing Activity domain objects where the service expects to call _to_activity(row) is correct, but the mock's scalars().all() returns a list directly rather than a mock iterator, inconsistent with other tests that wrap in MagicMock.",
+      "suggestion": "Wrap the list return in MagicMock for consistency: MagicMock(all=MagicMock(return_value=[activity1, activity2])) already does this correctly \u2014 no change needed here, the existing code is consistent."
+    },
+    {
+      "file": "tests/unit/test_activity_service.py",
+      "line": 34,
+      "severity": "info",
+      "msg": "TestCreateActivity sets mock_db_session.execute to a new AsyncMock after fixture creation \u2014 this overrides the session-level execute mock set up in the fixture, which is the correct pattern but slightly harder to follow than re-initializing session per test as other test files do.",
+      "suggestion": "No code change needed \u2014 the pattern is valid and mirrors test_customer_service.py correctly."
+    },
+    {
+      "file": "tests/unit/test_activity_service.py",
+      "line": 0,
+      "severity": "info",
+      "msg": "list_activities supports customer_id and activity_type filter parameters but no test exercises these filters.",
+      "suggestion": "Add test_list_activities_with_filters covering customer_id and activity_type filtering to improve coverage of the list_activities surface."
+    }
+  ],
+  "summary": "Reviewed 3 file(s) between origin/master and origin/auto/issue-143.",
   "details": {
     "llm_parsed": {
-      "verdict": "pass",
-      "critical": [],
-      "warnings": [
+      "verdict": "fail",
+      "critical": [
         {
-          "file": ".plans/issue-142.md",
-          "line": "",
-          "severity": "info",
-          "msg": "Implementation plan is clear and well-scoped; no issues found."
+          "file": "tests/unit/test_activity_service.py",
+          "line": 13,
+          "severity": "critical",
+          "msg": "MockRow._fields is never accessed by _to_activity (which uses dot-access on the ORM model), but it is defined on the class. It is dead code \u2014 it shadows a private attribute convention and serves no role in these tests.",
+          "suggestion": "Remove the _fields property from MockRow in conftest.py; it is unused in test_activity_service.py."
         },
         {
-          "file": "tests/unit/test_auth_service.py",
-          "line": 66,
-          "severity": "warning",
-          "msg": "time.sleep(1.1) slows the test suite and makes it depend on real clock passage instead of mocking time (Rule 63, 35)",
-          "suggestion": "Use freezegun or monkeypatch datetime to advance time deterministically, removing the 1.1s sleep"
+          "file": "tests/unit/test_activity_service.py",
+          "line": 0,
+          "severity": "critical",
+          "msg": "No test covers ValidationException for invalid activity_type (ActivityService.create_activity raises ValidationException on ValueError from ActivityType()).",
+          "suggestion": "Add to TestCreateActivity: async def test_create_activity_invalid_type_raises(self, mock_db_session): service = ActivityService(mock_db_session); with pytest.raises(ValidationException, match='\u65e0\u6548\u7684\u6d3b\u52a8\u7c7b\u578b'): await service.create_activity(customer_id=1, activity_type='invalid_type', content='...', created_by=1, tenant_id=1)"
+        },
+        {
+          "file": "tests/unit/test_activity_service.py",
+          "line": 119,
+          "severity": "critical",
+          "msg": "update_activity with kwargs={} (no fields to update) calls _fetch then exits without any execute/flush call \u2014 the test mocks 3 execute calls but the real service only calls _fetch once in this path, so the side_effect list is misaligned with the actual call count.",
+          "suggestion": "Test the no-op branch explicitly: call update_activity(activity_id=1, tenant_id=1) with no kwargs; mock execute to return scalar_one_or_none=original; assert result.content=='Original content' and execute was called once."
         }
       ],
-      "summary": "Reviewed 2 file(s) between origin/master and origin/auto/issue-142."
+      "warnings": [
+        {
+          "file": ".plans/issue-143.md",
+          "line": 36,
+          "severity": "warning",
+          "msg": "Test case name 'test_create_activity_returns_api_response' is misleading \u2014 the plan itself correctly notes the service returns an Activity domain object, not an ApiResponse envelope.",
+          "suggestion": "Rename to 'test_create_activity_returns_activity' to match the actual return type and align with the test class name TestCreateActivity."
+        },
+        {
+          "file": ".plans/issue-143.md",
+          "line": 39,
+          "severity": "warning",
+          "msg": "Test case 'test_update_activity' describes using a pre-populated mock result for '_fetch', but '_fetch' is a private method \u2014 the test should document which public call triggers the _fetch internally.",
+          "suggestion": "No code change needed; add a clarifying comment in the plan noting that _fetch is called internally by update_activity."
+        },
+        {
+          "file": "tests/unit/conftest.py",
+          "line": 161,
+          "severity": "info",
+          "msg": "MockState docstring still says 'Per-test mutable state consumed by customer & user handlers' but now also covers activities \u2014 it is out of date.",
+          "suggestion": "Update docstring to: 'Per-test mutable state consumed by customer, user, and activity handlers.'"
+        },
+        {
+          "file": "tests/unit/conftest.py",
+          "line": 680,
+          "severity": "warning",
+          "msg": "SELECT list branch is guarded only by 'if state.activities' \u2014 this matches customer_handler but means any unmatched query on the activities table (e.g. a future JOIN or filtered list) will return all tenant rows instead of None, silently swallowing the query.",
+          "suggestion": "Narrow the guard to require that the query is specifically a list query, e.g.: 'if \"select\" in sql_text and \"where id\" not in sql_text:' before the state.activities check."
+        },
+        {
+          "file": "tests/unit/test_activity_service.py",
+          "line": 123,
+          "severity": "warning",
+          "msg": "update_activity flushes at line 91 of activity_service.py after the UPDATE query \u2014 the DELETE path (line 105) also flushes. These flushes are local to the router-owned transaction (rule 122), but no test verifies flush() call count for update or delete operations.",
+          "suggestion": "Add assertions in test_update_activity and test_delete_activity: mock_db_session.flush.assert_called() (or assert_called_once() if flush is called once per operation)."
+        },
+        {
+          "file": "tests/unit/test_activity_service.py",
+          "line": 201,
+          "severity": "warning",
+          "msg": "test_list_activities_pagination mocks COUNT returning 3 total but SELECT returning only 2 items \u2014 the ActivityModel row returned by SELECT uses the full Activity(...) domain model, not a dict. Passing Activity domain objects where the service expects to call _to_activity(row) is correct, but the mock's scalars().all() returns a list directly rather than a mock iterator, inconsistent with other tests that wrap in MagicMock.",
+          "suggestion": "Wrap the list return in MagicMock for consistency: MagicMock(all=MagicMock(return_value=[activity1, activity2])) already does this correctly \u2014 no change needed here, the existing code is consistent."
+        },
+        {
+          "file": "tests/unit/test_activity_service.py",
+          "line": 34,
+          "severity": "info",
+          "msg": "TestCreateActivity sets mock_db_session.execute to a new AsyncMock after fixture creation \u2014 this overrides the session-level execute mock set up in the fixture, which is the correct pattern but slightly harder to follow than re-initializing session per test as other test files do.",
+          "suggestion": "No code change needed \u2014 the pattern is valid and mirrors test_customer_service.py correctly."
+        },
+        {
+          "file": "tests/unit/test_activity_service.py",
+          "line": 0,
+          "severity": "info",
+          "msg": "list_activities supports customer_id and activity_type filter parameters but no test exercises these filters.",
+          "suggestion": "Add test_list_activities_with_filters covering customer_id and activity_type filtering to improve coverage of the list_activities surface."
+        }
+      ],
+      "summary": "Reviewed 3 file(s) between origin/master and origin/auto/issue-143."
     },
     "reviewed_refs": {
       "base": "bd1929297a5a2a93a59748d759d4fa112e9e6cb7",
-      "head": "0d21931b03468105d6bd8032ac6064a0733452c9",
+      "head": "31f529c77e2df2674079eada909e6de7a1f24bb4",
       "base_label": "origin/master",
-      "head_label": "origin/auto/issue-142"
+      "head_label": "origin/auto/issue-143"
     },
     "reviewed_files": [
-      ".plans/issue-142.md",
-      "tests/unit/test_auth_service.py"
+      ".plans/issue-143.md",
+      "tests/unit/conftest.py",
+      "tests/unit/test_activity_service.py"
     ],
     "per_file_reviews": [
       {
-        "file": ".plans/issue-142.md",
+        "file": ".plans/issue-143.md",
         "returncode": 0,
-        "output": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"api_error_status\":null,\"duration_ms\":57738,\"duration_api_ms\":57648,\"num_turns\":6,\"result\":\"\\n\\n```json\\n[\\n  {\\n    \\\"filename\\\": \\\"tests/unit/test_auth_service.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 66,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"time.sleep(1.1) slows the test suite and makes it depend on real clock passage instead of mocking time (Rule 63, 35)\\\",\\n        \\\"suggestion\\\": \\\"Use freezegun or monkeypatch datetime to advance time deterministically, removing the 1.1s sleep\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Well-structured test suite covering all 7 JWT and email scenarios, but contains a deterministic clock dependency via time.sleep that should be replaced with time mocking.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\".plans/issue-142.md\\\",\\n    \\\"issues\\\": [],\\n    \\\"summary\\\": \\\"Implementation plan is clear and well-scoped; no issues found.\\\"\\n  }\\n]\\n```\",\"stop_reason\":\"end_turn\",\"session_id\":\"ba4a0f12-eecf-4a58-bdf8-9a3c368c4684\",\"total_cost_usd\":0.24020475000000002,\"usage\":{\"input_tokens\":43039,\"cache_creation_input_tokens\":11371,\"cache_read_input_tokens\":111505,\"output_tokens\":2333,\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":0,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"\",\"iterations\":[],\"speed\":\"standard\"},\"modelUsage\":{\"claude-sonnet-4-6\":{\"inputTokens\":43039,\"outputTokens\":2333,\"cacheReadInputTokens\":111505,\"cacheCreationInputTokens\":11371,\"webSearchRequests\":0,\"costUSD\":0.24020475000000002,\"contextWindow\":200000,\"maxOutputTokens\":32000}},\"permission_denials\":[],\"terminal_reason\":\"completed\",\"fast_mode_state\":\"off\",\"uuid\":\"318fcaaf-1e64-45ee-bddc-30051e660d7a\"}\n",
+        "output": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"api_error_status\":null,\"duration_ms\":278616,\"duration_api_ms\":278183,\"num_turns\":16,\"result\":\"\\n\\n[\\n  {\\n    \\\"filename\\\": \\\".plans/issue-143.md\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 36,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"Test case name 'test_create_activity_returns_api_response' is misleading \u2014 the plan itself correctly notes the service returns an Activity domain object, not an ApiResponse envelope.\\\",\\n        \\\"suggestion\\\": \\\"Rename to 'test_create_activity_returns_activity' to match the actual return type and align with the test class name TestCreateActivity.\\\"\\n      },\\n      {\\n        \\\"line\\\": 39,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"Test case 'test_update_activity' describes using a pre-populated mock result for '_fetch', but '_fetch' is a private method \u2014 the test should document which public call triggers the _fetch internally.\\\",\\n        \\\"suggestion\\\": \\\"No code change needed; add a clarifying comment in the plan noting that _fetch is called internally by update_activity.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Plan correctly identifies the discrepancy between ApiResponse naming and actual Activity return type; test names and structure are sound with minor name-fix needed.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"tests/unit/conftest.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 161,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"MockState docstring still says 'Per-test mutable state consumed by customer & user handlers' but now also covers activities \u2014 it is out of date.\\\",\\n        \\\"suggestion\\\": \\\"Update docstring to: 'Per-test mutable state consumed by customer, user, and activity handlers.'\\\"\\n      },\\n      {\\n        \\\"line\\\": 680,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"SELECT list branch is guarded only by 'if state.activities' \u2014 this matches customer_handler but means any unmatched query on the activities table (e.g. a future JOIN or filtered list) will return all tenant rows instead of None, silently swallowing the query.\\\",\\n        \\\"suggestion\\\": \\\"Narrow the guard to require that the query is specifically a list query, e.g.: 'if \\\\\\\"select\\\\\\\" in sql_text and \\\\\\\"where id\\\\\\\" not in sql_text:' before the state.activities check.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Activity handler is correctly implemented and integrates cleanly; two minor issues \u2014 stale MockState docstring and a broad SELECT list guard that could silently swallow future query variants.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"tests/unit/test_activity_service.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 13,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"MockRow._fields is never accessed by _to_activity (which uses dot-access on the ORM model), but it is defined on the class. It is dead code \u2014 it shadows a private attribute convention and serves no role in these tests.\\\",\\n        \\\"suggestion\\\": \\\"Remove the _fields property from MockRow in conftest.py; it is unused in test_activity_service.py.\\\"\\n      },\\n      {\\n        \\\"line\\\": 0,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"No test covers ValidationException for invalid activity_type (ActivityService.create_activity raises ValidationException on ValueError from ActivityType()).\\\",\\n        \\\"suggestion\\\": \\\"Add to TestCreateActivity: async def test_create_activity_invalid_type_raises(self, mock_db_session): service = ActivityService(mock_db_session); with pytest.raises(ValidationException, match='\u65e0\u6548\u7684\u6d3b\u52a8\u7c7b\u578b'): await service.create_activity(customer_id=1, activity_type='invalid_type', content='...', created_by=1, tenant_id=1)\\\"\\n      },\\n      {\\n        \\\"line\\\": 119,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"update_activity with kwargs={} (no fields to update) calls _fetch then exits without any execute/flush call \u2014 the test mocks 3 execute calls but the real service only calls _fetch once in this path, so the side_effect list is misaligned with the actual call count.\\\",\\n        \\\"suggestion\\\": \\\"Test the no-op branch explicitly: call update_activity(activity_id=1, tenant_id=1) with no kwargs; mock execute to return scalar_one_or_none=original; assert result.content=='Original content' and execute was called once.\\\"\\n      },\\n      {\\n        \\\"line\\\": 123,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"update_activity flushes at line 91 of activity_service.py after the UPDATE query \u2014 the DELETE path (line 105) also flushes. These flushes are local to the router-owned transaction (rule 122), but no test verifies flush() call count for update or delete operations.\\\",\\n        \\\"suggestion\\\": \\\"Add assertions in test_update_activity and test_delete_activity: mock_db_session.flush.assert_called() (or assert_called_once() if flush is called once per operation).\\\"\\n      },\\n      {\\n        \\\"line\\\": 201,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"test_list_activities_pagination mocks COUNT returning 3 total but SELECT returning only 2 items \u2014 the ActivityModel row returned by SELECT uses the full Activity(...) domain model, not a dict. Passing Activity domain objects where the service expects to call _to_activity(row) is correct, but the mock's scalars().all() returns a list directly rather than a mock iterator, inconsistent with other tests that wrap in MagicMock.\\\",\\n        \\\"suggestion\\\": \\\"Wrap the list return in MagicMock for consistency: MagicMock(all=MagicMock(return_value=[activity1, activity2])) already does this correctly \u2014 no change needed here, the existing code is consistent.\\\"\\n      },\\n      {\\n        \\\"line\\\": 34,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"TestCreateActivity sets mock_db_session.execute to a new AsyncMock after fixture creation \u2014 this overrides the session-level execute mock set up in the fixture, which is the correct pattern but slightly harder to follow than re-initializing session per test as other test files do.\\\",\\n        \\\"suggestion\\\": \\\"No code change needed \u2014 the pattern is valid and mirrors test_customer_service.py correctly.\\\"\\n      },\\n      {\\n        \\\"line\\\": 0,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"list_activities supports customer_id and activity_type filter parameters but no test exercises these filters.\\\",\\n        \\\"suggestion\\\": \\\"Add test_list_activities_with_filters covering customer_id and activity_type filtering to improve coverage of the list_activities surface.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Core CRUD and pagination tests are correct and comprehensive, but three critical gaps exist: no ValidationException coverage for invalid activity_type, a misaligned execute side_effect count for the no-op update path, and missing flush() assertions for update/delete operations.\\\"\\n  }\\n]\",\"stop_reason\":\"end_turn\",\"session_id\":\"417dc948-3f79-4ff1-8c77-e124e7fcad07\",\"total_cost_usd\":0.7075278,\"usage\":{\"input_tokens\":51982,\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":618656,\"output_tokens\":24399,\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":0,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"\",\"iterations\":[],\"speed\":\"standard\"},\"modelUsage\":{\"claude-sonnet-4-6\":{\"inputTokens\":51982,\"outputTokens\":24399,\"cacheReadInputTokens\":618656,\"cacheCreationInputTokens\":0,\"webSearchRequests\":0,\"costUSD\":0.7075278,\"contextWindow\":200000,\"maxOutputTokens\":32000}},\"permission_denials\":[],\"terminal_reason\":\"completed\",\"fast_mode_state\":\"off\",\"uuid\":\"b901fa83-0c6d-4eb4-9ea5-4f7325fb057a\"}\n",
         "parsed": {
-          "filename": ".plans/issue-142.md",
-          "issues": [],
-          "summary": "Implementation plan is clear and well-scoped; no issues found."
+          "filename": ".plans/issue-143.md",
+          "issues": [
+            {
+              "line": 36,
+              "severity": "warning",
+              "message": "Test case name 'test_create_activity_returns_api_response' is misleading \u2014 the plan itself correctly notes the service returns an Activity domain object, not an ApiResponse envelope.",
+              "suggestion": "Rename to 'test_create_activity_returns_activity' to match the actual return type and align with the test class name TestCreateActivity."
+            },
+            {
+              "line": 39,
+              "severity": "warning",
+              "message": "Test case 'test_update_activity' describes using a pre-populated mock result for '_fetch', but '_fetch' is a private method \u2014 the test should document which public call triggers the _fetch internally.",
+              "suggestion": "No code change needed; add a clarifying comment in the plan noting that _fetch is called internally by update_activity."
+            }
+          ],
+          "summary": "Plan correctly identifies the discrepancy between ApiResponse naming and actual Activity return type; test names and structure are sound with minor name-fix needed."
         }
       },
       {
-        "file": "tests/unit/test_auth_service.py",
+        "file": "tests/unit/conftest.py",
         "returncode": 0,
-        "output": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"api_error_status\":null,\"duration_ms\":57738,\"duration_api_ms\":57648,\"num_turns\":6,\"result\":\"\\n\\n```json\\n[\\n  {\\n    \\\"filename\\\": \\\"tests/unit/test_auth_service.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 66,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"time.sleep(1.1) slows the test suite and makes it depend on real clock passage instead of mocking time (Rule 63, 35)\\\",\\n        \\\"suggestion\\\": \\\"Use freezegun or monkeypatch datetime to advance time deterministically, removing the 1.1s sleep\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Well-structured test suite covering all 7 JWT and email scenarios, but contains a deterministic clock dependency via time.sleep that should be replaced with time mocking.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\".plans/issue-142.md\\\",\\n    \\\"issues\\\": [],\\n    \\\"summary\\\": \\\"Implementation plan is clear and well-scoped; no issues found.\\\"\\n  }\\n]\\n```\",\"stop_reason\":\"end_turn\",\"session_id\":\"ba4a0f12-eecf-4a58-bdf8-9a3c368c4684\",\"total_cost_usd\":0.24020475000000002,\"usage\":{\"input_tokens\":43039,\"cache_creation_input_tokens\":11371,\"cache_read_input_tokens\":111505,\"output_tokens\":2333,\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":0,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"\",\"iterations\":[],\"speed\":\"standard\"},\"modelUsage\":{\"claude-sonnet-4-6\":{\"inputTokens\":43039,\"outputTokens\":2333,\"cacheReadInputTokens\":111505,\"cacheCreationInputTokens\":11371,\"webSearchRequests\":0,\"costUSD\":0.24020475000000002,\"contextWindow\":200000,\"maxOutputTokens\":32000}},\"permission_denials\":[],\"terminal_reason\":\"completed\",\"fast_mode_state\":\"off\",\"uuid\":\"318fcaaf-1e64-45ee-bddc-30051e660d7a\"}\n",
+        "output": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"api_error_status\":null,\"duration_ms\":278616,\"duration_api_ms\":278183,\"num_turns\":16,\"result\":\"\\n\\n[\\n  {\\n    \\\"filename\\\": \\\".plans/issue-143.md\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 36,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"Test case name 'test_create_activity_returns_api_response' is misleading \u2014 the plan itself correctly notes the service returns an Activity domain object, not an ApiResponse envelope.\\\",\\n        \\\"suggestion\\\": \\\"Rename to 'test_create_activity_returns_activity' to match the actual return type and align with the test class name TestCreateActivity.\\\"\\n      },\\n      {\\n        \\\"line\\\": 39,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"Test case 'test_update_activity' describes using a pre-populated mock result for '_fetch', but '_fetch' is a private method \u2014 the test should document which public call triggers the _fetch internally.\\\",\\n        \\\"suggestion\\\": \\\"No code change needed; add a clarifying comment in the plan noting that _fetch is called internally by update_activity.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Plan correctly identifies the discrepancy between ApiResponse naming and actual Activity return type; test names and structure are sound with minor name-fix needed.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"tests/unit/conftest.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 161,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"MockState docstring still says 'Per-test mutable state consumed by customer & user handlers' but now also covers activities \u2014 it is out of date.\\\",\\n        \\\"suggestion\\\": \\\"Update docstring to: 'Per-test mutable state consumed by customer, user, and activity handlers.'\\\"\\n      },\\n      {\\n        \\\"line\\\": 680,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"SELECT list branch is guarded only by 'if state.activities' \u2014 this matches customer_handler but means any unmatched query on the activities table (e.g. a future JOIN or filtered list) will return all tenant rows instead of None, silently swallowing the query.\\\",\\n        \\\"suggestion\\\": \\\"Narrow the guard to require that the query is specifically a list query, e.g.: 'if \\\\\\\"select\\\\\\\" in sql_text and \\\\\\\"where id\\\\\\\" not in sql_text:' before the state.activities check.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Activity handler is correctly implemented and integrates cleanly; two minor issues \u2014 stale MockState docstring and a broad SELECT list guard that could silently swallow future query variants.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"tests/unit/test_activity_service.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 13,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"MockRow._fields is never accessed by _to_activity (which uses dot-access on the ORM model), but it is defined on the class. It is dead code \u2014 it shadows a private attribute convention and serves no role in these tests.\\\",\\n        \\\"suggestion\\\": \\\"Remove the _fields property from MockRow in conftest.py; it is unused in test_activity_service.py.\\\"\\n      },\\n      {\\n        \\\"line\\\": 0,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"No test covers ValidationException for invalid activity_type (ActivityService.create_activity raises ValidationException on ValueError from ActivityType()).\\\",\\n        \\\"suggestion\\\": \\\"Add to TestCreateActivity: async def test_create_activity_invalid_type_raises(self, mock_db_session): service = ActivityService(mock_db_session); with pytest.raises(ValidationException, match='\u65e0\u6548\u7684\u6d3b\u52a8\u7c7b\u578b'): await service.create_activity(customer_id=1, activity_type='invalid_type', content='...', created_by=1, tenant_id=1)\\\"\\n      },\\n      {\\n        \\\"line\\\": 119,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"update_activity with kwargs={} (no fields to update) calls _fetch then exits without any execute/flush call \u2014 the test mocks 3 execute calls but the real service only calls _fetch once in this path, so the side_effect list is misaligned with the actual call count.\\\",\\n        \\\"suggestion\\\": \\\"Test the no-op branch explicitly: call update_activity(activity_id=1, tenant_id=1) with no kwargs; mock execute to return scalar_one_or_none=original; assert result.content=='Original content' and execute was called once.\\\"\\n      },\\n      {\\n        \\\"line\\\": 123,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"update_activity flushes at line 91 of activity_service.py after the UPDATE query \u2014 the DELETE path (line 105) also flushes. These flushes are local to the router-owned transaction (rule 122), but no test verifies flush() call count for update or delete operations.\\\",\\n        \\\"suggestion\\\": \\\"Add assertions in test_update_activity and test_delete_activity: mock_db_session.flush.assert_called() (or assert_called_once() if flush is called once per operation).\\\"\\n      },\\n      {\\n        \\\"line\\\": 201,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"test_list_activities_pagination mocks COUNT returning 3 total but SELECT returning only 2 items \u2014 the ActivityModel row returned by SELECT uses the full Activity(...) domain model, not a dict. Passing Activity domain objects where the service expects to call _to_activity(row) is correct, but the mock's scalars().all() returns a list directly rather than a mock iterator, inconsistent with other tests that wrap in MagicMock.\\\",\\n        \\\"suggestion\\\": \\\"Wrap the list return in MagicMock for consistency: MagicMock(all=MagicMock(return_value=[activity1, activity2])) already does this correctly \u2014 no change needed here, the existing code is consistent.\\\"\\n      },\\n      {\\n        \\\"line\\\": 34,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"TestCreateActivity sets mock_db_session.execute to a new AsyncMock after fixture creation \u2014 this overrides the session-level execute mock set up in the fixture, which is the correct pattern but slightly harder to follow than re-initializing session per test as other test files do.\\\",\\n        \\\"suggestion\\\": \\\"No code change needed \u2014 the pattern is valid and mirrors test_customer_service.py correctly.\\\"\\n      },\\n      {\\n        \\\"line\\\": 0,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"list_activities supports customer_id and activity_type filter parameters but no test exercises these filters.\\\",\\n        \\\"suggestion\\\": \\\"Add test_list_activities_with_filters covering customer_id and activity_type filtering to improve coverage of the list_activities surface.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Core CRUD and pagination tests are correct and comprehensive, but three critical gaps exist: no ValidationException coverage for invalid activity_type, a misaligned execute side_effect count for the no-op update path, and missing flush() assertions for update/delete operations.\\\"\\n  }\\n]\",\"stop_reason\":\"end_turn\",\"session_id\":\"417dc948-3f79-4ff1-8c77-e124e7fcad07\",\"total_cost_usd\":0.7075278,\"usage\":{\"input_tokens\":51982,\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":618656,\"output_tokens\":24399,\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":0,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"\",\"iterations\":[],\"speed\":\"standard\"},\"modelUsage\":{\"claude-sonnet-4-6\":{\"inputTokens\":51982,\"outputTokens\":24399,\"cacheReadInputTokens\":618656,\"cacheCreationInputTokens\":0,\"webSearchRequests\":0,\"costUSD\":0.7075278,\"contextWindow\":200000,\"maxOutputTokens\":32000}},\"permission_denials\":[],\"terminal_reason\":\"completed\",\"fast_mode_state\":\"off\",\"uuid\":\"b901fa83-0c6d-4eb4-9ea5-4f7325fb057a\"}\n",
         "parsed": {
-          "filename": "tests/unit/test_auth_service.py",
+          "filename": "tests/unit/conftest.py",
           "issues": [
             {
-              "line": 66,
+              "line": 161,
+              "severity": "info",
+              "message": "MockState docstring still says 'Per-test mutable state consumed by customer & user handlers' but now also covers activities \u2014 it is out of date.",
+              "suggestion": "Update docstring to: 'Per-test mutable state consumed by customer, user, and activity handlers.'"
+            },
+            {
+              "line": 680,
               "severity": "warning",
-              "message": "time.sleep(1.1) slows the test suite and makes it depend on real clock passage instead of mocking time (Rule 63, 35)",
-              "suggestion": "Use freezegun or monkeypatch datetime to advance time deterministically, removing the 1.1s sleep"
+              "message": "SELECT list branch is guarded only by 'if state.activities' \u2014 this matches customer_handler but means any unmatched query on the activities table (e.g. a future JOIN or filtered list) will return all tenant rows instead of None, silently swallowing the query.",
+              "suggestion": "Narrow the guard to require that the query is specifically a list query, e.g.: 'if \"select\" in sql_text and \"where id\" not in sql_text:' before the state.activities check."
             }
           ],
-          "summary": "Well-structured test suite covering all 7 JWT and email scenarios, but contains a deterministic clock dependency via time.sleep that should be replaced with time mocking."
+          "summary": "Activity handler is correctly implemented and integrates cleanly; two minor issues \u2014 stale MockState docstring and a broad SELECT list guard that could silently swallow future query variants."
+        }
+      },
+      {
+        "file": "tests/unit/test_activity_service.py",
+        "returncode": 0,
+        "output": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"api_error_status\":null,\"duration_ms\":278616,\"duration_api_ms\":278183,\"num_turns\":16,\"result\":\"\\n\\n[\\n  {\\n    \\\"filename\\\": \\\".plans/issue-143.md\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 36,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"Test case name 'test_create_activity_returns_api_response' is misleading \u2014 the plan itself correctly notes the service returns an Activity domain object, not an ApiResponse envelope.\\\",\\n        \\\"suggestion\\\": \\\"Rename to 'test_create_activity_returns_activity' to match the actual return type and align with the test class name TestCreateActivity.\\\"\\n      },\\n      {\\n        \\\"line\\\": 39,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"Test case 'test_update_activity' describes using a pre-populated mock result for '_fetch', but '_fetch' is a private method \u2014 the test should document which public call triggers the _fetch internally.\\\",\\n        \\\"suggestion\\\": \\\"No code change needed; add a clarifying comment in the plan noting that _fetch is called internally by update_activity.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Plan correctly identifies the discrepancy between ApiResponse naming and actual Activity return type; test names and structure are sound with minor name-fix needed.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"tests/unit/conftest.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 161,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"MockState docstring still says 'Per-test mutable state consumed by customer & user handlers' but now also covers activities \u2014 it is out of date.\\\",\\n        \\\"suggestion\\\": \\\"Update docstring to: 'Per-test mutable state consumed by customer, user, and activity handlers.'\\\"\\n      },\\n      {\\n        \\\"line\\\": 680,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"SELECT list branch is guarded only by 'if state.activities' \u2014 this matches customer_handler but means any unmatched query on the activities table (e.g. a future JOIN or filtered list) will return all tenant rows instead of None, silently swallowing the query.\\\",\\n        \\\"suggestion\\\": \\\"Narrow the guard to require that the query is specifically a list query, e.g.: 'if \\\\\\\"select\\\\\\\" in sql_text and \\\\\\\"where id\\\\\\\" not in sql_text:' before the state.activities check.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Activity handler is correctly implemented and integrates cleanly; two minor issues \u2014 stale MockState docstring and a broad SELECT list guard that could silently swallow future query variants.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"tests/unit/test_activity_service.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 13,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"MockRow._fields is never accessed by _to_activity (which uses dot-access on the ORM model), but it is defined on the class. It is dead code \u2014 it shadows a private attribute convention and serves no role in these tests.\\\",\\n        \\\"suggestion\\\": \\\"Remove the _fields property from MockRow in conftest.py; it is unused in test_activity_service.py.\\\"\\n      },\\n      {\\n        \\\"line\\\": 0,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"No test covers ValidationException for invalid activity_type (ActivityService.create_activity raises ValidationException on ValueError from ActivityType()).\\\",\\n        \\\"suggestion\\\": \\\"Add to TestCreateActivity: async def test_create_activity_invalid_type_raises(self, mock_db_session): service = ActivityService(mock_db_session); with pytest.raises(ValidationException, match='\u65e0\u6548\u7684\u6d3b\u52a8\u7c7b\u578b'): await service.create_activity(customer_id=1, activity_type='invalid_type', content='...', created_by=1, tenant_id=1)\\\"\\n      },\\n      {\\n        \\\"line\\\": 119,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"update_activity with kwargs={} (no fields to update) calls _fetch then exits without any execute/flush call \u2014 the test mocks 3 execute calls but the real service only calls _fetch once in this path, so the side_effect list is misaligned with the actual call count.\\\",\\n        \\\"suggestion\\\": \\\"Test the no-op branch explicitly: call update_activity(activity_id=1, tenant_id=1) with no kwargs; mock execute to return scalar_one_or_none=original; assert result.content=='Original content' and execute was called once.\\\"\\n      },\\n      {\\n        \\\"line\\\": 123,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"update_activity flushes at line 91 of activity_service.py after the UPDATE query \u2014 the DELETE path (line 105) also flushes. These flushes are local to the router-owned transaction (rule 122), but no test verifies flush() call count for update or delete operations.\\\",\\n        \\\"suggestion\\\": \\\"Add assertions in test_update_activity and test_delete_activity: mock_db_session.flush.assert_called() (or assert_called_once() if flush is called once per operation).\\\"\\n      },\\n      {\\n        \\\"line\\\": 201,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"test_list_activities_pagination mocks COUNT returning 3 total but SELECT returning only 2 items \u2014 the ActivityModel row returned by SELECT uses the full Activity(...) domain model, not a dict. Passing Activity domain objects where the service expects to call _to_activity(row) is correct, but the mock's scalars().all() returns a list directly rather than a mock iterator, inconsistent with other tests that wrap in MagicMock.\\\",\\n        \\\"suggestion\\\": \\\"Wrap the list return in MagicMock for consistency: MagicMock(all=MagicMock(return_value=[activity1, activity2])) already does this correctly \u2014 no change needed here, the existing code is consistent.\\\"\\n      },\\n      {\\n        \\\"line\\\": 34,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"TestCreateActivity sets mock_db_session.execute to a new AsyncMock after fixture creation \u2014 this overrides the session-level execute mock set up in the fixture, which is the correct pattern but slightly harder to follow than re-initializing session per test as other test files do.\\\",\\n        \\\"suggestion\\\": \\\"No code change needed \u2014 the pattern is valid and mirrors test_customer_service.py correctly.\\\"\\n      },\\n      {\\n        \\\"line\\\": 0,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"list_activities supports customer_id and activity_type filter parameters but no test exercises these filters.\\\",\\n        \\\"suggestion\\\": \\\"Add test_list_activities_with_filters covering customer_id and activity_type filtering to improve coverage of the list_activities surface.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Core CRUD and pagination tests are correct and comprehensive, but three critical gaps exist: no ValidationException coverage for invalid activity_type, a misaligned execute side_effect count for the no-op update path, and missing flush() assertions for update/delete operations.\\\"\\n  }\\n]\",\"stop_reason\":\"end_turn\",\"session_id\":\"417dc948-3f79-4ff1-8c77-e124e7fcad07\",\"total_cost_usd\":0.7075278,\"usage\":{\"input_tokens\":51982,\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":618656,\"output_tokens\":24399,\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":0,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"\",\"iterations\":[],\"speed\":\"standard\"},\"modelUsage\":{\"claude-sonnet-4-6\":{\"inputTokens\":51982,\"outputTokens\":24399,\"cacheReadInputTokens\":618656,\"cacheCreationInputTokens\":0,\"webSearchRequests\":0,\"costUSD\":0.7075278,\"contextWindow\":200000,\"maxOutputTokens\":32000}},\"permission_denials\":[],\"terminal_reason\":\"completed\",\"fast_mode_state\":\"off\",\"uuid\":\"b901fa83-0c6d-4eb4-9ea5-4f7325fb057a\"}\n",
+        "parsed": {
+          "filename": "tests/unit/test_activity_service.py",
+          "issues": [
+            {
+              "line": 13,
+              "severity": "critical",
+              "message": "MockRow._fields is never accessed by _to_activity (which uses dot-access on the ORM model), but it is defined on the class. It is dead code \u2014 it shadows a private attribute convention and serves no role in these tests.",
+              "suggestion": "Remove the _fields property from MockRow in conftest.py; it is unused in test_activity_service.py."
+            },
+            {
+              "line": 0,
+              "severity": "critical",
+              "message": "No test covers ValidationException for invalid activity_type (ActivityService.create_activity raises ValidationException on ValueError from ActivityType()).",
+              "suggestion": "Add to TestCreateActivity: async def test_create_activity_invalid_type_raises(self, mock_db_session): service = ActivityService(mock_db_session); with pytest.raises(ValidationException, match='\u65e0\u6548\u7684\u6d3b\u52a8\u7c7b\u578b'): await service.create_activity(customer_id=1, activity_type='invalid_type', content='...', created_by=1, tenant_id=1)"
+            },
+            {
+              "line": 119,
+              "severity": "critical",
+              "message": "update_activity with kwargs={} (no fields to update) calls _fetch then exits without any execute/flush call \u2014 the test mocks 3 execute calls but the real service only calls _fetch once in this path, so the side_effect list is misaligned with the actual call count.",
+              "suggestion": "Test the no-op branch explicitly: call update_activity(activity_id=1, tenant_id=1) with no kwargs; mock execute to return scalar_one_or_none=original; assert result.content=='Original content' and execute was called once."
+            },
+            {
+              "line": 123,
+              "severity": "warning",
+              "message": "update_activity flushes at line 91 of activity_service.py after the UPDATE query \u2014 the DELETE path (line 105) also flushes. These flushes are local to the router-owned transaction (rule 122), but no test verifies flush() call count for update or delete operations.",
+              "suggestion": "Add assertions in test_update_activity and test_delete_activity: mock_db_session.flush.assert_called() (or assert_called_once() if flush is called once per operation)."
+            },
+            {
+              "line": 201,
+              "severity": "warning",
+              "message": "test_list_activities_pagination mocks COUNT returning 3 total but SELECT returning only 2 items \u2014 the ActivityModel row returned by SELECT uses the full Activity(...) domain model, not a dict. Passing Activity domain objects where the service expects to call _to_activity(row) is correct, but the mock's scalars().all() returns a list directly rather than a mock iterator, inconsistent with other tests that wrap in MagicMock.",
+              "suggestion": "Wrap the list return in MagicMock for consistency: MagicMock(all=MagicMock(return_value=[activity1, activity2])) already does this correctly \u2014 no change needed here, the existing code is consistent."
+            },
+            {
+              "line": 34,
+              "severity": "info",
+              "message": "TestCreateActivity sets mock_db_session.execute to a new AsyncMock after fixture creation \u2014 this overrides the session-level execute mock set up in the fixture, which is the correct pattern but slightly harder to follow than re-initializing session per test as other test files do.",
+              "suggestion": "No code change needed \u2014 the pattern is valid and mirrors test_customer_service.py correctly."
+            },
+            {
+              "line": 0,
+              "severity": "info",
+              "message": "list_activities supports customer_id and activity_type filter parameters but no test exercises these filters.",
+              "suggestion": "Add test_list_activities_with_filters covering customer_id and activity_type filtering to improve coverage of the list_activities surface."
+            }
+          ],
+          "summary": "Core CRUD and pagination tests are correct and comprehensive, but three critical gaps exist: no ValidationException coverage for invalid activity_type, a misaligned execute side_effect count for the no-op update path, and missing flush() assertions for update/delete operations."
         }
       }
     ]
