@@ -3,955 +3,213 @@
   "verdict": "fail",
   "critical_issues": [
     {
-      "file": "src/api/routers/tickets.py",
-      "line": 305,
+      "file": "scripts/ci/claude_code_review.py",
+      "line": 341,
       "severity": "critical",
-      "msg": "bulk_update_tickets has no transaction boundary \u2014 if the process crashes or an exception occurs mid-loop, some tickets are updated and others are not, leaving data in a partial state with no rollback.",
-      "suggestion": "Wrap the pre-validation loop and all updates in a single transaction. Alternatively, add a comment explicitly documenting this non-atomic behavior and ensure callers understand partial failure is possible."
+      "msg": "Bare `except Exception:` catches all subclasses including `KeyboardInterrupt` and `SystemExit`, masking serious failures during comment cleanup. (Rule 25)",
+      "suggestion": "Replace with `except (HTTPError, URLError, TimeoutError, OSError) as exc:` to match the pattern used elsewhere in the file."
     },
     {
-      "file": "src/services/ticket_service.py",
-      "line": 20,
+      "file": "scripts/ci/run_code_review.py",
+      "line": 607,
       "severity": "critical",
-      "msg": "_AGENT_POOL = (1, 2, 3) hardcodes user IDs 1/2/3 with no existence check \u2014 auto-assignment will silently fail (FK violation or 500) if those IDs do not exist in the users table for a given tenant.",
-      "suggestion": "Query the users table to verify IDs in _AGENT_POOL exist and have role='agent' before using them, or refactor _next_agent to dynamically select from actual agent users in the DB."
-    },
-    {
-      "file": "tests/integration/test_tickets_integration.py",
-      "line": 151,
-      "severity": "critical",
-      "msg": "test_update_ticket only verifies subject and description changes \u2014 priority and channel updates are never exercised, leaving that code path untested against the real DB.",
-      "suggestion": "Add assertions to test_update_ticket that update and verify priority and channel values (e.g., priority=high, channel=chat) to ensure the update_ticket enum coercion works correctly with a real DB."
+      "msg": "Bare `except Exception:` catches `KeyboardInterrupt` and `SystemExit` which should terminate immediately; this masks serious failures and prevents clean shutdown. (Rule 25)",
+      "suggestion": "Reorder the handlers so `except KeyboardInterrupt` comes before a general `except Exception`, or narrow the general clause to `except (HTTPError, URLError, TimeoutError, OSError, ValueError)`."
     }
   ],
   "suggestions": [
     {
-      "file": ".plans/issue-55.md",
-      "line": "",
-      "severity": "info",
-      "msg": "Implementation plan document; no code issues to flag."
-    },
-    {
-      "file": "frontend/src/app/(app)/tickets/[id]/page.tsx",
-      "line": 66,
-      "severity": "warning",
-      "msg": "Next.js 15+ requires async route params; `params` is now a Promise and must be awaited, not accessed synchronously.",
-      "suggestion": "Change the component signature to `async function TicketDetailPage({ params }: { params: Promise<{ id: string }> }) { const { id } = await params; const ticketId = Number(id); }`"
-    },
-    {
-      "file": "frontend/src/app/(app)/tickets/[id]/page.tsx",
-      "line": 83,
-      "severity": "info",
-      "msg": "Type cast `ticketData?.data as Record<string, unknown>` bypasses TypeScript safety with no runtime validation.",
-      "suggestion": "Define a typed interface or Zod schema for the ticket response shape and validate against it, rather than casting to `unknown` and then field-by-field."
-    },
-    {
-      "file": "frontend/src/app/(app)/tickets/[id]/page.tsx",
-      "line": 91,
-      "severity": "warning",
-      "msg": "SLA breach effect depends on `ticket` and `ticketId` but not on `slaToastShownRef` (which is intentionally a ref, but the effect logic is fragile). The effect body reads `.current` but doesn't re-run when that ref changes.",
-      "suggestion": "Ensure the breach toast fires exactly once by using a cleanup-return pattern: set `slaToastShownRef.current = true` in a returned cleanup from the effect, or restructure to a render-counted approach."
-    },
-    {
-      "file": "frontend/src/app/(app)/tickets/page.tsx",
-      "line": 306,
-      "severity": "warning",
-      "msg": "SLA breach mount effect has `// eslint-disable-next-line react-hooks/exhaustive-deps` and an intentionally incomplete dependency array; the stale-closure risk is masked, not fixed.",
-      "suggestion": "Restructure to fire exactly once without suppressing the linter: track the shown state inside a render-counter ref or use a layout-effect pattern that does not require `isLoading` as a dep."
-    },
-    {
-      "file": "frontend/src/app/(app)/tickets/page.tsx",
-      "line": 202,
-      "severity": "info",
-      "msg": "Filters (status, priority, channel, assignee) are applied client-side after fetching all pages, rather than passed as query params to the `useTickets` hook. This causes all pages to be loaded before filtering, defeating server-side pagination.",
-      "suggestion": "Extend `useTickets` in queries.ts to accept filter params and construct the API call with server-side filtering, so the backend handles filtering and only relevant pages are fetched."
-    },
-    {
-      "file": "frontend/src/components/tickets/bulk-actions-bar.tsx",
-      "line": 25,
-      "severity": "warning",
-      "msg": "`useUsers(1, 100)` is called with no tenant_id, fetching the default tenant's users. In a multi-tenant system this should be tenant-scoped, and the hardcoded page=1 and page_size=100 are fragile magic numbers.",
-      "suggestion": "Pass the current tenant's ID to `useUsers`, or accept it as a prop. Also extract the page_size magic number to a named constant."
-    },
-    {
-      "file": "frontend/src/components/tickets/kanban-board.tsx",
-      "line": 202,
-      "severity": "warning",
-      "msg": "Loose equality `!= null` catches both `null` and `undefined`, but `assigned_to` is typed `number | null` \u2014 mixing comparison styles across lines 202-203 is confusing and risks future bugs if the type widens.",
-      "suggestion": "Use strict `=== null` / `!== null` to match the declared type, or explicitly handle both with `== null` comment explaining intent."
-    },
-    {
-      "file": "frontend/src/components/tickets/kanban-board.tsx",
-      "line": 125,
-      "severity": "info",
-      "msg": "Magic number `14rem` in `max-h-[calc(100vh-14rem)]` is not named or documented, making the layout fragile if the header height changes.",
-      "suggestion": "Extract to a CSS variable or const: `const BOARD_BOTTOM_OFFSET = '14rem'`."
-    },
-    {
-      "file": "frontend/src/components/tickets/kanban-board.tsx",
-      "line": 140,
-      "severity": "info",
-      "msg": "`handleTicketClick` is recreated on every render. While it has no stale-closure risk here, wrapping it in `useCallback` would prevent unnecessary re-renders of child columns.",
-      "suggestion": "Wrap with `useCallback(handleTicketClick, [])` and memoize `StatusColumn` with `React.memo`."
-    },
-    {
-      "file": "frontend/src/components/tickets/kanban-board.tsx",
-      "line": 183,
-      "severity": "info",
-      "msg": "Priority grouping derives colors inline (`'bg-red-500'`, `'bg-blue-500'`, etc.) instead of referencing a shared constant, duplicating the color logic from `PRIORITY_COLORS` at the top.",
-      "suggestion": "Build a `PRIORITY_COLORS_GROUP` map at the top and reuse it here."
-    },
-    {
-      "file": "frontend/src/components/tickets/sla-timer.tsx",
-      "line": 49,
-      "severity": "info",
-      "msg": "SLA hour values in `SLA_HOURS` are hardcoded to match the dropdown labels and are not validated against the backend enum \u2014 drift will silently produce wrong SLA windows.",
-      "suggestion": "Fetch SLA config from the backend or at minimum validate `slaLevel` against an allowed set before using it."
-    },
-    {
-      "file": "frontend/src/components/tickets/sla-timer.tsx",
-      "line": 32,
-      "severity": "info",
-      "msg": "`Date.now()` is captured on every render while `setInterval` only fires every 60 seconds \u2014 between ticks the countdown can be off by up to 59 seconds.",
-      "suggestion": "Store `Date.now()` at tick time inside the interval callback, then use a ref or state to drive the display, so the countdown advances smoothly."
-    },
-    {
-      "file": "frontend/src/components/tickets/sla-timer.tsx",
-      "line": 21,
-      "severity": "info",
-      "msg": "`Math.abs(totalMs)` is called before checking sign \u2014 the intent is non-obvious and the expression reads as though the negative case is being handled incorrectly.",
-      "suggestion": "Move the abs inside `formatRemaining` or clarify: `const positiveMs = totalMs < 0 ? totalMs : totalMs` (no-op rename) so the sign check is clearly intentional."
-    },
-    {
-      "file": "frontend/src/components/tickets/ticket-form-dialog.tsx",
-      "line": 58,
-      "severity": "warning",
-      "msg": "`customer_id` defaults to `0`, but the hidden input's validation rejects `v > 0` \u2014 meaning the form starts in a permanently invalid state for that field, preventing submission until the user selects a customer.",
-      "suggestion": "Use `undefined` instead of `0` as the default: `customer_id: initialData?.customer_id ?? undefined`."
-    },
-    {
-      "file": "frontend/src/components/tickets/ticket-form-dialog.tsx",
-      "line": 74,
-      "severity": "warning",
-      "msg": "`useEffect` on `[initialData, reset]` uses reference equality \u2014 if a parent passes a new object with identical values, the form will not reset.",
-      "suggestion": "Include the ticket ID or a version stamp in the dependency array, or use `key` prop on the dialog to force remount on entity change."
-    },
-    {
-      "file": "frontend/src/components/tickets/ticket-form-dialog.tsx",
-      "line": 44,
-      "severity": "info",
-      "msg": "`useCustomers(1, 100)` hardcodes page size 100 with no pagination controls \u2014 if a tenant exceeds 100 customers the dropdown silently truncates.",
-      "suggestion": "Extract `100` to a named constant `MAX_CUSTOMERS_DROPDOWN = 100` and add a comment noting this is a UX trade-off."
-    },
-    {
-      "file": "frontend/src/components/tickets/ticket-form-dialog.tsx",
-      "line": 65,
-      "severity": "info",
-      "msg": "`reset()` is called both in `useEffect` (line 65) and in `handleClose(false)` (line 110), creating a double-reset path that is harmless but redundant.",
-      "suggestion": "Remove the `useEffect` and rely solely on `handleClose` to reset, or rely solely on `useEffect` and remove the reset from `handleClose`."
-    },
-    {
-      "file": "frontend/src/lib/api/queries.ts",
-      "line": 433,
-      "severity": "warning",
-      "msg": "`useReminders` does not type its return as `ApiEnvelope<T>` unlike every other query in this file, creating an implicit `any`-like contract and breaking type consistency.",
-      "suggestion": "Add generic: `apiClient.get<ApiEnvelope<Record<string, unknown>>>('/api/v1/reminders?upcoming_only=${upcomingOnly}', token ?? undefined)`."
-    },
-    {
-      "file": "frontend/src/lib/api/queries.ts",
-      "line": 72,
-      "severity": "info",
-      "msg": "`useSearchCustomers` uses a hardcoded string query key `['customers', 'search', keyword]` instead of a `qk` entry, risking cache incoherence if other hooks query the same keyspace.",
-      "suggestion": "Add `searchCustomers: (keyword: string) => ['customers', 'search', keyword] as const` to the `qk` object and use it here."
-    },
-    {
-      "file": "frontend/src/lib/api/queries.ts",
-      "line": 382,
-      "severity": "info",
-      "msg": "`useActivity` uses a literal inline key `['activity', id]` instead of a `qk` entry, inconsistent with the rest of the file.",
-      "suggestion": "Add `activity: (id: number) => ['activity', id] as const` to `qk` and use it here."
-    },
-    {
-      "file": "frontend/src/lib/api/queries.ts",
-      "line": 195,
-      "severity": "info",
-      "msg": "`useAddReply` only invalidates `qk.ticketReplies(vars.ticketId)` on success but does not invalidate the parent ticket query (`qk.ticket(id)`), so ticket-level views may show stale reply counts.",
-      "suggestion": "Add `qc.invalidateQueries({ queryKey: qk.ticket(vars.ticketId) })` in `onSuccess`."
-    },
-    {
-      "file": "pyproject.toml",
-      "line": "",
-      "severity": "info",
-      "msg": "Standard project configuration with proper dev dependencies and ruff/mypy tool configs; no issues found."
-    },
-    {
-      "file": "src/api/routers/tickets.py",
-      "line": 7,
-      "severity": "info",
-      "msg": "HTTPException is imported but never used \u2014 project uses global AppException handler, not manual HTTPException raises.",
-      "suggestion": "Remove `HTTPException` from the import list on line 7."
-    },
-    {
-      "file": "src/api/routers/tickets.py",
-      "line": 65,
-      "severity": "warning",
-      "msg": "TicketUpdate.assigned_to accepts 0 (unassigned) but TicketAssign.assignee_id enforces ge=1 \u2014 inconsistent semantics for the same domain concept across two endpoints.",
-      "suggestion": "Align TicketAssign.assignee_id with the same semantics as TicketUpdate.assigned_to if unassignment (0) is a valid operation; otherwise add a comment documenting the intentional restriction."
-    },
-    {
-      "file": "src/api/routers/tickets.py",
-      "line": 306,
-      "severity": "warning",
-      "msg": "N+1 query pattern: pre-validation calls get_ticket for every ticket_id in body.ticket_ids sequentially, then update_ticket calls _fetch again per ticket \u2014 2N queries for N tickets.",
-      "suggestion": "Replace the per-ticket pre-validation loop with a single query: SELECT id FROM ticket_models WHERE id IN (ticket_ids) AND tenant_id = ctx.tenant_id, then assert all requested IDs are present. This halves the query count."
-    },
-    {
-      "file": "src/services/ticket_service.py",
-      "line": 446,
-      "severity": "info",
-      "msg": "get_ticket_activity duplicates the tenant_id filter in the second where clause \u2014 the preceding _fetch(ticket_id, tenant_id) call already guarantees the ticket exists and belongs to the tenant, so this filter is redundant.",
-      "suggestion": "Remove the `ActivityModel.tenant_id == tenant_id` clause from the second where() call and simplify the query structure for clarity."
-    },
-    {
-      "file": "tests/integration/test_tickets_integration.py",
-      "line": 292,
-      "severity": "warning",
-      "msg": "No integration test exists for bulk_update_tickets \u2014 a critical endpoint with pre-validation + sequential updates has zero test coverage despite being the most complex write operation in this router.",
-      "suggestion": "Add TestTicketBulkUpdate class with a test that creates 3 tickets, calls bulk update to reassign them, and verifies all three were updated atomically (or documents partial-failure behavior if non-atomic is intentional)."
-    },
-    {
-      "file": "tests/integration/test_tickets_integration.py",
-      "line": 250,
-      "severity": "info",
-      "msg": "test_auto_assign only asserts that assigned_to is an int \u2014 it does not verify the assigned agent ID actually exists in the users table, so if _AGENT_POOL references non-existent IDs, this test passes but auto-assignment would fail in production.",
-      "suggestion": "Add a post-creation DB query to verify the assigned_to ID corresponds to a real user row in the users table, or seed known agent user IDs and assert assigned_to matches one of them."
-    },
-    {
-      "file": "tests/unit/test_ticket_service.py",
-      "line": 188,
-      "severity": "warning",
-      "msg": "TestSLABreachDetection tests MockTicketModel.check_sla_breach() \u2014 a mock method, not the real service or ORM model \u2014 providing no coverage of actual SLA logic in TicketService or TicketModel.",
-      "suggestion": "Move these tests to verify SLA logic in the real TicketService (e.g. a service method that applies SLA rules) or remove them if the logic lives exclusively on the ORM model, in which case they belong in a model unit test."
-    },
-    {
-      "file": "tests/unit/test_ticket_service.py",
-      "line": 102,
-      "severity": "info",
-      "msg": "MockResult.scalars() returns a MagicMock with a stub all=() but scalars().first() is never called by the tests \u2014 incomplete mock is latent.",
-      "suggestion": "Add scalars().first() to MockResult to match the full scalars() API if future tests need it, or assert explicitly that only scalar_one_or_none() is used."
-    },
-    {
-      "file": "tests/unit/test_ticket_service.py",
+      "file": "Makefile",
       "line": 85,
       "severity": "info",
-      "msg": "MockRow and MockResult are redefined locally instead of being imported from tests/unit/conftest.py, which already exports them.",
-      "suggestion": "Replace local MockRow/MockResult with: from tests.unit.conftest import MockRow, MockResult"
+      "msg": "ISSUE variable is unquoted, causing failure if the value is empty or contains spaces.",
+      "suggestion": "Quote the variable: $(ISSUE) \u2192 \"$(ISSUE)\""
     },
     {
-      "file": "tests/unit/test_tickets_router.py",
-      "line": 138,
+      "file": "scripts/ci/claude_code_review.py",
+      "line": 625,
       "severity": "warning",
-      "msg": "get_db is overridden with lambda: MagicMock() \u2014 a new mock instance on every call \u2014 instead of a single shared mock. FastAPI calls get_db multiple times per request in nested dependency resolution; multiple distinct mocks can cause hard-to-reproduce failures.",
-      "suggestion": "Store the mock session once and reuse it: _mock_session = MagicMock(); app.dependency_overrides[get_db] = lambda: _mock_session"
+      "msg": "Scanning text character-by-character with `enumerate(text)` to find the first `{` is O(N) on the full input and will fail for JSON where the object is not the first occurrence after the loop advances. (Rule 31)",
+      "suggestion": "Use `text.find('{')` directly instead of a loop over characters."
     },
     {
-      "file": "tests/unit/test_tickets_router.py",
-      "line": 122,
+      "file": "scripts/ci/claude_code_review.py",
+      "line": 265,
       "severity": "info",
-      "msg": "Service classes are monkeypatched at the module level (api.routers.tickets.TicketService = lambda session: mock_service) rather than via FastAPI's dependency override mechanism, bypassing the normal DI flow.",
-      "suggestion": "Use FastAPI dependency overrides consistently: define a factory dependency for TicketService and override it, matching how get_db is overridden."
+      "msg": "In `GitHubClient.request`, `text` can be empty string on a 204 No Content response; the `json.loads('')` call is guarded by a ternary but the branch is dead code that should be removed for clarity.",
+      "suggestion": "Remove the ternary; return `None` unconditionally when `text` is empty."
     },
     {
-      "file": "tests/unit/test_tickets_router.py",
-      "line": 140,
+      "file": "scripts/ci/clear_triage_labels.py",
+      "line": 29,
       "severity": "info",
-      "msg": "app.exception_handler(AppException) is registered in every test class's fixture rather than once at conftest.py, causing redundant setup.",
-      "suggestion": "Move the AppException handler to tests/unit/conftest.py so all router tests inherit it automatically."
+      "msg": "`run_gh` uses `check=False` and discards non-zero exit codes silently; callers log `r.stderr` but execution continues regardless.",
+      "suggestion": "Consider adding `check=True` or at minimum a warning log when `r.returncode != 0` before returning."
     },
     {
-      "file": "tests/unit/test_tickets_router.py",
-      "line": 494,
-      "severity": "info",
-      "msg": "MockActivity is defined inside the test file after most other test classes, while MockTicket and MockReply are defined at module top-level \u2014 inconsistent placement makes the file harder to navigate.",
-      "suggestion": "Move MockActivity to the module-level MockTicket/MockReply block at the top of the file."
+      "file": "scripts/ci/run_code_review.py",
+      "line": 213,
+      "severity": "warning",
+      "msg": "Module-level `import re` exists at line 8, yet `stage_fetch` re-imports it locally at line 213 \u2014 redundant import executed on every function call. (Rule 110)",
+      "suggestion": "Delete `import re` from inside `stage_fetch` and rely on the module-level import."
     }
   ],
-  "summary": "Reviewed 14 file(s) between origin/master and origin/auto/issue-55.",
+  "summary": "Reviewed 4 file(s) between origin/master and origin/develop.",
   "details": {
     "llm_parsed": {
       "verdict": "fail",
       "critical": [
         {
-          "file": "src/api/routers/tickets.py",
-          "line": 305,
+          "file": "scripts/ci/claude_code_review.py",
+          "line": 341,
           "severity": "critical",
-          "msg": "bulk_update_tickets has no transaction boundary \u2014 if the process crashes or an exception occurs mid-loop, some tickets are updated and others are not, leaving data in a partial state with no rollback.",
-          "suggestion": "Wrap the pre-validation loop and all updates in a single transaction. Alternatively, add a comment explicitly documenting this non-atomic behavior and ensure callers understand partial failure is possible."
+          "msg": "Bare `except Exception:` catches all subclasses including `KeyboardInterrupt` and `SystemExit`, masking serious failures during comment cleanup. (Rule 25)",
+          "suggestion": "Replace with `except (HTTPError, URLError, TimeoutError, OSError) as exc:` to match the pattern used elsewhere in the file."
         },
         {
-          "file": "src/services/ticket_service.py",
-          "line": 20,
+          "file": "scripts/ci/run_code_review.py",
+          "line": 607,
           "severity": "critical",
-          "msg": "_AGENT_POOL = (1, 2, 3) hardcodes user IDs 1/2/3 with no existence check \u2014 auto-assignment will silently fail (FK violation or 500) if those IDs do not exist in the users table for a given tenant.",
-          "suggestion": "Query the users table to verify IDs in _AGENT_POOL exist and have role='agent' before using them, or refactor _next_agent to dynamically select from actual agent users in the DB."
-        },
-        {
-          "file": "tests/integration/test_tickets_integration.py",
-          "line": 151,
-          "severity": "critical",
-          "msg": "test_update_ticket only verifies subject and description changes \u2014 priority and channel updates are never exercised, leaving that code path untested against the real DB.",
-          "suggestion": "Add assertions to test_update_ticket that update and verify priority and channel values (e.g., priority=high, channel=chat) to ensure the update_ticket enum coercion works correctly with a real DB."
+          "msg": "Bare `except Exception:` catches `KeyboardInterrupt` and `SystemExit` which should terminate immediately; this masks serious failures and prevents clean shutdown. (Rule 25)",
+          "suggestion": "Reorder the handlers so `except KeyboardInterrupt` comes before a general `except Exception`, or narrow the general clause to `except (HTTPError, URLError, TimeoutError, OSError, ValueError)`."
         }
       ],
       "warnings": [
         {
-          "file": ".plans/issue-55.md",
-          "line": "",
-          "severity": "info",
-          "msg": "Implementation plan document; no code issues to flag."
-        },
-        {
-          "file": "frontend/src/app/(app)/tickets/[id]/page.tsx",
-          "line": 66,
-          "severity": "warning",
-          "msg": "Next.js 15+ requires async route params; `params` is now a Promise and must be awaited, not accessed synchronously.",
-          "suggestion": "Change the component signature to `async function TicketDetailPage({ params }: { params: Promise<{ id: string }> }) { const { id } = await params; const ticketId = Number(id); }`"
-        },
-        {
-          "file": "frontend/src/app/(app)/tickets/[id]/page.tsx",
-          "line": 83,
-          "severity": "info",
-          "msg": "Type cast `ticketData?.data as Record<string, unknown>` bypasses TypeScript safety with no runtime validation.",
-          "suggestion": "Define a typed interface or Zod schema for the ticket response shape and validate against it, rather than casting to `unknown` and then field-by-field."
-        },
-        {
-          "file": "frontend/src/app/(app)/tickets/[id]/page.tsx",
-          "line": 91,
-          "severity": "warning",
-          "msg": "SLA breach effect depends on `ticket` and `ticketId` but not on `slaToastShownRef` (which is intentionally a ref, but the effect logic is fragile). The effect body reads `.current` but doesn't re-run when that ref changes.",
-          "suggestion": "Ensure the breach toast fires exactly once by using a cleanup-return pattern: set `slaToastShownRef.current = true` in a returned cleanup from the effect, or restructure to a render-counted approach."
-        },
-        {
-          "file": "frontend/src/app/(app)/tickets/page.tsx",
-          "line": 306,
-          "severity": "warning",
-          "msg": "SLA breach mount effect has `// eslint-disable-next-line react-hooks/exhaustive-deps` and an intentionally incomplete dependency array; the stale-closure risk is masked, not fixed.",
-          "suggestion": "Restructure to fire exactly once without suppressing the linter: track the shown state inside a render-counter ref or use a layout-effect pattern that does not require `isLoading` as a dep."
-        },
-        {
-          "file": "frontend/src/app/(app)/tickets/page.tsx",
-          "line": 202,
-          "severity": "info",
-          "msg": "Filters (status, priority, channel, assignee) are applied client-side after fetching all pages, rather than passed as query params to the `useTickets` hook. This causes all pages to be loaded before filtering, defeating server-side pagination.",
-          "suggestion": "Extend `useTickets` in queries.ts to accept filter params and construct the API call with server-side filtering, so the backend handles filtering and only relevant pages are fetched."
-        },
-        {
-          "file": "frontend/src/components/tickets/bulk-actions-bar.tsx",
-          "line": 25,
-          "severity": "warning",
-          "msg": "`useUsers(1, 100)` is called with no tenant_id, fetching the default tenant's users. In a multi-tenant system this should be tenant-scoped, and the hardcoded page=1 and page_size=100 are fragile magic numbers.",
-          "suggestion": "Pass the current tenant's ID to `useUsers`, or accept it as a prop. Also extract the page_size magic number to a named constant."
-        },
-        {
-          "file": "frontend/src/components/tickets/kanban-board.tsx",
-          "line": 202,
-          "severity": "warning",
-          "msg": "Loose equality `!= null` catches both `null` and `undefined`, but `assigned_to` is typed `number | null` \u2014 mixing comparison styles across lines 202-203 is confusing and risks future bugs if the type widens.",
-          "suggestion": "Use strict `=== null` / `!== null` to match the declared type, or explicitly handle both with `== null` comment explaining intent."
-        },
-        {
-          "file": "frontend/src/components/tickets/kanban-board.tsx",
-          "line": 125,
-          "severity": "info",
-          "msg": "Magic number `14rem` in `max-h-[calc(100vh-14rem)]` is not named or documented, making the layout fragile if the header height changes.",
-          "suggestion": "Extract to a CSS variable or const: `const BOARD_BOTTOM_OFFSET = '14rem'`."
-        },
-        {
-          "file": "frontend/src/components/tickets/kanban-board.tsx",
-          "line": 140,
-          "severity": "info",
-          "msg": "`handleTicketClick` is recreated on every render. While it has no stale-closure risk here, wrapping it in `useCallback` would prevent unnecessary re-renders of child columns.",
-          "suggestion": "Wrap with `useCallback(handleTicketClick, [])` and memoize `StatusColumn` with `React.memo`."
-        },
-        {
-          "file": "frontend/src/components/tickets/kanban-board.tsx",
-          "line": 183,
-          "severity": "info",
-          "msg": "Priority grouping derives colors inline (`'bg-red-500'`, `'bg-blue-500'`, etc.) instead of referencing a shared constant, duplicating the color logic from `PRIORITY_COLORS` at the top.",
-          "suggestion": "Build a `PRIORITY_COLORS_GROUP` map at the top and reuse it here."
-        },
-        {
-          "file": "frontend/src/components/tickets/sla-timer.tsx",
-          "line": 49,
-          "severity": "info",
-          "msg": "SLA hour values in `SLA_HOURS` are hardcoded to match the dropdown labels and are not validated against the backend enum \u2014 drift will silently produce wrong SLA windows.",
-          "suggestion": "Fetch SLA config from the backend or at minimum validate `slaLevel` against an allowed set before using it."
-        },
-        {
-          "file": "frontend/src/components/tickets/sla-timer.tsx",
-          "line": 32,
-          "severity": "info",
-          "msg": "`Date.now()` is captured on every render while `setInterval` only fires every 60 seconds \u2014 between ticks the countdown can be off by up to 59 seconds.",
-          "suggestion": "Store `Date.now()` at tick time inside the interval callback, then use a ref or state to drive the display, so the countdown advances smoothly."
-        },
-        {
-          "file": "frontend/src/components/tickets/sla-timer.tsx",
-          "line": 21,
-          "severity": "info",
-          "msg": "`Math.abs(totalMs)` is called before checking sign \u2014 the intent is non-obvious and the expression reads as though the negative case is being handled incorrectly.",
-          "suggestion": "Move the abs inside `formatRemaining` or clarify: `const positiveMs = totalMs < 0 ? totalMs : totalMs` (no-op rename) so the sign check is clearly intentional."
-        },
-        {
-          "file": "frontend/src/components/tickets/ticket-form-dialog.tsx",
-          "line": 58,
-          "severity": "warning",
-          "msg": "`customer_id` defaults to `0`, but the hidden input's validation rejects `v > 0` \u2014 meaning the form starts in a permanently invalid state for that field, preventing submission until the user selects a customer.",
-          "suggestion": "Use `undefined` instead of `0` as the default: `customer_id: initialData?.customer_id ?? undefined`."
-        },
-        {
-          "file": "frontend/src/components/tickets/ticket-form-dialog.tsx",
-          "line": 74,
-          "severity": "warning",
-          "msg": "`useEffect` on `[initialData, reset]` uses reference equality \u2014 if a parent passes a new object with identical values, the form will not reset.",
-          "suggestion": "Include the ticket ID or a version stamp in the dependency array, or use `key` prop on the dialog to force remount on entity change."
-        },
-        {
-          "file": "frontend/src/components/tickets/ticket-form-dialog.tsx",
-          "line": 44,
-          "severity": "info",
-          "msg": "`useCustomers(1, 100)` hardcodes page size 100 with no pagination controls \u2014 if a tenant exceeds 100 customers the dropdown silently truncates.",
-          "suggestion": "Extract `100` to a named constant `MAX_CUSTOMERS_DROPDOWN = 100` and add a comment noting this is a UX trade-off."
-        },
-        {
-          "file": "frontend/src/components/tickets/ticket-form-dialog.tsx",
-          "line": 65,
-          "severity": "info",
-          "msg": "`reset()` is called both in `useEffect` (line 65) and in `handleClose(false)` (line 110), creating a double-reset path that is harmless but redundant.",
-          "suggestion": "Remove the `useEffect` and rely solely on `handleClose` to reset, or rely solely on `useEffect` and remove the reset from `handleClose`."
-        },
-        {
-          "file": "frontend/src/lib/api/queries.ts",
-          "line": 433,
-          "severity": "warning",
-          "msg": "`useReminders` does not type its return as `ApiEnvelope<T>` unlike every other query in this file, creating an implicit `any`-like contract and breaking type consistency.",
-          "suggestion": "Add generic: `apiClient.get<ApiEnvelope<Record<string, unknown>>>('/api/v1/reminders?upcoming_only=${upcomingOnly}', token ?? undefined)`."
-        },
-        {
-          "file": "frontend/src/lib/api/queries.ts",
-          "line": 72,
-          "severity": "info",
-          "msg": "`useSearchCustomers` uses a hardcoded string query key `['customers', 'search', keyword]` instead of a `qk` entry, risking cache incoherence if other hooks query the same keyspace.",
-          "suggestion": "Add `searchCustomers: (keyword: string) => ['customers', 'search', keyword] as const` to the `qk` object and use it here."
-        },
-        {
-          "file": "frontend/src/lib/api/queries.ts",
-          "line": 382,
-          "severity": "info",
-          "msg": "`useActivity` uses a literal inline key `['activity', id]` instead of a `qk` entry, inconsistent with the rest of the file.",
-          "suggestion": "Add `activity: (id: number) => ['activity', id] as const` to `qk` and use it here."
-        },
-        {
-          "file": "frontend/src/lib/api/queries.ts",
-          "line": 195,
-          "severity": "info",
-          "msg": "`useAddReply` only invalidates `qk.ticketReplies(vars.ticketId)` on success but does not invalidate the parent ticket query (`qk.ticket(id)`), so ticket-level views may show stale reply counts.",
-          "suggestion": "Add `qc.invalidateQueries({ queryKey: qk.ticket(vars.ticketId) })` in `onSuccess`."
-        },
-        {
-          "file": "pyproject.toml",
-          "line": "",
-          "severity": "info",
-          "msg": "Standard project configuration with proper dev dependencies and ruff/mypy tool configs; no issues found."
-        },
-        {
-          "file": "src/api/routers/tickets.py",
-          "line": 7,
-          "severity": "info",
-          "msg": "HTTPException is imported but never used \u2014 project uses global AppException handler, not manual HTTPException raises.",
-          "suggestion": "Remove `HTTPException` from the import list on line 7."
-        },
-        {
-          "file": "src/api/routers/tickets.py",
-          "line": 65,
-          "severity": "warning",
-          "msg": "TicketUpdate.assigned_to accepts 0 (unassigned) but TicketAssign.assignee_id enforces ge=1 \u2014 inconsistent semantics for the same domain concept across two endpoints.",
-          "suggestion": "Align TicketAssign.assignee_id with the same semantics as TicketUpdate.assigned_to if unassignment (0) is a valid operation; otherwise add a comment documenting the intentional restriction."
-        },
-        {
-          "file": "src/api/routers/tickets.py",
-          "line": 306,
-          "severity": "warning",
-          "msg": "N+1 query pattern: pre-validation calls get_ticket for every ticket_id in body.ticket_ids sequentially, then update_ticket calls _fetch again per ticket \u2014 2N queries for N tickets.",
-          "suggestion": "Replace the per-ticket pre-validation loop with a single query: SELECT id FROM ticket_models WHERE id IN (ticket_ids) AND tenant_id = ctx.tenant_id, then assert all requested IDs are present. This halves the query count."
-        },
-        {
-          "file": "src/services/ticket_service.py",
-          "line": 446,
-          "severity": "info",
-          "msg": "get_ticket_activity duplicates the tenant_id filter in the second where clause \u2014 the preceding _fetch(ticket_id, tenant_id) call already guarantees the ticket exists and belongs to the tenant, so this filter is redundant.",
-          "suggestion": "Remove the `ActivityModel.tenant_id == tenant_id` clause from the second where() call and simplify the query structure for clarity."
-        },
-        {
-          "file": "tests/integration/test_tickets_integration.py",
-          "line": 292,
-          "severity": "warning",
-          "msg": "No integration test exists for bulk_update_tickets \u2014 a critical endpoint with pre-validation + sequential updates has zero test coverage despite being the most complex write operation in this router.",
-          "suggestion": "Add TestTicketBulkUpdate class with a test that creates 3 tickets, calls bulk update to reassign them, and verifies all three were updated atomically (or documents partial-failure behavior if non-atomic is intentional)."
-        },
-        {
-          "file": "tests/integration/test_tickets_integration.py",
-          "line": 250,
-          "severity": "info",
-          "msg": "test_auto_assign only asserts that assigned_to is an int \u2014 it does not verify the assigned agent ID actually exists in the users table, so if _AGENT_POOL references non-existent IDs, this test passes but auto-assignment would fail in production.",
-          "suggestion": "Add a post-creation DB query to verify the assigned_to ID corresponds to a real user row in the users table, or seed known agent user IDs and assert assigned_to matches one of them."
-        },
-        {
-          "file": "tests/unit/test_ticket_service.py",
-          "line": 188,
-          "severity": "warning",
-          "msg": "TestSLABreachDetection tests MockTicketModel.check_sla_breach() \u2014 a mock method, not the real service or ORM model \u2014 providing no coverage of actual SLA logic in TicketService or TicketModel.",
-          "suggestion": "Move these tests to verify SLA logic in the real TicketService (e.g. a service method that applies SLA rules) or remove them if the logic lives exclusively on the ORM model, in which case they belong in a model unit test."
-        },
-        {
-          "file": "tests/unit/test_ticket_service.py",
-          "line": 102,
-          "severity": "info",
-          "msg": "MockResult.scalars() returns a MagicMock with a stub all=() but scalars().first() is never called by the tests \u2014 incomplete mock is latent.",
-          "suggestion": "Add scalars().first() to MockResult to match the full scalars() API if future tests need it, or assert explicitly that only scalar_one_or_none() is used."
-        },
-        {
-          "file": "tests/unit/test_ticket_service.py",
+          "file": "Makefile",
           "line": 85,
           "severity": "info",
-          "msg": "MockRow and MockResult are redefined locally instead of being imported from tests/unit/conftest.py, which already exports them.",
-          "suggestion": "Replace local MockRow/MockResult with: from tests.unit.conftest import MockRow, MockResult"
+          "msg": "ISSUE variable is unquoted, causing failure if the value is empty or contains spaces.",
+          "suggestion": "Quote the variable: $(ISSUE) \u2192 \"$(ISSUE)\""
         },
         {
-          "file": "tests/unit/test_tickets_router.py",
-          "line": 138,
+          "file": "scripts/ci/claude_code_review.py",
+          "line": 625,
           "severity": "warning",
-          "msg": "get_db is overridden with lambda: MagicMock() \u2014 a new mock instance on every call \u2014 instead of a single shared mock. FastAPI calls get_db multiple times per request in nested dependency resolution; multiple distinct mocks can cause hard-to-reproduce failures.",
-          "suggestion": "Store the mock session once and reuse it: _mock_session = MagicMock(); app.dependency_overrides[get_db] = lambda: _mock_session"
+          "msg": "Scanning text character-by-character with `enumerate(text)` to find the first `{` is O(N) on the full input and will fail for JSON where the object is not the first occurrence after the loop advances. (Rule 31)",
+          "suggestion": "Use `text.find('{')` directly instead of a loop over characters."
         },
         {
-          "file": "tests/unit/test_tickets_router.py",
-          "line": 122,
+          "file": "scripts/ci/claude_code_review.py",
+          "line": 265,
           "severity": "info",
-          "msg": "Service classes are monkeypatched at the module level (api.routers.tickets.TicketService = lambda session: mock_service) rather than via FastAPI's dependency override mechanism, bypassing the normal DI flow.",
-          "suggestion": "Use FastAPI dependency overrides consistently: define a factory dependency for TicketService and override it, matching how get_db is overridden."
+          "msg": "In `GitHubClient.request`, `text` can be empty string on a 204 No Content response; the `json.loads('')` call is guarded by a ternary but the branch is dead code that should be removed for clarity.",
+          "suggestion": "Remove the ternary; return `None` unconditionally when `text` is empty."
         },
         {
-          "file": "tests/unit/test_tickets_router.py",
-          "line": 140,
+          "file": "scripts/ci/clear_triage_labels.py",
+          "line": 29,
           "severity": "info",
-          "msg": "app.exception_handler(AppException) is registered in every test class's fixture rather than once at conftest.py, causing redundant setup.",
-          "suggestion": "Move the AppException handler to tests/unit/conftest.py so all router tests inherit it automatically."
+          "msg": "`run_gh` uses `check=False` and discards non-zero exit codes silently; callers log `r.stderr` but execution continues regardless.",
+          "suggestion": "Consider adding `check=True` or at minimum a warning log when `r.returncode != 0` before returning."
         },
         {
-          "file": "tests/unit/test_tickets_router.py",
-          "line": 494,
-          "severity": "info",
-          "msg": "MockActivity is defined inside the test file after most other test classes, while MockTicket and MockReply are defined at module top-level \u2014 inconsistent placement makes the file harder to navigate.",
-          "suggestion": "Move MockActivity to the module-level MockTicket/MockReply block at the top of the file."
+          "file": "scripts/ci/run_code_review.py",
+          "line": 213,
+          "severity": "warning",
+          "msg": "Module-level `import re` exists at line 8, yet `stage_fetch` re-imports it locally at line 213 \u2014 redundant import executed on every function call. (Rule 110)",
+          "suggestion": "Delete `import re` from inside `stage_fetch` and rely on the module-level import."
         }
       ],
-      "summary": "Reviewed 14 file(s) between origin/master and origin/auto/issue-55."
+      "summary": "Reviewed 4 file(s) between origin/master and origin/develop."
     },
     "reviewed_refs": {
       "base": "12a2e03da77f90ee21047a29c6242d0047f0ecec",
-      "head": "96ba580092cdf03e5153f17ef405073fc1e42f99",
+      "head": "9272222e8a631cc297518634c755d38d38ff3b2d",
       "base_label": "origin/master",
-      "head_label": "origin/auto/issue-55"
+      "head_label": "origin/develop"
     },
     "reviewed_files": [
-      ".plans/issue-55.md",
-      "frontend/src/app/(app)/tickets/[id]/page.tsx",
-      "frontend/src/app/(app)/tickets/page.tsx",
-      "frontend/src/components/tickets/bulk-actions-bar.tsx",
-      "frontend/src/components/tickets/kanban-board.tsx",
-      "frontend/src/components/tickets/sla-timer.tsx",
-      "frontend/src/components/tickets/ticket-form-dialog.tsx",
-      "frontend/src/lib/api/queries.ts",
-      "pyproject.toml",
-      "src/api/routers/tickets.py",
-      "src/services/ticket_service.py",
-      "tests/integration/test_tickets_integration.py",
-      "tests/unit/test_ticket_service.py",
-      "tests/unit/test_tickets_router.py"
+      "Makefile",
+      "scripts/ci/claude_code_review.py",
+      "scripts/ci/clear_triage_labels.py",
+      "scripts/ci/run_code_review.py"
     ],
     "per_file_reviews": [
       {
-        "file": ".plans/issue-55.md",
+        "file": "Makefile",
         "returncode": 0,
-        "output": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"api_error_status\":null,\"duration_ms\":64490,\"duration_api_ms\":64424,\"num_turns\":5,\"result\":\"\\n\\n```json\\n[\\n  {\\n    \\\"filename\\\": \\\".plans/issue-55.md\\\",\\n    \\\"issues\\\": [],\\n    \\\"summary\\\": \\\"Implementation plan document; no code issues to flag.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"frontend/src/app/(app)/tickets/[id]/page.tsx\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 66,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"Next.js 15+ requires async route params; `params` is now a Promise and must be awaited, not accessed synchronously.\\\",\\n        \\\"suggestion\\\": \\\"Change the component signature to `async function TicketDetailPage({ params }: { params: Promise<{ id: string }> }) { const { id } = await params; const ticketId = Number(id); }`\\\"\\n      },\\n      {\\n        \\\"line\\\": 83,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"Type cast `ticketData?.data as Record<string, unknown>` bypasses TypeScript safety with no runtime validation.\\\",\\n        \\\"suggestion\\\": \\\"Define a typed interface or Zod schema for the ticket response shape and validate against it, rather than casting to `unknown` and then field-by-field.\\\"\\n      },\\n      {\\n        \\\"line\\\": 91,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"SLA breach effect depends on `ticket` and `ticketId` but not on `slaToastShownRef` (which is intentionally a ref, but the effect logic is fragile). The effect body reads `.current` but doesn't re-run when that ref changes.\\\",\\n        \\\"suggestion\\\": \\\"Ensure the breach toast fires exactly once by using a cleanup-return pattern: set `slaToastShownRef.current = true` in a returned cleanup from the effect, or restructure to a render-counted approach.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Ticket detail page renders correctly but has a Next.js 15+ compatibility issue with async params and unsafe type casts on API responses.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"frontend/src/app/(app)/tickets/page.tsx\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 306,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"SLA breach mount effect has `// eslint-disable-next-line react-hooks/exhaustive-deps` and an intentionally incomplete dependency array; the stale-closure risk is masked, not fixed.\\\",\\n        \\\"suggestion\\\": \\\"Restructure to fire exactly once without suppressing the linter: track the shown state inside a render-counter ref or use a layout-effect pattern that does not require `isLoading` as a dep.\\\"\\n      },\\n      {\\n        \\\"line\\\": 202,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"Filters (status, priority, channel, assignee) are applied client-side after fetching all pages, rather than passed as query params to the `useTickets` hook. This causes all pages to be loaded before filtering, defeating server-side pagination.\\\",\\n        \\\"suggestion\\\": \\\"Extend `useTickets` in queries.ts to accept filter params and construct the API call with server-side filtering, so the backend handles filtering and only relevant pages are fetched.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Tickets list page has functional client-side filters but the SLA breach effect relies on a suppressed lint warning, and filter/sort is entirely client-side rather than server-driven.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"frontend/src/components/tickets/bulk-actions-bar.tsx\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 25,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"`useUsers(1, 100)` is called with no tenant_id, fetching the default tenant's users. In a multi-tenant system this should be tenant-scoped, and the hardcoded page=1 and page_size=100 are fragile magic numbers.\\\",\\n        \\\"suggestion\\\": \\\"Pass the current tenant's ID to `useUsers`, or accept it as a prop. Also extract the page_size magic number to a named constant.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Bulk actions bar is functional but calls `useUsers` without tenant context, which could leak or mis-target data in a multi-tenant environment.\\\"\\n  }\\n]\\n```\",\"stop_reason\":\"end_turn\",\"session_id\":\"463bdea7-cf26-4476-9ea6-9efaab43ac5d\",\"total_cost_usd\":0.28785915,\"usage\":{\"input_tokens\":42865,\"cache_creation_input_tokens\":30809,\"cache_read_input_tokens\":2368,\"output_tokens\":2868,\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":0,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"\",\"iterations\":[],\"speed\":\"standard\"},\"modelUsage\":{\"claude-sonnet-4-6\":{\"inputTokens\":42865,\"outputTokens\":2868,\"cacheReadInputTokens\":2368,\"cacheCreationInputTokens\":30809,\"webSearchRequests\":0,\"costUSD\":0.28785915,\"contextWindow\":200000,\"maxOutputTokens\":32000}},\"permission_denials\":[],\"terminal_reason\":\"completed\",\"fast_mode_state\":\"off\",\"uuid\":\"1992211e-552d-49b6-9b52-edd9851df693\"}\n",
+        "output": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"api_error_status\":null,\"duration_ms\":139644,\"duration_api_ms\":137997,\"num_turns\":9,\"result\":\"\\n\\n[\\n  {\\n    \\\"filename\\\": \\\"Makefile\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 85,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"ISSUE variable is unquoted, causing failure if the value is empty or contains spaces.\\\",\\n        \\\"suggestion\\\": \\\"Quote the variable: $(ISSUE) \u2192 \\\\\\\"$(ISSUE)\\\\\\\"\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Well-structured build file covering tests, lint, format, DB, and migrations with cross-platform Python path support.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"scripts/ci/claude_code_review.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 341,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"Bare `except Exception:` catches all subclasses including `KeyboardInterrupt` and `SystemExit`, masking serious failures during comment cleanup. (Rule 25)\\\",\\n        \\\"suggestion\\\": \\\"Replace with `except (HTTPError, URLError, TimeoutError, OSError) as exc:` to match the pattern used elsewhere in the file.\\\"\\n      },\\n      {\\n        \\\"line\\\": 625,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"Scanning text character-by-character with `enumerate(text)` to find the first `{` is O(N) on the full input and will fail for JSON where the object is not the first occurrence after the loop advances. (Rule 31)\\\",\\n        \\\"suggestion\\\": \\\"Use `text.find('{')` directly instead of a loop over characters.\\\"\\n      },\\n      {\\n        \\\"line\\\": 265,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"In `GitHubClient.request`, `text` can be empty string on a 204 No Content response; the `json.loads('')` call is guarded by a ternary but the branch is dead code that should be removed for clarity.\\\",\\n        \\\"suggestion\\\": \\\"Remove the ternary; return `None` unconditionally when `text` is empty.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Full-featured GitHub PR review pipeline: runs Claude per-file, parses structured JSON from model output, and posts/upser ts summary + inline comments with deduplication.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"scripts/ci/clear_triage_labels.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 29,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"`run_gh` uses `check=False` and discards non-zero exit codes silently; callers log `r.stderr` but execution continues regardless.\\\",\\n        \\\"suggestion\\\": \\\"Consider adding `check=True` or at minimum a warning log when `r.returncode != 0` before returning.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Lightweight utility to strip triage labels from all open GitHub issues using the `gh` CLI; handles dry-run mode, OR semantics across labels, and dedupes results.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"scripts/ci/run_code_review.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 607,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"Bare `except Exception:` catches `KeyboardInterrupt` and `SystemExit` which should terminate immediately; this masks serious failures and prevents clean shutdown. (Rule 25)\\\",\\n        \\\"suggestion\\\": \\\"Reorder the handlers so `except KeyboardInterrupt` comes before a general `except Exception`, or narrow the general clause to `except (HTTPError, URLError, TimeoutError, OSError, ValueError)`.\\\"\\n      },\\n      {\\n        \\\"line\\\": 213,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"Module-level `import re` exists at line 8, yet `stage_fetch` re-imports it locally at line 213 \u2014 redundant import executed on every function call. (Rule 110)\\\",\\n        \\\"suggestion\\\": \\\"Delete `import re` from inside `stage_fetch` and rely on the module-level import.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Six-stage CLI orchestrator (INIT \u2192 FETCH \u2192 DIFF \u2192 REVIEW \u2192 PERSIST \u2192 COMMENT) that wraps `claude_code_review.py` with tty-colored progress output, dry-run support, and GitHub Actions integration.\\\"\\n  }\\n]\",\"stop_reason\":\"end_turn\",\"session_id\":\"c3514dd8-9505-49a5-891e-963cfd2e6871\",\"total_cost_usd\":0.29464260000000003,\"usage\":{\"input_tokens\":48289,\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":232352,\"output_tokens\":5338,\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":0,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"\",\"iterations\":[],\"speed\":\"standard\"},\"modelUsage\":{\"claude-sonnet-4-6\":{\"inputTokens\":48289,\"outputTokens\":5338,\"cacheReadInputTokens\":232352,\"cacheCreationInputTokens\":0,\"webSearchRequests\":0,\"costUSD\":0.29464260000000003,\"contextWindow\":200000,\"maxOutputTokens\":32000}},\"permission_denials\":[],\"terminal_reason\":\"completed\",\"fast_mode_state\":\"off\",\"uuid\":\"2d8880f6-fb04-46a9-944e-cdf7791aeb74\"}\n",
         "parsed": {
-          "filename": ".plans/issue-55.md",
-          "issues": [],
-          "summary": "Implementation plan document; no code issues to flag."
-        }
-      },
-      {
-        "file": "frontend/src/app/(app)/tickets/[id]/page.tsx",
-        "returncode": 0,
-        "output": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"api_error_status\":null,\"duration_ms\":64490,\"duration_api_ms\":64424,\"num_turns\":5,\"result\":\"\\n\\n```json\\n[\\n  {\\n    \\\"filename\\\": \\\".plans/issue-55.md\\\",\\n    \\\"issues\\\": [],\\n    \\\"summary\\\": \\\"Implementation plan document; no code issues to flag.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"frontend/src/app/(app)/tickets/[id]/page.tsx\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 66,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"Next.js 15+ requires async route params; `params` is now a Promise and must be awaited, not accessed synchronously.\\\",\\n        \\\"suggestion\\\": \\\"Change the component signature to `async function TicketDetailPage({ params }: { params: Promise<{ id: string }> }) { const { id } = await params; const ticketId = Number(id); }`\\\"\\n      },\\n      {\\n        \\\"line\\\": 83,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"Type cast `ticketData?.data as Record<string, unknown>` bypasses TypeScript safety with no runtime validation.\\\",\\n        \\\"suggestion\\\": \\\"Define a typed interface or Zod schema for the ticket response shape and validate against it, rather than casting to `unknown` and then field-by-field.\\\"\\n      },\\n      {\\n        \\\"line\\\": 91,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"SLA breach effect depends on `ticket` and `ticketId` but not on `slaToastShownRef` (which is intentionally a ref, but the effect logic is fragile). The effect body reads `.current` but doesn't re-run when that ref changes.\\\",\\n        \\\"suggestion\\\": \\\"Ensure the breach toast fires exactly once by using a cleanup-return pattern: set `slaToastShownRef.current = true` in a returned cleanup from the effect, or restructure to a render-counted approach.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Ticket detail page renders correctly but has a Next.js 15+ compatibility issue with async params and unsafe type casts on API responses.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"frontend/src/app/(app)/tickets/page.tsx\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 306,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"SLA breach mount effect has `// eslint-disable-next-line react-hooks/exhaustive-deps` and an intentionally incomplete dependency array; the stale-closure risk is masked, not fixed.\\\",\\n        \\\"suggestion\\\": \\\"Restructure to fire exactly once without suppressing the linter: track the shown state inside a render-counter ref or use a layout-effect pattern that does not require `isLoading` as a dep.\\\"\\n      },\\n      {\\n        \\\"line\\\": 202,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"Filters (status, priority, channel, assignee) are applied client-side after fetching all pages, rather than passed as query params to the `useTickets` hook. This causes all pages to be loaded before filtering, defeating server-side pagination.\\\",\\n        \\\"suggestion\\\": \\\"Extend `useTickets` in queries.ts to accept filter params and construct the API call with server-side filtering, so the backend handles filtering and only relevant pages are fetched.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Tickets list page has functional client-side filters but the SLA breach effect relies on a suppressed lint warning, and filter/sort is entirely client-side rather than server-driven.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"frontend/src/components/tickets/bulk-actions-bar.tsx\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 25,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"`useUsers(1, 100)` is called with no tenant_id, fetching the default tenant's users. In a multi-tenant system this should be tenant-scoped, and the hardcoded page=1 and page_size=100 are fragile magic numbers.\\\",\\n        \\\"suggestion\\\": \\\"Pass the current tenant's ID to `useUsers`, or accept it as a prop. Also extract the page_size magic number to a named constant.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Bulk actions bar is functional but calls `useUsers` without tenant context, which could leak or mis-target data in a multi-tenant environment.\\\"\\n  }\\n]\\n```\",\"stop_reason\":\"end_turn\",\"session_id\":\"463bdea7-cf26-4476-9ea6-9efaab43ac5d\",\"total_cost_usd\":0.28785915,\"usage\":{\"input_tokens\":42865,\"cache_creation_input_tokens\":30809,\"cache_read_input_tokens\":2368,\"output_tokens\":2868,\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":0,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"\",\"iterations\":[],\"speed\":\"standard\"},\"modelUsage\":{\"claude-sonnet-4-6\":{\"inputTokens\":42865,\"outputTokens\":2868,\"cacheReadInputTokens\":2368,\"cacheCreationInputTokens\":30809,\"webSearchRequests\":0,\"costUSD\":0.28785915,\"contextWindow\":200000,\"maxOutputTokens\":32000}},\"permission_denials\":[],\"terminal_reason\":\"completed\",\"fast_mode_state\":\"off\",\"uuid\":\"1992211e-552d-49b6-9b52-edd9851df693\"}\n",
-        "parsed": {
-          "filename": "frontend/src/app/(app)/tickets/[id]/page.tsx",
+          "filename": "Makefile",
           "issues": [
-            {
-              "line": 66,
-              "severity": "warning",
-              "message": "Next.js 15+ requires async route params; `params` is now a Promise and must be awaited, not accessed synchronously.",
-              "suggestion": "Change the component signature to `async function TicketDetailPage({ params }: { params: Promise<{ id: string }> }) { const { id } = await params; const ticketId = Number(id); }`"
-            },
-            {
-              "line": 83,
-              "severity": "info",
-              "message": "Type cast `ticketData?.data as Record<string, unknown>` bypasses TypeScript safety with no runtime validation.",
-              "suggestion": "Define a typed interface or Zod schema for the ticket response shape and validate against it, rather than casting to `unknown` and then field-by-field."
-            },
-            {
-              "line": 91,
-              "severity": "warning",
-              "message": "SLA breach effect depends on `ticket` and `ticketId` but not on `slaToastShownRef` (which is intentionally a ref, but the effect logic is fragile). The effect body reads `.current` but doesn't re-run when that ref changes.",
-              "suggestion": "Ensure the breach toast fires exactly once by using a cleanup-return pattern: set `slaToastShownRef.current = true` in a returned cleanup from the effect, or restructure to a render-counted approach."
-            }
-          ],
-          "summary": "Ticket detail page renders correctly but has a Next.js 15+ compatibility issue with async params and unsafe type casts on API responses."
-        }
-      },
-      {
-        "file": "frontend/src/app/(app)/tickets/page.tsx",
-        "returncode": 0,
-        "output": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"api_error_status\":null,\"duration_ms\":64490,\"duration_api_ms\":64424,\"num_turns\":5,\"result\":\"\\n\\n```json\\n[\\n  {\\n    \\\"filename\\\": \\\".plans/issue-55.md\\\",\\n    \\\"issues\\\": [],\\n    \\\"summary\\\": \\\"Implementation plan document; no code issues to flag.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"frontend/src/app/(app)/tickets/[id]/page.tsx\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 66,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"Next.js 15+ requires async route params; `params` is now a Promise and must be awaited, not accessed synchronously.\\\",\\n        \\\"suggestion\\\": \\\"Change the component signature to `async function TicketDetailPage({ params }: { params: Promise<{ id: string }> }) { const { id } = await params; const ticketId = Number(id); }`\\\"\\n      },\\n      {\\n        \\\"line\\\": 83,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"Type cast `ticketData?.data as Record<string, unknown>` bypasses TypeScript safety with no runtime validation.\\\",\\n        \\\"suggestion\\\": \\\"Define a typed interface or Zod schema for the ticket response shape and validate against it, rather than casting to `unknown` and then field-by-field.\\\"\\n      },\\n      {\\n        \\\"line\\\": 91,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"SLA breach effect depends on `ticket` and `ticketId` but not on `slaToastShownRef` (which is intentionally a ref, but the effect logic is fragile). The effect body reads `.current` but doesn't re-run when that ref changes.\\\",\\n        \\\"suggestion\\\": \\\"Ensure the breach toast fires exactly once by using a cleanup-return pattern: set `slaToastShownRef.current = true` in a returned cleanup from the effect, or restructure to a render-counted approach.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Ticket detail page renders correctly but has a Next.js 15+ compatibility issue with async params and unsafe type casts on API responses.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"frontend/src/app/(app)/tickets/page.tsx\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 306,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"SLA breach mount effect has `// eslint-disable-next-line react-hooks/exhaustive-deps` and an intentionally incomplete dependency array; the stale-closure risk is masked, not fixed.\\\",\\n        \\\"suggestion\\\": \\\"Restructure to fire exactly once without suppressing the linter: track the shown state inside a render-counter ref or use a layout-effect pattern that does not require `isLoading` as a dep.\\\"\\n      },\\n      {\\n        \\\"line\\\": 202,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"Filters (status, priority, channel, assignee) are applied client-side after fetching all pages, rather than passed as query params to the `useTickets` hook. This causes all pages to be loaded before filtering, defeating server-side pagination.\\\",\\n        \\\"suggestion\\\": \\\"Extend `useTickets` in queries.ts to accept filter params and construct the API call with server-side filtering, so the backend handles filtering and only relevant pages are fetched.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Tickets list page has functional client-side filters but the SLA breach effect relies on a suppressed lint warning, and filter/sort is entirely client-side rather than server-driven.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"frontend/src/components/tickets/bulk-actions-bar.tsx\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 25,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"`useUsers(1, 100)` is called with no tenant_id, fetching the default tenant's users. In a multi-tenant system this should be tenant-scoped, and the hardcoded page=1 and page_size=100 are fragile magic numbers.\\\",\\n        \\\"suggestion\\\": \\\"Pass the current tenant's ID to `useUsers`, or accept it as a prop. Also extract the page_size magic number to a named constant.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Bulk actions bar is functional but calls `useUsers` without tenant context, which could leak or mis-target data in a multi-tenant environment.\\\"\\n  }\\n]\\n```\",\"stop_reason\":\"end_turn\",\"session_id\":\"463bdea7-cf26-4476-9ea6-9efaab43ac5d\",\"total_cost_usd\":0.28785915,\"usage\":{\"input_tokens\":42865,\"cache_creation_input_tokens\":30809,\"cache_read_input_tokens\":2368,\"output_tokens\":2868,\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":0,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"\",\"iterations\":[],\"speed\":\"standard\"},\"modelUsage\":{\"claude-sonnet-4-6\":{\"inputTokens\":42865,\"outputTokens\":2868,\"cacheReadInputTokens\":2368,\"cacheCreationInputTokens\":30809,\"webSearchRequests\":0,\"costUSD\":0.28785915,\"contextWindow\":200000,\"maxOutputTokens\":32000}},\"permission_denials\":[],\"terminal_reason\":\"completed\",\"fast_mode_state\":\"off\",\"uuid\":\"1992211e-552d-49b6-9b52-edd9851df693\"}\n",
-        "parsed": {
-          "filename": "frontend/src/app/(app)/tickets/page.tsx",
-          "issues": [
-            {
-              "line": 306,
-              "severity": "warning",
-              "message": "SLA breach mount effect has `// eslint-disable-next-line react-hooks/exhaustive-deps` and an intentionally incomplete dependency array; the stale-closure risk is masked, not fixed.",
-              "suggestion": "Restructure to fire exactly once without suppressing the linter: track the shown state inside a render-counter ref or use a layout-effect pattern that does not require `isLoading` as a dep."
-            },
-            {
-              "line": 202,
-              "severity": "info",
-              "message": "Filters (status, priority, channel, assignee) are applied client-side after fetching all pages, rather than passed as query params to the `useTickets` hook. This causes all pages to be loaded before filtering, defeating server-side pagination.",
-              "suggestion": "Extend `useTickets` in queries.ts to accept filter params and construct the API call with server-side filtering, so the backend handles filtering and only relevant pages are fetched."
-            }
-          ],
-          "summary": "Tickets list page has functional client-side filters but the SLA breach effect relies on a suppressed lint warning, and filter/sort is entirely client-side rather than server-driven."
-        }
-      },
-      {
-        "file": "frontend/src/components/tickets/bulk-actions-bar.tsx",
-        "returncode": 0,
-        "output": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"api_error_status\":null,\"duration_ms\":64490,\"duration_api_ms\":64424,\"num_turns\":5,\"result\":\"\\n\\n```json\\n[\\n  {\\n    \\\"filename\\\": \\\".plans/issue-55.md\\\",\\n    \\\"issues\\\": [],\\n    \\\"summary\\\": \\\"Implementation plan document; no code issues to flag.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"frontend/src/app/(app)/tickets/[id]/page.tsx\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 66,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"Next.js 15+ requires async route params; `params` is now a Promise and must be awaited, not accessed synchronously.\\\",\\n        \\\"suggestion\\\": \\\"Change the component signature to `async function TicketDetailPage({ params }: { params: Promise<{ id: string }> }) { const { id } = await params; const ticketId = Number(id); }`\\\"\\n      },\\n      {\\n        \\\"line\\\": 83,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"Type cast `ticketData?.data as Record<string, unknown>` bypasses TypeScript safety with no runtime validation.\\\",\\n        \\\"suggestion\\\": \\\"Define a typed interface or Zod schema for the ticket response shape and validate against it, rather than casting to `unknown` and then field-by-field.\\\"\\n      },\\n      {\\n        \\\"line\\\": 91,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"SLA breach effect depends on `ticket` and `ticketId` but not on `slaToastShownRef` (which is intentionally a ref, but the effect logic is fragile). The effect body reads `.current` but doesn't re-run when that ref changes.\\\",\\n        \\\"suggestion\\\": \\\"Ensure the breach toast fires exactly once by using a cleanup-return pattern: set `slaToastShownRef.current = true` in a returned cleanup from the effect, or restructure to a render-counted approach.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Ticket detail page renders correctly but has a Next.js 15+ compatibility issue with async params and unsafe type casts on API responses.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"frontend/src/app/(app)/tickets/page.tsx\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 306,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"SLA breach mount effect has `// eslint-disable-next-line react-hooks/exhaustive-deps` and an intentionally incomplete dependency array; the stale-closure risk is masked, not fixed.\\\",\\n        \\\"suggestion\\\": \\\"Restructure to fire exactly once without suppressing the linter: track the shown state inside a render-counter ref or use a layout-effect pattern that does not require `isLoading` as a dep.\\\"\\n      },\\n      {\\n        \\\"line\\\": 202,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"Filters (status, priority, channel, assignee) are applied client-side after fetching all pages, rather than passed as query params to the `useTickets` hook. This causes all pages to be loaded before filtering, defeating server-side pagination.\\\",\\n        \\\"suggestion\\\": \\\"Extend `useTickets` in queries.ts to accept filter params and construct the API call with server-side filtering, so the backend handles filtering and only relevant pages are fetched.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Tickets list page has functional client-side filters but the SLA breach effect relies on a suppressed lint warning, and filter/sort is entirely client-side rather than server-driven.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"frontend/src/components/tickets/bulk-actions-bar.tsx\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 25,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"`useUsers(1, 100)` is called with no tenant_id, fetching the default tenant's users. In a multi-tenant system this should be tenant-scoped, and the hardcoded page=1 and page_size=100 are fragile magic numbers.\\\",\\n        \\\"suggestion\\\": \\\"Pass the current tenant's ID to `useUsers`, or accept it as a prop. Also extract the page_size magic number to a named constant.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Bulk actions bar is functional but calls `useUsers` without tenant context, which could leak or mis-target data in a multi-tenant environment.\\\"\\n  }\\n]\\n```\",\"stop_reason\":\"end_turn\",\"session_id\":\"463bdea7-cf26-4476-9ea6-9efaab43ac5d\",\"total_cost_usd\":0.28785915,\"usage\":{\"input_tokens\":42865,\"cache_creation_input_tokens\":30809,\"cache_read_input_tokens\":2368,\"output_tokens\":2868,\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":0,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"\",\"iterations\":[],\"speed\":\"standard\"},\"modelUsage\":{\"claude-sonnet-4-6\":{\"inputTokens\":42865,\"outputTokens\":2868,\"cacheReadInputTokens\":2368,\"cacheCreationInputTokens\":30809,\"webSearchRequests\":0,\"costUSD\":0.28785915,\"contextWindow\":200000,\"maxOutputTokens\":32000}},\"permission_denials\":[],\"terminal_reason\":\"completed\",\"fast_mode_state\":\"off\",\"uuid\":\"1992211e-552d-49b6-9b52-edd9851df693\"}\n",
-        "parsed": {
-          "filename": "frontend/src/components/tickets/bulk-actions-bar.tsx",
-          "issues": [
-            {
-              "line": 25,
-              "severity": "warning",
-              "message": "`useUsers(1, 100)` is called with no tenant_id, fetching the default tenant's users. In a multi-tenant system this should be tenant-scoped, and the hardcoded page=1 and page_size=100 are fragile magic numbers.",
-              "suggestion": "Pass the current tenant's ID to `useUsers`, or accept it as a prop. Also extract the page_size magic number to a named constant."
-            }
-          ],
-          "summary": "Bulk actions bar is functional but calls `useUsers` without tenant context, which could leak or mis-target data in a multi-tenant environment."
-        }
-      },
-      {
-        "file": "frontend/src/components/tickets/kanban-board.tsx",
-        "returncode": 0,
-        "output": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"api_error_status\":null,\"duration_ms\":66510,\"duration_api_ms\":66403,\"num_turns\":5,\"result\":\"\\n\\n[\\n  {\\n    \\\"filename\\\": \\\"frontend/src/components/tickets/kanban-board.tsx\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 202,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"Loose equality `!= null` catches both `null` and `undefined`, but `assigned_to` is typed `number | null` \u2014 mixing comparison styles across lines 202-203 is confusing and risks future bugs if the type widens.\\\",\\n        \\\"suggestion\\\": \\\"Use strict `=== null` / `!== null` to match the declared type, or explicitly handle both with `== null` comment explaining intent.\\\"\\n      },\\n      {\\n        \\\"line\\\": 125,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"Magic number `14rem` in `max-h-[calc(100vh-14rem)]` is not named or documented, making the layout fragile if the header height changes.\\\",\\n        \\\"suggestion\\\": \\\"Extract to a CSS variable or const: `const BOARD_BOTTOM_OFFSET = '14rem'`.\\\"\\n      },\\n      {\\n        \\\"line\\\": 140,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"`handleTicketClick` is recreated on every render. While it has no stale-closure risk here, wrapping it in `useCallback` would prevent unnecessary re-renders of child columns.\\\",\\n        \\\"suggestion\\\": \\\"Wrap with `useCallback(handleTicketClick, [])` and memoize `StatusColumn` with `React.memo`.\\\"\\n      },\\n      {\\n        \\\"line\\\": 183,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"Priority grouping derives colors inline (`'bg-red-500'`, `'bg-blue-500'`, etc.) instead of referencing a shared constant, duplicating the color logic from `PRIORITY_COLORS` at the top.\\\",\\n        \\\"suggestion\\\": \\\"Build a `PRIORITY_COLORS_GROUP` map at the top and reuse it here.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Kanban board renders correctly but has a loose-null comparison risk on assignee filtering, a magic layout height, and color logic duplication.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"frontend/src/components/tickets/sla-timer.tsx\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 49,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"SLA hour values in `SLA_HOURS` are hardcoded to match the dropdown labels and are not validated against the backend enum \u2014 drift will silently produce wrong SLA windows.\\\",\\n        \\\"suggestion\\\": \\\"Fetch SLA config from the backend or at minimum validate `slaLevel` against an allowed set before using it.\\\"\\n      },\\n      {\\n        \\\"line\\\": 32,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"`Date.now()` is captured on every render while `setInterval` only fires every 60 seconds \u2014 between ticks the countdown can be off by up to 59 seconds.\\\",\\n        \\\"suggestion\\\": \\\"Store `Date.now()` at tick time inside the interval callback, then use a ref or state to drive the display, so the countdown advances smoothly.\\\"\\n      },\\n      {\\n        \\\"line\\\": 21,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"`Math.abs(totalMs)` is called before checking sign \u2014 the intent is non-obvious and the expression reads as though the negative case is being handled incorrectly.\\\",\\n        \\\"suggestion\\\": \\\"Move the abs inside `formatRemaining` or clarify: `const positiveMs = totalMs < 0 ? totalMs : totalMs` (no-op rename) so the sign check is clearly intentional.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"SLA timer logic is correct but relies on hardcoded SLA hour values and has a minor timing staleness between renders and interval ticks.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"frontend/src/components/tickets/ticket-form-dialog.tsx\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 58,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"`customer_id` defaults to `0`, but the hidden input's validation rejects `v > 0` \u2014 meaning the form starts in a permanently invalid state for that field, preventing submission until the user selects a customer.\\\",\\n        \\\"suggestion\\\": \\\"Use `undefined` instead of `0` as the default: `customer_id: initialData?.customer_id ?? undefined`.\\\"\\n      },\\n      {\\n        \\\"line\\\": 74,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"`useEffect` on `[initialData, reset]` uses reference equality \u2014 if a parent passes a new object with identical values, the form will not reset.\\\",\\n        \\\"suggestion\\\": \\\"Include the ticket ID or a version stamp in the dependency array, or use `key` prop on the dialog to force remount on entity change.\\\"\\n      },\\n      {\\n        \\\"line\\\": 44,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"`useCustomers(1, 100)` hardcodes page size 100 with no pagination controls \u2014 if a tenant exceeds 100 customers the dropdown silently truncates.\\\",\\n        \\\"suggestion\\\": \\\"Extract `100` to a named constant `MAX_CUSTOMERS_DROPDOWN = 100` and add a comment noting this is a UX trade-off.\\\"\\n      },\\n      {\\n        \\\"line\\\": 65,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"`reset()` is called both in `useEffect` (line 65) and in `handleClose(false)` (line 110), creating a double-reset path that is harmless but redundant.\\\",\\n        \\\"suggestion\\\": \\\"Remove the `useEffect` and rely solely on `handleClose` to reset, or rely solely on `useEffect` and remove the reset from `handleClose`.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Ticket form dialog has a functional bug where `customer_id` defaults to `0` and always fails its own validation, plus a stale-closure risk in the reset effect.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"frontend/src/lib/api/queries.ts\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 433,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"`useReminders` does not type its return as `ApiEnvelope<T>` unlike every other query in this file, creating an implicit `any`-like contract and breaking type consistency.\\\",\\n        \\\"suggestion\\\": \\\"Add generic: `apiClient.get<ApiEnvelope<Record<string, unknown>>>('/api/v1/reminders?upcoming_only=${upcomingOnly}', token ?? undefined)`.\\\"\\n      },\\n      {\\n        \\\"line\\\": 72,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"`useSearchCustomers` uses a hardcoded string query key `['customers', 'search', keyword]` instead of a `qk` entry, risking cache incoherence if other hooks query the same keyspace.\\\",\\n        \\\"suggestion\\\": \\\"Add `searchCustomers: (keyword: string) => ['customers', 'search', keyword] as const` to the `qk` object and use it here.\\\"\\n      },\\n      {\\n        \\\"line\\\": 382,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"`useActivity` uses a literal inline key `['activity', id]` instead of a `qk` entry, inconsistent with the rest of the file.\\\",\\n        \\\"suggestion\\\": \\\"Add `activity: (id: number) => ['activity', id] as const` to `qk` and use it here.\\\"\\n      },\\n      {\\n        \\\"line\\\": 195,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"`useAddReply` only invalidates `qk.ticketReplies(vars.ticketId)` on success but does not invalidate the parent ticket query (`qk.ticket(id)`), so ticket-level views may show stale reply counts.\\\",\\n        \\\"suggestion\\\": \\\"Add `qc.invalidateQueries({ queryKey: qk.ticket(vars.ticketId) })` in `onSuccess`.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Query hooks are well-structured overall but `useReminders` lacks generic typing, two hooks use hardcoded query keys outside the `qk` registry, and `useAddReply` misses a ticket-level cache invalidation.\\\"\\n  }\\n]\",\"stop_reason\":\"end_turn\",\"session_id\":\"9c234d47-312b-4636-a451-5e36b754888f\",\"total_cost_usd\":0.19500299999999998,\"usage\":{\"input_tokens\":41472,\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":31040,\"output_tokens\":4085,\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":0,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"\",\"iterations\":[],\"speed\":\"standard\"},\"modelUsage\":{\"claude-sonnet-4-6\":{\"inputTokens\":41472,\"outputTokens\":4085,\"cacheReadInputTokens\":31040,\"cacheCreationInputTokens\":0,\"webSearchRequests\":0,\"costUSD\":0.19500299999999998,\"contextWindow\":200000,\"maxOutputTokens\":32000}},\"permission_denials\":[],\"terminal_reason\":\"completed\",\"fast_mode_state\":\"off\",\"uuid\":\"9a1ed4d3-111c-40d6-829f-ebe3be6c7f52\"}\n",
-        "parsed": {
-          "filename": "frontend/src/components/tickets/kanban-board.tsx",
-          "issues": [
-            {
-              "line": 202,
-              "severity": "warning",
-              "message": "Loose equality `!= null` catches both `null` and `undefined`, but `assigned_to` is typed `number | null` \u2014 mixing comparison styles across lines 202-203 is confusing and risks future bugs if the type widens.",
-              "suggestion": "Use strict `=== null` / `!== null` to match the declared type, or explicitly handle both with `== null` comment explaining intent."
-            },
-            {
-              "line": 125,
-              "severity": "info",
-              "message": "Magic number `14rem` in `max-h-[calc(100vh-14rem)]` is not named or documented, making the layout fragile if the header height changes.",
-              "suggestion": "Extract to a CSS variable or const: `const BOARD_BOTTOM_OFFSET = '14rem'`."
-            },
-            {
-              "line": 140,
-              "severity": "info",
-              "message": "`handleTicketClick` is recreated on every render. While it has no stale-closure risk here, wrapping it in `useCallback` would prevent unnecessary re-renders of child columns.",
-              "suggestion": "Wrap with `useCallback(handleTicketClick, [])` and memoize `StatusColumn` with `React.memo`."
-            },
-            {
-              "line": 183,
-              "severity": "info",
-              "message": "Priority grouping derives colors inline (`'bg-red-500'`, `'bg-blue-500'`, etc.) instead of referencing a shared constant, duplicating the color logic from `PRIORITY_COLORS` at the top.",
-              "suggestion": "Build a `PRIORITY_COLORS_GROUP` map at the top and reuse it here."
-            }
-          ],
-          "summary": "Kanban board renders correctly but has a loose-null comparison risk on assignee filtering, a magic layout height, and color logic duplication."
-        }
-      },
-      {
-        "file": "frontend/src/components/tickets/sla-timer.tsx",
-        "returncode": 0,
-        "output": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"api_error_status\":null,\"duration_ms\":66510,\"duration_api_ms\":66403,\"num_turns\":5,\"result\":\"\\n\\n[\\n  {\\n    \\\"filename\\\": \\\"frontend/src/components/tickets/kanban-board.tsx\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 202,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"Loose equality `!= null` catches both `null` and `undefined`, but `assigned_to` is typed `number | null` \u2014 mixing comparison styles across lines 202-203 is confusing and risks future bugs if the type widens.\\\",\\n        \\\"suggestion\\\": \\\"Use strict `=== null` / `!== null` to match the declared type, or explicitly handle both with `== null` comment explaining intent.\\\"\\n      },\\n      {\\n        \\\"line\\\": 125,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"Magic number `14rem` in `max-h-[calc(100vh-14rem)]` is not named or documented, making the layout fragile if the header height changes.\\\",\\n        \\\"suggestion\\\": \\\"Extract to a CSS variable or const: `const BOARD_BOTTOM_OFFSET = '14rem'`.\\\"\\n      },\\n      {\\n        \\\"line\\\": 140,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"`handleTicketClick` is recreated on every render. While it has no stale-closure risk here, wrapping it in `useCallback` would prevent unnecessary re-renders of child columns.\\\",\\n        \\\"suggestion\\\": \\\"Wrap with `useCallback(handleTicketClick, [])` and memoize `StatusColumn` with `React.memo`.\\\"\\n      },\\n      {\\n        \\\"line\\\": 183,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"Priority grouping derives colors inline (`'bg-red-500'`, `'bg-blue-500'`, etc.) instead of referencing a shared constant, duplicating the color logic from `PRIORITY_COLORS` at the top.\\\",\\n        \\\"suggestion\\\": \\\"Build a `PRIORITY_COLORS_GROUP` map at the top and reuse it here.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Kanban board renders correctly but has a loose-null comparison risk on assignee filtering, a magic layout height, and color logic duplication.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"frontend/src/components/tickets/sla-timer.tsx\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 49,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"SLA hour values in `SLA_HOURS` are hardcoded to match the dropdown labels and are not validated against the backend enum \u2014 drift will silently produce wrong SLA windows.\\\",\\n        \\\"suggestion\\\": \\\"Fetch SLA config from the backend or at minimum validate `slaLevel` against an allowed set before using it.\\\"\\n      },\\n      {\\n        \\\"line\\\": 32,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"`Date.now()` is captured on every render while `setInterval` only fires every 60 seconds \u2014 between ticks the countdown can be off by up to 59 seconds.\\\",\\n        \\\"suggestion\\\": \\\"Store `Date.now()` at tick time inside the interval callback, then use a ref or state to drive the display, so the countdown advances smoothly.\\\"\\n      },\\n      {\\n        \\\"line\\\": 21,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"`Math.abs(totalMs)` is called before checking sign \u2014 the intent is non-obvious and the expression reads as though the negative case is being handled incorrectly.\\\",\\n        \\\"suggestion\\\": \\\"Move the abs inside `formatRemaining` or clarify: `const positiveMs = totalMs < 0 ? totalMs : totalMs` (no-op rename) so the sign check is clearly intentional.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"SLA timer logic is correct but relies on hardcoded SLA hour values and has a minor timing staleness between renders and interval ticks.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"frontend/src/components/tickets/ticket-form-dialog.tsx\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 58,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"`customer_id` defaults to `0`, but the hidden input's validation rejects `v > 0` \u2014 meaning the form starts in a permanently invalid state for that field, preventing submission until the user selects a customer.\\\",\\n        \\\"suggestion\\\": \\\"Use `undefined` instead of `0` as the default: `customer_id: initialData?.customer_id ?? undefined`.\\\"\\n      },\\n      {\\n        \\\"line\\\": 74,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"`useEffect` on `[initialData, reset]` uses reference equality \u2014 if a parent passes a new object with identical values, the form will not reset.\\\",\\n        \\\"suggestion\\\": \\\"Include the ticket ID or a version stamp in the dependency array, or use `key` prop on the dialog to force remount on entity change.\\\"\\n      },\\n      {\\n        \\\"line\\\": 44,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"`useCustomers(1, 100)` hardcodes page size 100 with no pagination controls \u2014 if a tenant exceeds 100 customers the dropdown silently truncates.\\\",\\n        \\\"suggestion\\\": \\\"Extract `100` to a named constant `MAX_CUSTOMERS_DROPDOWN = 100` and add a comment noting this is a UX trade-off.\\\"\\n      },\\n      {\\n        \\\"line\\\": 65,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"`reset()` is called both in `useEffect` (line 65) and in `handleClose(false)` (line 110), creating a double-reset path that is harmless but redundant.\\\",\\n        \\\"suggestion\\\": \\\"Remove the `useEffect` and rely solely on `handleClose` to reset, or rely solely on `useEffect` and remove the reset from `handleClose`.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Ticket form dialog has a functional bug where `customer_id` defaults to `0` and always fails its own validation, plus a stale-closure risk in the reset effect.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"frontend/src/lib/api/queries.ts\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 433,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"`useReminders` does not type its return as `ApiEnvelope<T>` unlike every other query in this file, creating an implicit `any`-like contract and breaking type consistency.\\\",\\n        \\\"suggestion\\\": \\\"Add generic: `apiClient.get<ApiEnvelope<Record<string, unknown>>>('/api/v1/reminders?upcoming_only=${upcomingOnly}', token ?? undefined)`.\\\"\\n      },\\n      {\\n        \\\"line\\\": 72,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"`useSearchCustomers` uses a hardcoded string query key `['customers', 'search', keyword]` instead of a `qk` entry, risking cache incoherence if other hooks query the same keyspace.\\\",\\n        \\\"suggestion\\\": \\\"Add `searchCustomers: (keyword: string) => ['customers', 'search', keyword] as const` to the `qk` object and use it here.\\\"\\n      },\\n      {\\n        \\\"line\\\": 382,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"`useActivity` uses a literal inline key `['activity', id]` instead of a `qk` entry, inconsistent with the rest of the file.\\\",\\n        \\\"suggestion\\\": \\\"Add `activity: (id: number) => ['activity', id] as const` to `qk` and use it here.\\\"\\n      },\\n      {\\n        \\\"line\\\": 195,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"`useAddReply` only invalidates `qk.ticketReplies(vars.ticketId)` on success but does not invalidate the parent ticket query (`qk.ticket(id)`), so ticket-level views may show stale reply counts.\\\",\\n        \\\"suggestion\\\": \\\"Add `qc.invalidateQueries({ queryKey: qk.ticket(vars.ticketId) })` in `onSuccess`.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Query hooks are well-structured overall but `useReminders` lacks generic typing, two hooks use hardcoded query keys outside the `qk` registry, and `useAddReply` misses a ticket-level cache invalidation.\\\"\\n  }\\n]\",\"stop_reason\":\"end_turn\",\"session_id\":\"9c234d47-312b-4636-a451-5e36b754888f\",\"total_cost_usd\":0.19500299999999998,\"usage\":{\"input_tokens\":41472,\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":31040,\"output_tokens\":4085,\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":0,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"\",\"iterations\":[],\"speed\":\"standard\"},\"modelUsage\":{\"claude-sonnet-4-6\":{\"inputTokens\":41472,\"outputTokens\":4085,\"cacheReadInputTokens\":31040,\"cacheCreationInputTokens\":0,\"webSearchRequests\":0,\"costUSD\":0.19500299999999998,\"contextWindow\":200000,\"maxOutputTokens\":32000}},\"permission_denials\":[],\"terminal_reason\":\"completed\",\"fast_mode_state\":\"off\",\"uuid\":\"9a1ed4d3-111c-40d6-829f-ebe3be6c7f52\"}\n",
-        "parsed": {
-          "filename": "frontend/src/components/tickets/sla-timer.tsx",
-          "issues": [
-            {
-              "line": 49,
-              "severity": "info",
-              "message": "SLA hour values in `SLA_HOURS` are hardcoded to match the dropdown labels and are not validated against the backend enum \u2014 drift will silently produce wrong SLA windows.",
-              "suggestion": "Fetch SLA config from the backend or at minimum validate `slaLevel` against an allowed set before using it."
-            },
-            {
-              "line": 32,
-              "severity": "info",
-              "message": "`Date.now()` is captured on every render while `setInterval` only fires every 60 seconds \u2014 between ticks the countdown can be off by up to 59 seconds.",
-              "suggestion": "Store `Date.now()` at tick time inside the interval callback, then use a ref or state to drive the display, so the countdown advances smoothly."
-            },
-            {
-              "line": 21,
-              "severity": "info",
-              "message": "`Math.abs(totalMs)` is called before checking sign \u2014 the intent is non-obvious and the expression reads as though the negative case is being handled incorrectly.",
-              "suggestion": "Move the abs inside `formatRemaining` or clarify: `const positiveMs = totalMs < 0 ? totalMs : totalMs` (no-op rename) so the sign check is clearly intentional."
-            }
-          ],
-          "summary": "SLA timer logic is correct but relies on hardcoded SLA hour values and has a minor timing staleness between renders and interval ticks."
-        }
-      },
-      {
-        "file": "frontend/src/components/tickets/ticket-form-dialog.tsx",
-        "returncode": 0,
-        "output": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"api_error_status\":null,\"duration_ms\":66510,\"duration_api_ms\":66403,\"num_turns\":5,\"result\":\"\\n\\n[\\n  {\\n    \\\"filename\\\": \\\"frontend/src/components/tickets/kanban-board.tsx\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 202,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"Loose equality `!= null` catches both `null` and `undefined`, but `assigned_to` is typed `number | null` \u2014 mixing comparison styles across lines 202-203 is confusing and risks future bugs if the type widens.\\\",\\n        \\\"suggestion\\\": \\\"Use strict `=== null` / `!== null` to match the declared type, or explicitly handle both with `== null` comment explaining intent.\\\"\\n      },\\n      {\\n        \\\"line\\\": 125,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"Magic number `14rem` in `max-h-[calc(100vh-14rem)]` is not named or documented, making the layout fragile if the header height changes.\\\",\\n        \\\"suggestion\\\": \\\"Extract to a CSS variable or const: `const BOARD_BOTTOM_OFFSET = '14rem'`.\\\"\\n      },\\n      {\\n        \\\"line\\\": 140,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"`handleTicketClick` is recreated on every render. While it has no stale-closure risk here, wrapping it in `useCallback` would prevent unnecessary re-renders of child columns.\\\",\\n        \\\"suggestion\\\": \\\"Wrap with `useCallback(handleTicketClick, [])` and memoize `StatusColumn` with `React.memo`.\\\"\\n      },\\n      {\\n        \\\"line\\\": 183,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"Priority grouping derives colors inline (`'bg-red-500'`, `'bg-blue-500'`, etc.) instead of referencing a shared constant, duplicating the color logic from `PRIORITY_COLORS` at the top.\\\",\\n        \\\"suggestion\\\": \\\"Build a `PRIORITY_COLORS_GROUP` map at the top and reuse it here.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Kanban board renders correctly but has a loose-null comparison risk on assignee filtering, a magic layout height, and color logic duplication.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"frontend/src/components/tickets/sla-timer.tsx\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 49,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"SLA hour values in `SLA_HOURS` are hardcoded to match the dropdown labels and are not validated against the backend enum \u2014 drift will silently produce wrong SLA windows.\\\",\\n        \\\"suggestion\\\": \\\"Fetch SLA config from the backend or at minimum validate `slaLevel` against an allowed set before using it.\\\"\\n      },\\n      {\\n        \\\"line\\\": 32,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"`Date.now()` is captured on every render while `setInterval` only fires every 60 seconds \u2014 between ticks the countdown can be off by up to 59 seconds.\\\",\\n        \\\"suggestion\\\": \\\"Store `Date.now()` at tick time inside the interval callback, then use a ref or state to drive the display, so the countdown advances smoothly.\\\"\\n      },\\n      {\\n        \\\"line\\\": 21,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"`Math.abs(totalMs)` is called before checking sign \u2014 the intent is non-obvious and the expression reads as though the negative case is being handled incorrectly.\\\",\\n        \\\"suggestion\\\": \\\"Move the abs inside `formatRemaining` or clarify: `const positiveMs = totalMs < 0 ? totalMs : totalMs` (no-op rename) so the sign check is clearly intentional.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"SLA timer logic is correct but relies on hardcoded SLA hour values and has a minor timing staleness between renders and interval ticks.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"frontend/src/components/tickets/ticket-form-dialog.tsx\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 58,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"`customer_id` defaults to `0`, but the hidden input's validation rejects `v > 0` \u2014 meaning the form starts in a permanently invalid state for that field, preventing submission until the user selects a customer.\\\",\\n        \\\"suggestion\\\": \\\"Use `undefined` instead of `0` as the default: `customer_id: initialData?.customer_id ?? undefined`.\\\"\\n      },\\n      {\\n        \\\"line\\\": 74,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"`useEffect` on `[initialData, reset]` uses reference equality \u2014 if a parent passes a new object with identical values, the form will not reset.\\\",\\n        \\\"suggestion\\\": \\\"Include the ticket ID or a version stamp in the dependency array, or use `key` prop on the dialog to force remount on entity change.\\\"\\n      },\\n      {\\n        \\\"line\\\": 44,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"`useCustomers(1, 100)` hardcodes page size 100 with no pagination controls \u2014 if a tenant exceeds 100 customers the dropdown silently truncates.\\\",\\n        \\\"suggestion\\\": \\\"Extract `100` to a named constant `MAX_CUSTOMERS_DROPDOWN = 100` and add a comment noting this is a UX trade-off.\\\"\\n      },\\n      {\\n        \\\"line\\\": 65,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"`reset()` is called both in `useEffect` (line 65) and in `handleClose(false)` (line 110), creating a double-reset path that is harmless but redundant.\\\",\\n        \\\"suggestion\\\": \\\"Remove the `useEffect` and rely solely on `handleClose` to reset, or rely solely on `useEffect` and remove the reset from `handleClose`.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Ticket form dialog has a functional bug where `customer_id` defaults to `0` and always fails its own validation, plus a stale-closure risk in the reset effect.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"frontend/src/lib/api/queries.ts\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 433,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"`useReminders` does not type its return as `ApiEnvelope<T>` unlike every other query in this file, creating an implicit `any`-like contract and breaking type consistency.\\\",\\n        \\\"suggestion\\\": \\\"Add generic: `apiClient.get<ApiEnvelope<Record<string, unknown>>>('/api/v1/reminders?upcoming_only=${upcomingOnly}', token ?? undefined)`.\\\"\\n      },\\n      {\\n        \\\"line\\\": 72,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"`useSearchCustomers` uses a hardcoded string query key `['customers', 'search', keyword]` instead of a `qk` entry, risking cache incoherence if other hooks query the same keyspace.\\\",\\n        \\\"suggestion\\\": \\\"Add `searchCustomers: (keyword: string) => ['customers', 'search', keyword] as const` to the `qk` object and use it here.\\\"\\n      },\\n      {\\n        \\\"line\\\": 382,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"`useActivity` uses a literal inline key `['activity', id]` instead of a `qk` entry, inconsistent with the rest of the file.\\\",\\n        \\\"suggestion\\\": \\\"Add `activity: (id: number) => ['activity', id] as const` to `qk` and use it here.\\\"\\n      },\\n      {\\n        \\\"line\\\": 195,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"`useAddReply` only invalidates `qk.ticketReplies(vars.ticketId)` on success but does not invalidate the parent ticket query (`qk.ticket(id)`), so ticket-level views may show stale reply counts.\\\",\\n        \\\"suggestion\\\": \\\"Add `qc.invalidateQueries({ queryKey: qk.ticket(vars.ticketId) })` in `onSuccess`.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Query hooks are well-structured overall but `useReminders` lacks generic typing, two hooks use hardcoded query keys outside the `qk` registry, and `useAddReply` misses a ticket-level cache invalidation.\\\"\\n  }\\n]\",\"stop_reason\":\"end_turn\",\"session_id\":\"9c234d47-312b-4636-a451-5e36b754888f\",\"total_cost_usd\":0.19500299999999998,\"usage\":{\"input_tokens\":41472,\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":31040,\"output_tokens\":4085,\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":0,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"\",\"iterations\":[],\"speed\":\"standard\"},\"modelUsage\":{\"claude-sonnet-4-6\":{\"inputTokens\":41472,\"outputTokens\":4085,\"cacheReadInputTokens\":31040,\"cacheCreationInputTokens\":0,\"webSearchRequests\":0,\"costUSD\":0.19500299999999998,\"contextWindow\":200000,\"maxOutputTokens\":32000}},\"permission_denials\":[],\"terminal_reason\":\"completed\",\"fast_mode_state\":\"off\",\"uuid\":\"9a1ed4d3-111c-40d6-829f-ebe3be6c7f52\"}\n",
-        "parsed": {
-          "filename": "frontend/src/components/tickets/ticket-form-dialog.tsx",
-          "issues": [
-            {
-              "line": 58,
-              "severity": "warning",
-              "message": "`customer_id` defaults to `0`, but the hidden input's validation rejects `v > 0` \u2014 meaning the form starts in a permanently invalid state for that field, preventing submission until the user selects a customer.",
-              "suggestion": "Use `undefined` instead of `0` as the default: `customer_id: initialData?.customer_id ?? undefined`."
-            },
-            {
-              "line": 74,
-              "severity": "warning",
-              "message": "`useEffect` on `[initialData, reset]` uses reference equality \u2014 if a parent passes a new object with identical values, the form will not reset.",
-              "suggestion": "Include the ticket ID or a version stamp in the dependency array, or use `key` prop on the dialog to force remount on entity change."
-            },
-            {
-              "line": 44,
-              "severity": "info",
-              "message": "`useCustomers(1, 100)` hardcodes page size 100 with no pagination controls \u2014 if a tenant exceeds 100 customers the dropdown silently truncates.",
-              "suggestion": "Extract `100` to a named constant `MAX_CUSTOMERS_DROPDOWN = 100` and add a comment noting this is a UX trade-off."
-            },
-            {
-              "line": 65,
-              "severity": "info",
-              "message": "`reset()` is called both in `useEffect` (line 65) and in `handleClose(false)` (line 110), creating a double-reset path that is harmless but redundant.",
-              "suggestion": "Remove the `useEffect` and rely solely on `handleClose` to reset, or rely solely on `useEffect` and remove the reset from `handleClose`."
-            }
-          ],
-          "summary": "Ticket form dialog has a functional bug where `customer_id` defaults to `0` and always fails its own validation, plus a stale-closure risk in the reset effect."
-        }
-      },
-      {
-        "file": "frontend/src/lib/api/queries.ts",
-        "returncode": 0,
-        "output": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"api_error_status\":null,\"duration_ms\":66510,\"duration_api_ms\":66403,\"num_turns\":5,\"result\":\"\\n\\n[\\n  {\\n    \\\"filename\\\": \\\"frontend/src/components/tickets/kanban-board.tsx\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 202,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"Loose equality `!= null` catches both `null` and `undefined`, but `assigned_to` is typed `number | null` \u2014 mixing comparison styles across lines 202-203 is confusing and risks future bugs if the type widens.\\\",\\n        \\\"suggestion\\\": \\\"Use strict `=== null` / `!== null` to match the declared type, or explicitly handle both with `== null` comment explaining intent.\\\"\\n      },\\n      {\\n        \\\"line\\\": 125,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"Magic number `14rem` in `max-h-[calc(100vh-14rem)]` is not named or documented, making the layout fragile if the header height changes.\\\",\\n        \\\"suggestion\\\": \\\"Extract to a CSS variable or const: `const BOARD_BOTTOM_OFFSET = '14rem'`.\\\"\\n      },\\n      {\\n        \\\"line\\\": 140,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"`handleTicketClick` is recreated on every render. While it has no stale-closure risk here, wrapping it in `useCallback` would prevent unnecessary re-renders of child columns.\\\",\\n        \\\"suggestion\\\": \\\"Wrap with `useCallback(handleTicketClick, [])` and memoize `StatusColumn` with `React.memo`.\\\"\\n      },\\n      {\\n        \\\"line\\\": 183,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"Priority grouping derives colors inline (`'bg-red-500'`, `'bg-blue-500'`, etc.) instead of referencing a shared constant, duplicating the color logic from `PRIORITY_COLORS` at the top.\\\",\\n        \\\"suggestion\\\": \\\"Build a `PRIORITY_COLORS_GROUP` map at the top and reuse it here.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Kanban board renders correctly but has a loose-null comparison risk on assignee filtering, a magic layout height, and color logic duplication.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"frontend/src/components/tickets/sla-timer.tsx\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 49,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"SLA hour values in `SLA_HOURS` are hardcoded to match the dropdown labels and are not validated against the backend enum \u2014 drift will silently produce wrong SLA windows.\\\",\\n        \\\"suggestion\\\": \\\"Fetch SLA config from the backend or at minimum validate `slaLevel` against an allowed set before using it.\\\"\\n      },\\n      {\\n        \\\"line\\\": 32,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"`Date.now()` is captured on every render while `setInterval` only fires every 60 seconds \u2014 between ticks the countdown can be off by up to 59 seconds.\\\",\\n        \\\"suggestion\\\": \\\"Store `Date.now()` at tick time inside the interval callback, then use a ref or state to drive the display, so the countdown advances smoothly.\\\"\\n      },\\n      {\\n        \\\"line\\\": 21,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"`Math.abs(totalMs)` is called before checking sign \u2014 the intent is non-obvious and the expression reads as though the negative case is being handled incorrectly.\\\",\\n        \\\"suggestion\\\": \\\"Move the abs inside `formatRemaining` or clarify: `const positiveMs = totalMs < 0 ? totalMs : totalMs` (no-op rename) so the sign check is clearly intentional.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"SLA timer logic is correct but relies on hardcoded SLA hour values and has a minor timing staleness between renders and interval ticks.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"frontend/src/components/tickets/ticket-form-dialog.tsx\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 58,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"`customer_id` defaults to `0`, but the hidden input's validation rejects `v > 0` \u2014 meaning the form starts in a permanently invalid state for that field, preventing submission until the user selects a customer.\\\",\\n        \\\"suggestion\\\": \\\"Use `undefined` instead of `0` as the default: `customer_id: initialData?.customer_id ?? undefined`.\\\"\\n      },\\n      {\\n        \\\"line\\\": 74,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"`useEffect` on `[initialData, reset]` uses reference equality \u2014 if a parent passes a new object with identical values, the form will not reset.\\\",\\n        \\\"suggestion\\\": \\\"Include the ticket ID or a version stamp in the dependency array, or use `key` prop on the dialog to force remount on entity change.\\\"\\n      },\\n      {\\n        \\\"line\\\": 44,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"`useCustomers(1, 100)` hardcodes page size 100 with no pagination controls \u2014 if a tenant exceeds 100 customers the dropdown silently truncates.\\\",\\n        \\\"suggestion\\\": \\\"Extract `100` to a named constant `MAX_CUSTOMERS_DROPDOWN = 100` and add a comment noting this is a UX trade-off.\\\"\\n      },\\n      {\\n        \\\"line\\\": 65,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"`reset()` is called both in `useEffect` (line 65) and in `handleClose(false)` (line 110), creating a double-reset path that is harmless but redundant.\\\",\\n        \\\"suggestion\\\": \\\"Remove the `useEffect` and rely solely on `handleClose` to reset, or rely solely on `useEffect` and remove the reset from `handleClose`.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Ticket form dialog has a functional bug where `customer_id` defaults to `0` and always fails its own validation, plus a stale-closure risk in the reset effect.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"frontend/src/lib/api/queries.ts\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 433,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"`useReminders` does not type its return as `ApiEnvelope<T>` unlike every other query in this file, creating an implicit `any`-like contract and breaking type consistency.\\\",\\n        \\\"suggestion\\\": \\\"Add generic: `apiClient.get<ApiEnvelope<Record<string, unknown>>>('/api/v1/reminders?upcoming_only=${upcomingOnly}', token ?? undefined)`.\\\"\\n      },\\n      {\\n        \\\"line\\\": 72,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"`useSearchCustomers` uses a hardcoded string query key `['customers', 'search', keyword]` instead of a `qk` entry, risking cache incoherence if other hooks query the same keyspace.\\\",\\n        \\\"suggestion\\\": \\\"Add `searchCustomers: (keyword: string) => ['customers', 'search', keyword] as const` to the `qk` object and use it here.\\\"\\n      },\\n      {\\n        \\\"line\\\": 382,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"`useActivity` uses a literal inline key `['activity', id]` instead of a `qk` entry, inconsistent with the rest of the file.\\\",\\n        \\\"suggestion\\\": \\\"Add `activity: (id: number) => ['activity', id] as const` to `qk` and use it here.\\\"\\n      },\\n      {\\n        \\\"line\\\": 195,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"`useAddReply` only invalidates `qk.ticketReplies(vars.ticketId)` on success but does not invalidate the parent ticket query (`qk.ticket(id)`), so ticket-level views may show stale reply counts.\\\",\\n        \\\"suggestion\\\": \\\"Add `qc.invalidateQueries({ queryKey: qk.ticket(vars.ticketId) })` in `onSuccess`.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Query hooks are well-structured overall but `useReminders` lacks generic typing, two hooks use hardcoded query keys outside the `qk` registry, and `useAddReply` misses a ticket-level cache invalidation.\\\"\\n  }\\n]\",\"stop_reason\":\"end_turn\",\"session_id\":\"9c234d47-312b-4636-a451-5e36b754888f\",\"total_cost_usd\":0.19500299999999998,\"usage\":{\"input_tokens\":41472,\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":31040,\"output_tokens\":4085,\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":0,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"\",\"iterations\":[],\"speed\":\"standard\"},\"modelUsage\":{\"claude-sonnet-4-6\":{\"inputTokens\":41472,\"outputTokens\":4085,\"cacheReadInputTokens\":31040,\"cacheCreationInputTokens\":0,\"webSearchRequests\":0,\"costUSD\":0.19500299999999998,\"contextWindow\":200000,\"maxOutputTokens\":32000}},\"permission_denials\":[],\"terminal_reason\":\"completed\",\"fast_mode_state\":\"off\",\"uuid\":\"9a1ed4d3-111c-40d6-829f-ebe3be6c7f52\"}\n",
-        "parsed": {
-          "filename": "frontend/src/lib/api/queries.ts",
-          "issues": [
-            {
-              "line": 433,
-              "severity": "warning",
-              "message": "`useReminders` does not type its return as `ApiEnvelope<T>` unlike every other query in this file, creating an implicit `any`-like contract and breaking type consistency.",
-              "suggestion": "Add generic: `apiClient.get<ApiEnvelope<Record<string, unknown>>>('/api/v1/reminders?upcoming_only=${upcomingOnly}', token ?? undefined)`."
-            },
-            {
-              "line": 72,
-              "severity": "info",
-              "message": "`useSearchCustomers` uses a hardcoded string query key `['customers', 'search', keyword]` instead of a `qk` entry, risking cache incoherence if other hooks query the same keyspace.",
-              "suggestion": "Add `searchCustomers: (keyword: string) => ['customers', 'search', keyword] as const` to the `qk` object and use it here."
-            },
-            {
-              "line": 382,
-              "severity": "info",
-              "message": "`useActivity` uses a literal inline key `['activity', id]` instead of a `qk` entry, inconsistent with the rest of the file.",
-              "suggestion": "Add `activity: (id: number) => ['activity', id] as const` to `qk` and use it here."
-            },
-            {
-              "line": 195,
-              "severity": "info",
-              "message": "`useAddReply` only invalidates `qk.ticketReplies(vars.ticketId)` on success but does not invalidate the parent ticket query (`qk.ticket(id)`), so ticket-level views may show stale reply counts.",
-              "suggestion": "Add `qc.invalidateQueries({ queryKey: qk.ticket(vars.ticketId) })` in `onSuccess`."
-            }
-          ],
-          "summary": "Query hooks are well-structured overall but `useReminders` lacks generic typing, two hooks use hardcoded query keys outside the `qk` registry, and `useAddReply` misses a ticket-level cache invalidation."
-        }
-      },
-      {
-        "file": "pyproject.toml",
-        "returncode": 0,
-        "output": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"api_error_status\":null,\"duration_ms\":80316,\"duration_api_ms\":80219,\"num_turns\":5,\"result\":\"\\n\\n[\\n  {\\n    \\\"filename\\\": \\\"pyproject.toml\\\",\\n    \\\"issues\\\": [],\\n    \\\"summary\\\": \\\"Standard project configuration with proper dev dependencies and ruff/mypy tool configs; no issues found.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"src/api/routers/tickets.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 7,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"HTTPException is imported but never used \u2014 project uses global AppException handler, not manual HTTPException raises.\\\",\\n        \\\"suggestion\\\": \\\"Remove `HTTPException` from the import list on line 7.\\\"\\n      },\\n      {\\n        \\\"line\\\": 65,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"TicketUpdate.assigned_to accepts 0 (unassigned) but TicketAssign.assignee_id enforces ge=1 \u2014 inconsistent semantics for the same domain concept across two endpoints.\\\",\\n        \\\"suggestion\\\": \\\"Align TicketAssign.assignee_id with the same semantics as TicketUpdate.assigned_to if unassignment (0) is a valid operation; otherwise add a comment documenting the intentional restriction.\\\"\\n      },\\n      {\\n        \\\"line\\\": 305,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"bulk_update_tickets has no transaction boundary \u2014 if the process crashes or an exception occurs mid-loop, some tickets are updated and others are not, leaving data in a partial state with no rollback.\\\",\\n        \\\"suggestion\\\": \\\"Wrap the pre-validation loop and all updates in a single transaction. Alternatively, add a comment explicitly documenting this non-atomic behavior and ensure callers understand partial failure is possible.\\\"\\n      },\\n      {\\n        \\\"line\\\": 306,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"N+1 query pattern: pre-validation calls get_ticket for every ticket_id in body.ticket_ids sequentially, then update_ticket calls _fetch again per ticket \u2014 2N queries for N tickets.\\\",\\n        \\\"suggestion\\\": \\\"Replace the per-ticket pre-validation loop with a single query: SELECT id FROM ticket_models WHERE id IN (ticket_ids) AND tenant_id = ctx.tenant_id, then assert all requested IDs are present. This halves the query count.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Router follows conventions correctly (serialization in router, session injection via Depends, AppException handling), but bulk_update lacks transaction safety and has N+1 query overhead.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"src/services/ticket_service.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 20,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"_AGENT_POOL = (1, 2, 3) hardcodes user IDs 1/2/3 with no existence check \u2014 auto-assignment will silently fail (FK violation or 500) if those IDs do not exist in the users table for a given tenant.\\\",\\n        \\\"suggestion\\\": \\\"Query the users table to verify IDs in _AGENT_POOL exist and have role='agent' before using them, or refactor _next_agent to dynamically select from actual agent users in the DB.\\\"\\n      },\\n      {\\n        \\\"line\\\": 446,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"get_ticket_activity duplicates the tenant_id filter in the second where clause \u2014 the preceding _fetch(ticket_id, tenant_id) call already guarantees the ticket exists and belongs to the tenant, so this filter is redundant.\\\",\\n        \\\"suggestion\\\": \\\"Remove the `ActivityModel.tenant_id == tenant_id` clause from the second where() call and simplify the query structure for clarity.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Service follows router-level conventions (flush-only, raises NotFoundException, returns ORM objects). Critical issue: hardcoded agent pool IDs with no DB validation will cause FK errors in production.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"tests/integration/test_tickets_integration.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 151,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"test_update_ticket only verifies subject and description changes \u2014 priority and channel updates are never exercised, leaving that code path untested against the real DB.\\\",\\n        \\\"suggestion\\\": \\\"Add assertions to test_update_ticket that update and verify priority and channel values (e.g., priority=high, channel=chat) to ensure the update_ticket enum coercion works correctly with a real DB.\\\"\\n      },\\n      {\\n        \\\"line\\\": 292,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"No integration test exists for bulk_update_tickets \u2014 a critical endpoint with pre-validation + sequential updates has zero test coverage despite being the most complex write operation in this router.\\\",\\n        \\\"suggestion\\\": \\\"Add TestTicketBulkUpdate class with a test that creates 3 tickets, calls bulk update to reassign them, and verifies all three were updated atomically (or documents partial-failure behavior if non-atomic is intentional).\\\"\\n      },\\n      {\\n        \\\"line\\\": 250,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"test_auto_assign only asserts that assigned_to is an int \u2014 it does not verify the assigned agent ID actually exists in the users table, so if _AGENT_POOL references non-existent IDs, this test passes but auto-assignment would fail in production.\\\",\\n        \\\"suggestion\\\": \\\"Add a post-creation DB query to verify the assigned_to ID corresponds to a real user row in the users table, or seed known agent user IDs and assert assigned_to matches one of them.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Integration tests follow project conventions (real DB via fixtures, no mocks, seeds cross-service data). Critical gap: bulk_update_tickets has no test; test_update_ticket omits priority and channel coverage.\\\"\\n  }\\n]\",\"stop_reason\":\"end_turn\",\"session_id\":\"e7ca5cf7-18e5-4baf-9ac4-000212ad988f\",\"total_cost_usd\":0.1900746,\"usage\":{\"input_tokens\":42142,\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":30912,\"output_tokens\":3625,\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":0,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"\",\"iterations\":[],\"speed\":\"standard\"},\"modelUsage\":{\"claude-sonnet-4-6\":{\"inputTokens\":42142,\"outputTokens\":3625,\"cacheReadInputTokens\":30912,\"cacheCreationInputTokens\":0,\"webSearchRequests\":0,\"costUSD\":0.1900746,\"contextWindow\":200000,\"maxOutputTokens\":32000}},\"permission_denials\":[],\"terminal_reason\":\"completed\",\"fast_mode_state\":\"off\",\"uuid\":\"e0189dad-9ad9-464e-8b50-f7b077dc8885\"}\n",
-        "parsed": {
-          "filename": "pyproject.toml",
-          "issues": [],
-          "summary": "Standard project configuration with proper dev dependencies and ruff/mypy tool configs; no issues found."
-        }
-      },
-      {
-        "file": "src/api/routers/tickets.py",
-        "returncode": 0,
-        "output": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"api_error_status\":null,\"duration_ms\":80316,\"duration_api_ms\":80219,\"num_turns\":5,\"result\":\"\\n\\n[\\n  {\\n    \\\"filename\\\": \\\"pyproject.toml\\\",\\n    \\\"issues\\\": [],\\n    \\\"summary\\\": \\\"Standard project configuration with proper dev dependencies and ruff/mypy tool configs; no issues found.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"src/api/routers/tickets.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 7,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"HTTPException is imported but never used \u2014 project uses global AppException handler, not manual HTTPException raises.\\\",\\n        \\\"suggestion\\\": \\\"Remove `HTTPException` from the import list on line 7.\\\"\\n      },\\n      {\\n        \\\"line\\\": 65,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"TicketUpdate.assigned_to accepts 0 (unassigned) but TicketAssign.assignee_id enforces ge=1 \u2014 inconsistent semantics for the same domain concept across two endpoints.\\\",\\n        \\\"suggestion\\\": \\\"Align TicketAssign.assignee_id with the same semantics as TicketUpdate.assigned_to if unassignment (0) is a valid operation; otherwise add a comment documenting the intentional restriction.\\\"\\n      },\\n      {\\n        \\\"line\\\": 305,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"bulk_update_tickets has no transaction boundary \u2014 if the process crashes or an exception occurs mid-loop, some tickets are updated and others are not, leaving data in a partial state with no rollback.\\\",\\n        \\\"suggestion\\\": \\\"Wrap the pre-validation loop and all updates in a single transaction. Alternatively, add a comment explicitly documenting this non-atomic behavior and ensure callers understand partial failure is possible.\\\"\\n      },\\n      {\\n        \\\"line\\\": 306,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"N+1 query pattern: pre-validation calls get_ticket for every ticket_id in body.ticket_ids sequentially, then update_ticket calls _fetch again per ticket \u2014 2N queries for N tickets.\\\",\\n        \\\"suggestion\\\": \\\"Replace the per-ticket pre-validation loop with a single query: SELECT id FROM ticket_models WHERE id IN (ticket_ids) AND tenant_id = ctx.tenant_id, then assert all requested IDs are present. This halves the query count.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Router follows conventions correctly (serialization in router, session injection via Depends, AppException handling), but bulk_update lacks transaction safety and has N+1 query overhead.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"src/services/ticket_service.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 20,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"_AGENT_POOL = (1, 2, 3) hardcodes user IDs 1/2/3 with no existence check \u2014 auto-assignment will silently fail (FK violation or 500) if those IDs do not exist in the users table for a given tenant.\\\",\\n        \\\"suggestion\\\": \\\"Query the users table to verify IDs in _AGENT_POOL exist and have role='agent' before using them, or refactor _next_agent to dynamically select from actual agent users in the DB.\\\"\\n      },\\n      {\\n        \\\"line\\\": 446,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"get_ticket_activity duplicates the tenant_id filter in the second where clause \u2014 the preceding _fetch(ticket_id, tenant_id) call already guarantees the ticket exists and belongs to the tenant, so this filter is redundant.\\\",\\n        \\\"suggestion\\\": \\\"Remove the `ActivityModel.tenant_id == tenant_id` clause from the second where() call and simplify the query structure for clarity.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Service follows router-level conventions (flush-only, raises NotFoundException, returns ORM objects). Critical issue: hardcoded agent pool IDs with no DB validation will cause FK errors in production.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"tests/integration/test_tickets_integration.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 151,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"test_update_ticket only verifies subject and description changes \u2014 priority and channel updates are never exercised, leaving that code path untested against the real DB.\\\",\\n        \\\"suggestion\\\": \\\"Add assertions to test_update_ticket that update and verify priority and channel values (e.g., priority=high, channel=chat) to ensure the update_ticket enum coercion works correctly with a real DB.\\\"\\n      },\\n      {\\n        \\\"line\\\": 292,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"No integration test exists for bulk_update_tickets \u2014 a critical endpoint with pre-validation + sequential updates has zero test coverage despite being the most complex write operation in this router.\\\",\\n        \\\"suggestion\\\": \\\"Add TestTicketBulkUpdate class with a test that creates 3 tickets, calls bulk update to reassign them, and verifies all three were updated atomically (or documents partial-failure behavior if non-atomic is intentional).\\\"\\n      },\\n      {\\n        \\\"line\\\": 250,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"test_auto_assign only asserts that assigned_to is an int \u2014 it does not verify the assigned agent ID actually exists in the users table, so if _AGENT_POOL references non-existent IDs, this test passes but auto-assignment would fail in production.\\\",\\n        \\\"suggestion\\\": \\\"Add a post-creation DB query to verify the assigned_to ID corresponds to a real user row in the users table, or seed known agent user IDs and assert assigned_to matches one of them.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Integration tests follow project conventions (real DB via fixtures, no mocks, seeds cross-service data). Critical gap: bulk_update_tickets has no test; test_update_ticket omits priority and channel coverage.\\\"\\n  }\\n]\",\"stop_reason\":\"end_turn\",\"session_id\":\"e7ca5cf7-18e5-4baf-9ac4-000212ad988f\",\"total_cost_usd\":0.1900746,\"usage\":{\"input_tokens\":42142,\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":30912,\"output_tokens\":3625,\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":0,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"\",\"iterations\":[],\"speed\":\"standard\"},\"modelUsage\":{\"claude-sonnet-4-6\":{\"inputTokens\":42142,\"outputTokens\":3625,\"cacheReadInputTokens\":30912,\"cacheCreationInputTokens\":0,\"webSearchRequests\":0,\"costUSD\":0.1900746,\"contextWindow\":200000,\"maxOutputTokens\":32000}},\"permission_denials\":[],\"terminal_reason\":\"completed\",\"fast_mode_state\":\"off\",\"uuid\":\"e0189dad-9ad9-464e-8b50-f7b077dc8885\"}\n",
-        "parsed": {
-          "filename": "src/api/routers/tickets.py",
-          "issues": [
-            {
-              "line": 7,
-              "severity": "info",
-              "message": "HTTPException is imported but never used \u2014 project uses global AppException handler, not manual HTTPException raises.",
-              "suggestion": "Remove `HTTPException` from the import list on line 7."
-            },
-            {
-              "line": 65,
-              "severity": "warning",
-              "message": "TicketUpdate.assigned_to accepts 0 (unassigned) but TicketAssign.assignee_id enforces ge=1 \u2014 inconsistent semantics for the same domain concept across two endpoints.",
-              "suggestion": "Align TicketAssign.assignee_id with the same semantics as TicketUpdate.assigned_to if unassignment (0) is a valid operation; otherwise add a comment documenting the intentional restriction."
-            },
-            {
-              "line": 305,
-              "severity": "critical",
-              "message": "bulk_update_tickets has no transaction boundary \u2014 if the process crashes or an exception occurs mid-loop, some tickets are updated and others are not, leaving data in a partial state with no rollback.",
-              "suggestion": "Wrap the pre-validation loop and all updates in a single transaction. Alternatively, add a comment explicitly documenting this non-atomic behavior and ensure callers understand partial failure is possible."
-            },
-            {
-              "line": 306,
-              "severity": "warning",
-              "message": "N+1 query pattern: pre-validation calls get_ticket for every ticket_id in body.ticket_ids sequentially, then update_ticket calls _fetch again per ticket \u2014 2N queries for N tickets.",
-              "suggestion": "Replace the per-ticket pre-validation loop with a single query: SELECT id FROM ticket_models WHERE id IN (ticket_ids) AND tenant_id = ctx.tenant_id, then assert all requested IDs are present. This halves the query count."
-            }
-          ],
-          "summary": "Router follows conventions correctly (serialization in router, session injection via Depends, AppException handling), but bulk_update lacks transaction safety and has N+1 query overhead."
-        }
-      },
-      {
-        "file": "src/services/ticket_service.py",
-        "returncode": 0,
-        "output": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"api_error_status\":null,\"duration_ms\":80316,\"duration_api_ms\":80219,\"num_turns\":5,\"result\":\"\\n\\n[\\n  {\\n    \\\"filename\\\": \\\"pyproject.toml\\\",\\n    \\\"issues\\\": [],\\n    \\\"summary\\\": \\\"Standard project configuration with proper dev dependencies and ruff/mypy tool configs; no issues found.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"src/api/routers/tickets.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 7,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"HTTPException is imported but never used \u2014 project uses global AppException handler, not manual HTTPException raises.\\\",\\n        \\\"suggestion\\\": \\\"Remove `HTTPException` from the import list on line 7.\\\"\\n      },\\n      {\\n        \\\"line\\\": 65,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"TicketUpdate.assigned_to accepts 0 (unassigned) but TicketAssign.assignee_id enforces ge=1 \u2014 inconsistent semantics for the same domain concept across two endpoints.\\\",\\n        \\\"suggestion\\\": \\\"Align TicketAssign.assignee_id with the same semantics as TicketUpdate.assigned_to if unassignment (0) is a valid operation; otherwise add a comment documenting the intentional restriction.\\\"\\n      },\\n      {\\n        \\\"line\\\": 305,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"bulk_update_tickets has no transaction boundary \u2014 if the process crashes or an exception occurs mid-loop, some tickets are updated and others are not, leaving data in a partial state with no rollback.\\\",\\n        \\\"suggestion\\\": \\\"Wrap the pre-validation loop and all updates in a single transaction. Alternatively, add a comment explicitly documenting this non-atomic behavior and ensure callers understand partial failure is possible.\\\"\\n      },\\n      {\\n        \\\"line\\\": 306,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"N+1 query pattern: pre-validation calls get_ticket for every ticket_id in body.ticket_ids sequentially, then update_ticket calls _fetch again per ticket \u2014 2N queries for N tickets.\\\",\\n        \\\"suggestion\\\": \\\"Replace the per-ticket pre-validation loop with a single query: SELECT id FROM ticket_models WHERE id IN (ticket_ids) AND tenant_id = ctx.tenant_id, then assert all requested IDs are present. This halves the query count.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Router follows conventions correctly (serialization in router, session injection via Depends, AppException handling), but bulk_update lacks transaction safety and has N+1 query overhead.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"src/services/ticket_service.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 20,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"_AGENT_POOL = (1, 2, 3) hardcodes user IDs 1/2/3 with no existence check \u2014 auto-assignment will silently fail (FK violation or 500) if those IDs do not exist in the users table for a given tenant.\\\",\\n        \\\"suggestion\\\": \\\"Query the users table to verify IDs in _AGENT_POOL exist and have role='agent' before using them, or refactor _next_agent to dynamically select from actual agent users in the DB.\\\"\\n      },\\n      {\\n        \\\"line\\\": 446,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"get_ticket_activity duplicates the tenant_id filter in the second where clause \u2014 the preceding _fetch(ticket_id, tenant_id) call already guarantees the ticket exists and belongs to the tenant, so this filter is redundant.\\\",\\n        \\\"suggestion\\\": \\\"Remove the `ActivityModel.tenant_id == tenant_id` clause from the second where() call and simplify the query structure for clarity.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Service follows router-level conventions (flush-only, raises NotFoundException, returns ORM objects). Critical issue: hardcoded agent pool IDs with no DB validation will cause FK errors in production.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"tests/integration/test_tickets_integration.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 151,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"test_update_ticket only verifies subject and description changes \u2014 priority and channel updates are never exercised, leaving that code path untested against the real DB.\\\",\\n        \\\"suggestion\\\": \\\"Add assertions to test_update_ticket that update and verify priority and channel values (e.g., priority=high, channel=chat) to ensure the update_ticket enum coercion works correctly with a real DB.\\\"\\n      },\\n      {\\n        \\\"line\\\": 292,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"No integration test exists for bulk_update_tickets \u2014 a critical endpoint with pre-validation + sequential updates has zero test coverage despite being the most complex write operation in this router.\\\",\\n        \\\"suggestion\\\": \\\"Add TestTicketBulkUpdate class with a test that creates 3 tickets, calls bulk update to reassign them, and verifies all three were updated atomically (or documents partial-failure behavior if non-atomic is intentional).\\\"\\n      },\\n      {\\n        \\\"line\\\": 250,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"test_auto_assign only asserts that assigned_to is an int \u2014 it does not verify the assigned agent ID actually exists in the users table, so if _AGENT_POOL references non-existent IDs, this test passes but auto-assignment would fail in production.\\\",\\n        \\\"suggestion\\\": \\\"Add a post-creation DB query to verify the assigned_to ID corresponds to a real user row in the users table, or seed known agent user IDs and assert assigned_to matches one of them.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Integration tests follow project conventions (real DB via fixtures, no mocks, seeds cross-service data). Critical gap: bulk_update_tickets has no test; test_update_ticket omits priority and channel coverage.\\\"\\n  }\\n]\",\"stop_reason\":\"end_turn\",\"session_id\":\"e7ca5cf7-18e5-4baf-9ac4-000212ad988f\",\"total_cost_usd\":0.1900746,\"usage\":{\"input_tokens\":42142,\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":30912,\"output_tokens\":3625,\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":0,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"\",\"iterations\":[],\"speed\":\"standard\"},\"modelUsage\":{\"claude-sonnet-4-6\":{\"inputTokens\":42142,\"outputTokens\":3625,\"cacheReadInputTokens\":30912,\"cacheCreationInputTokens\":0,\"webSearchRequests\":0,\"costUSD\":0.1900746,\"contextWindow\":200000,\"maxOutputTokens\":32000}},\"permission_denials\":[],\"terminal_reason\":\"completed\",\"fast_mode_state\":\"off\",\"uuid\":\"e0189dad-9ad9-464e-8b50-f7b077dc8885\"}\n",
-        "parsed": {
-          "filename": "src/services/ticket_service.py",
-          "issues": [
-            {
-              "line": 20,
-              "severity": "critical",
-              "message": "_AGENT_POOL = (1, 2, 3) hardcodes user IDs 1/2/3 with no existence check \u2014 auto-assignment will silently fail (FK violation or 500) if those IDs do not exist in the users table for a given tenant.",
-              "suggestion": "Query the users table to verify IDs in _AGENT_POOL exist and have role='agent' before using them, or refactor _next_agent to dynamically select from actual agent users in the DB."
-            },
-            {
-              "line": 446,
-              "severity": "info",
-              "message": "get_ticket_activity duplicates the tenant_id filter in the second where clause \u2014 the preceding _fetch(ticket_id, tenant_id) call already guarantees the ticket exists and belongs to the tenant, so this filter is redundant.",
-              "suggestion": "Remove the `ActivityModel.tenant_id == tenant_id` clause from the second where() call and simplify the query structure for clarity."
-            }
-          ],
-          "summary": "Service follows router-level conventions (flush-only, raises NotFoundException, returns ORM objects). Critical issue: hardcoded agent pool IDs with no DB validation will cause FK errors in production."
-        }
-      },
-      {
-        "file": "tests/integration/test_tickets_integration.py",
-        "returncode": 0,
-        "output": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"api_error_status\":null,\"duration_ms\":80316,\"duration_api_ms\":80219,\"num_turns\":5,\"result\":\"\\n\\n[\\n  {\\n    \\\"filename\\\": \\\"pyproject.toml\\\",\\n    \\\"issues\\\": [],\\n    \\\"summary\\\": \\\"Standard project configuration with proper dev dependencies and ruff/mypy tool configs; no issues found.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"src/api/routers/tickets.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 7,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"HTTPException is imported but never used \u2014 project uses global AppException handler, not manual HTTPException raises.\\\",\\n        \\\"suggestion\\\": \\\"Remove `HTTPException` from the import list on line 7.\\\"\\n      },\\n      {\\n        \\\"line\\\": 65,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"TicketUpdate.assigned_to accepts 0 (unassigned) but TicketAssign.assignee_id enforces ge=1 \u2014 inconsistent semantics for the same domain concept across two endpoints.\\\",\\n        \\\"suggestion\\\": \\\"Align TicketAssign.assignee_id with the same semantics as TicketUpdate.assigned_to if unassignment (0) is a valid operation; otherwise add a comment documenting the intentional restriction.\\\"\\n      },\\n      {\\n        \\\"line\\\": 305,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"bulk_update_tickets has no transaction boundary \u2014 if the process crashes or an exception occurs mid-loop, some tickets are updated and others are not, leaving data in a partial state with no rollback.\\\",\\n        \\\"suggestion\\\": \\\"Wrap the pre-validation loop and all updates in a single transaction. Alternatively, add a comment explicitly documenting this non-atomic behavior and ensure callers understand partial failure is possible.\\\"\\n      },\\n      {\\n        \\\"line\\\": 306,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"N+1 query pattern: pre-validation calls get_ticket for every ticket_id in body.ticket_ids sequentially, then update_ticket calls _fetch again per ticket \u2014 2N queries for N tickets.\\\",\\n        \\\"suggestion\\\": \\\"Replace the per-ticket pre-validation loop with a single query: SELECT id FROM ticket_models WHERE id IN (ticket_ids) AND tenant_id = ctx.tenant_id, then assert all requested IDs are present. This halves the query count.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Router follows conventions correctly (serialization in router, session injection via Depends, AppException handling), but bulk_update lacks transaction safety and has N+1 query overhead.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"src/services/ticket_service.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 20,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"_AGENT_POOL = (1, 2, 3) hardcodes user IDs 1/2/3 with no existence check \u2014 auto-assignment will silently fail (FK violation or 500) if those IDs do not exist in the users table for a given tenant.\\\",\\n        \\\"suggestion\\\": \\\"Query the users table to verify IDs in _AGENT_POOL exist and have role='agent' before using them, or refactor _next_agent to dynamically select from actual agent users in the DB.\\\"\\n      },\\n      {\\n        \\\"line\\\": 446,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"get_ticket_activity duplicates the tenant_id filter in the second where clause \u2014 the preceding _fetch(ticket_id, tenant_id) call already guarantees the ticket exists and belongs to the tenant, so this filter is redundant.\\\",\\n        \\\"suggestion\\\": \\\"Remove the `ActivityModel.tenant_id == tenant_id` clause from the second where() call and simplify the query structure for clarity.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Service follows router-level conventions (flush-only, raises NotFoundException, returns ORM objects). Critical issue: hardcoded agent pool IDs with no DB validation will cause FK errors in production.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"tests/integration/test_tickets_integration.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 151,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"test_update_ticket only verifies subject and description changes \u2014 priority and channel updates are never exercised, leaving that code path untested against the real DB.\\\",\\n        \\\"suggestion\\\": \\\"Add assertions to test_update_ticket that update and verify priority and channel values (e.g., priority=high, channel=chat) to ensure the update_ticket enum coercion works correctly with a real DB.\\\"\\n      },\\n      {\\n        \\\"line\\\": 292,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"No integration test exists for bulk_update_tickets \u2014 a critical endpoint with pre-validation + sequential updates has zero test coverage despite being the most complex write operation in this router.\\\",\\n        \\\"suggestion\\\": \\\"Add TestTicketBulkUpdate class with a test that creates 3 tickets, calls bulk update to reassign them, and verifies all three were updated atomically (or documents partial-failure behavior if non-atomic is intentional).\\\"\\n      },\\n      {\\n        \\\"line\\\": 250,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"test_auto_assign only asserts that assigned_to is an int \u2014 it does not verify the assigned agent ID actually exists in the users table, so if _AGENT_POOL references non-existent IDs, this test passes but auto-assignment would fail in production.\\\",\\n        \\\"suggestion\\\": \\\"Add a post-creation DB query to verify the assigned_to ID corresponds to a real user row in the users table, or seed known agent user IDs and assert assigned_to matches one of them.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Integration tests follow project conventions (real DB via fixtures, no mocks, seeds cross-service data). Critical gap: bulk_update_tickets has no test; test_update_ticket omits priority and channel coverage.\\\"\\n  }\\n]\",\"stop_reason\":\"end_turn\",\"session_id\":\"e7ca5cf7-18e5-4baf-9ac4-000212ad988f\",\"total_cost_usd\":0.1900746,\"usage\":{\"input_tokens\":42142,\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":30912,\"output_tokens\":3625,\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":0,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"\",\"iterations\":[],\"speed\":\"standard\"},\"modelUsage\":{\"claude-sonnet-4-6\":{\"inputTokens\":42142,\"outputTokens\":3625,\"cacheReadInputTokens\":30912,\"cacheCreationInputTokens\":0,\"webSearchRequests\":0,\"costUSD\":0.1900746,\"contextWindow\":200000,\"maxOutputTokens\":32000}},\"permission_denials\":[],\"terminal_reason\":\"completed\",\"fast_mode_state\":\"off\",\"uuid\":\"e0189dad-9ad9-464e-8b50-f7b077dc8885\"}\n",
-        "parsed": {
-          "filename": "tests/integration/test_tickets_integration.py",
-          "issues": [
-            {
-              "line": 151,
-              "severity": "critical",
-              "message": "test_update_ticket only verifies subject and description changes \u2014 priority and channel updates are never exercised, leaving that code path untested against the real DB.",
-              "suggestion": "Add assertions to test_update_ticket that update and verify priority and channel values (e.g., priority=high, channel=chat) to ensure the update_ticket enum coercion works correctly with a real DB."
-            },
-            {
-              "line": 292,
-              "severity": "warning",
-              "message": "No integration test exists for bulk_update_tickets \u2014 a critical endpoint with pre-validation + sequential updates has zero test coverage despite being the most complex write operation in this router.",
-              "suggestion": "Add TestTicketBulkUpdate class with a test that creates 3 tickets, calls bulk update to reassign them, and verifies all three were updated atomically (or documents partial-failure behavior if non-atomic is intentional)."
-            },
-            {
-              "line": 250,
-              "severity": "info",
-              "message": "test_auto_assign only asserts that assigned_to is an int \u2014 it does not verify the assigned agent ID actually exists in the users table, so if _AGENT_POOL references non-existent IDs, this test passes but auto-assignment would fail in production.",
-              "suggestion": "Add a post-creation DB query to verify the assigned_to ID corresponds to a real user row in the users table, or seed known agent user IDs and assert assigned_to matches one of them."
-            }
-          ],
-          "summary": "Integration tests follow project conventions (real DB via fixtures, no mocks, seeds cross-service data). Critical gap: bulk_update_tickets has no test; test_update_ticket omits priority and channel coverage."
-        }
-      },
-      {
-        "file": "tests/unit/test_ticket_service.py",
-        "returncode": 0,
-        "output": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"api_error_status\":null,\"duration_ms\":41207,\"duration_api_ms\":41105,\"num_turns\":3,\"result\":\"\\n\\n[\\n  {\\n    \\\"filename\\\": \\\"tests/unit/test_ticket_service.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 188,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"TestSLABreachDetection tests MockTicketModel.check_sla_breach() \u2014 a mock method, not the real service or ORM model \u2014 providing no coverage of actual SLA logic in TicketService or TicketModel.\\\",\\n        \\\"suggestion\\\": \\\"Move these tests to verify SLA logic in the real TicketService (e.g. a service method that applies SLA rules) or remove them if the logic lives exclusively on the ORM model, in which case they belong in a model unit test.\\\"\\n      },\\n      {\\n        \\\"line\\\": 102,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"MockResult.scalars() returns a MagicMock with a stub all=() but scalars().first() is never called by the tests \u2014 incomplete mock is latent.\\\",\\n        \\\"suggestion\\\": \\\"Add scalars().first() to MockResult to match the full scalars() API if future tests need it, or assert explicitly that only scalar_one_or_none() is used.\\\"\\n      },\\n      {\\n        \\\"line\\\": 85,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"MockRow and MockResult are redefined locally instead of being imported from tests/unit/conftest.py, which already exports them.\\\",\\n        \\\"suggestion\\\": \\\"Replace local MockRow/MockResult with: from tests.unit.conftest import MockRow, MockResult\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Tests for get_ticket_replies and get_ticket_activity are solid; the SLA breach suite tests a mock method rather than real service logic.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"tests/unit/test_tickets_router.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 138,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"get_db is overridden with lambda: MagicMock() \u2014 a new mock instance on every call \u2014 instead of a single shared mock. FastAPI calls get_db multiple times per request in nested dependency resolution; multiple distinct mocks can cause hard-to-reproduce failures.\\\",\\n        \\\"suggestion\\\": \\\"Store the mock session once and reuse it: _mock_session = MagicMock(); app.dependency_overrides[get_db] = lambda: _mock_session\\\"\\n      },\\n      {\\n        \\\"line\\\": 122,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"Service classes are monkeypatched at the module level (api.routers.tickets.TicketService = lambda session: mock_service) rather than via FastAPI's dependency override mechanism, bypassing the normal DI flow.\\\",\\n        \\\"suggestion\\\": \\\"Use FastAPI dependency overrides consistently: define a factory dependency for TicketService and override it, matching how get_db is overridden.\\\"\\n      },\\n      {\\n        \\\"line\\\": 140,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"app.exception_handler(AppException) is registered in every test class's fixture rather than once at conftest.py, causing redundant setup.\\\",\\n        \\\"suggestion\\\": \\\"Move the AppException handler to tests/unit/conftest.py so all router tests inherit it automatically.\\\"\\n      },\\n      {\\n        \\\"line\\\": 494,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"MockActivity is defined inside the test file after most other test classes, while MockTicket and MockReply are defined at module top-level \u2014 inconsistent placement makes the file harder to navigate.\\\",\\n        \\\"suggestion\\\": \\\"Move MockActivity to the module-level MockTicket/MockReply block at the top of the file.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Router tests cover all endpoints well with correct status-code assertions; the main concern is the get_db override creating a fresh MagicMock per call rather than reusing one.\\\"\\n  }\\n]\",\"stop_reason\":\"end_turn\",\"session_id\":\"e62459cf-ec0a-49cf-988c-fb6c2c8f78bc\",\"total_cost_usd\":0.1441536,\"usage\":{\"input_tokens\":36021,\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":33152,\"output_tokens\":1743,\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":0,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"\",\"iterations\":[],\"speed\":\"standard\"},\"modelUsage\":{\"claude-sonnet-4-6\":{\"inputTokens\":36021,\"outputTokens\":1743,\"cacheReadInputTokens\":33152,\"cacheCreationInputTokens\":0,\"webSearchRequests\":0,\"costUSD\":0.1441536,\"contextWindow\":200000,\"maxOutputTokens\":32000}},\"permission_denials\":[],\"terminal_reason\":\"completed\",\"fast_mode_state\":\"off\",\"uuid\":\"7c82d7d1-d2fd-43d2-a44e-820145185360\"}\n",
-        "parsed": {
-          "filename": "tests/unit/test_ticket_service.py",
-          "issues": [
-            {
-              "line": 188,
-              "severity": "warning",
-              "message": "TestSLABreachDetection tests MockTicketModel.check_sla_breach() \u2014 a mock method, not the real service or ORM model \u2014 providing no coverage of actual SLA logic in TicketService or TicketModel.",
-              "suggestion": "Move these tests to verify SLA logic in the real TicketService (e.g. a service method that applies SLA rules) or remove them if the logic lives exclusively on the ORM model, in which case they belong in a model unit test."
-            },
-            {
-              "line": 102,
-              "severity": "info",
-              "message": "MockResult.scalars() returns a MagicMock with a stub all=() but scalars().first() is never called by the tests \u2014 incomplete mock is latent.",
-              "suggestion": "Add scalars().first() to MockResult to match the full scalars() API if future tests need it, or assert explicitly that only scalar_one_or_none() is used."
-            },
             {
               "line": 85,
               "severity": "info",
-              "message": "MockRow and MockResult are redefined locally instead of being imported from tests/unit/conftest.py, which already exports them.",
-              "suggestion": "Replace local MockRow/MockResult with: from tests.unit.conftest import MockRow, MockResult"
+              "message": "ISSUE variable is unquoted, causing failure if the value is empty or contains spaces.",
+              "suggestion": "Quote the variable: $(ISSUE) \u2192 \"$(ISSUE)\""
             }
           ],
-          "summary": "Tests for get_ticket_replies and get_ticket_activity are solid; the SLA breach suite tests a mock method rather than real service logic."
+          "summary": "Well-structured build file covering tests, lint, format, DB, and migrations with cross-platform Python path support."
         }
       },
       {
-        "file": "tests/unit/test_tickets_router.py",
+        "file": "scripts/ci/claude_code_review.py",
         "returncode": 0,
-        "output": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"api_error_status\":null,\"duration_ms\":41207,\"duration_api_ms\":41105,\"num_turns\":3,\"result\":\"\\n\\n[\\n  {\\n    \\\"filename\\\": \\\"tests/unit/test_ticket_service.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 188,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"TestSLABreachDetection tests MockTicketModel.check_sla_breach() \u2014 a mock method, not the real service or ORM model \u2014 providing no coverage of actual SLA logic in TicketService or TicketModel.\\\",\\n        \\\"suggestion\\\": \\\"Move these tests to verify SLA logic in the real TicketService (e.g. a service method that applies SLA rules) or remove them if the logic lives exclusively on the ORM model, in which case they belong in a model unit test.\\\"\\n      },\\n      {\\n        \\\"line\\\": 102,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"MockResult.scalars() returns a MagicMock with a stub all=() but scalars().first() is never called by the tests \u2014 incomplete mock is latent.\\\",\\n        \\\"suggestion\\\": \\\"Add scalars().first() to MockResult to match the full scalars() API if future tests need it, or assert explicitly that only scalar_one_or_none() is used.\\\"\\n      },\\n      {\\n        \\\"line\\\": 85,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"MockRow and MockResult are redefined locally instead of being imported from tests/unit/conftest.py, which already exports them.\\\",\\n        \\\"suggestion\\\": \\\"Replace local MockRow/MockResult with: from tests.unit.conftest import MockRow, MockResult\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Tests for get_ticket_replies and get_ticket_activity are solid; the SLA breach suite tests a mock method rather than real service logic.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"tests/unit/test_tickets_router.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 138,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"get_db is overridden with lambda: MagicMock() \u2014 a new mock instance on every call \u2014 instead of a single shared mock. FastAPI calls get_db multiple times per request in nested dependency resolution; multiple distinct mocks can cause hard-to-reproduce failures.\\\",\\n        \\\"suggestion\\\": \\\"Store the mock session once and reuse it: _mock_session = MagicMock(); app.dependency_overrides[get_db] = lambda: _mock_session\\\"\\n      },\\n      {\\n        \\\"line\\\": 122,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"Service classes are monkeypatched at the module level (api.routers.tickets.TicketService = lambda session: mock_service) rather than via FastAPI's dependency override mechanism, bypassing the normal DI flow.\\\",\\n        \\\"suggestion\\\": \\\"Use FastAPI dependency overrides consistently: define a factory dependency for TicketService and override it, matching how get_db is overridden.\\\"\\n      },\\n      {\\n        \\\"line\\\": 140,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"app.exception_handler(AppException) is registered in every test class's fixture rather than once at conftest.py, causing redundant setup.\\\",\\n        \\\"suggestion\\\": \\\"Move the AppException handler to tests/unit/conftest.py so all router tests inherit it automatically.\\\"\\n      },\\n      {\\n        \\\"line\\\": 494,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"MockActivity is defined inside the test file after most other test classes, while MockTicket and MockReply are defined at module top-level \u2014 inconsistent placement makes the file harder to navigate.\\\",\\n        \\\"suggestion\\\": \\\"Move MockActivity to the module-level MockTicket/MockReply block at the top of the file.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Router tests cover all endpoints well with correct status-code assertions; the main concern is the get_db override creating a fresh MagicMock per call rather than reusing one.\\\"\\n  }\\n]\",\"stop_reason\":\"end_turn\",\"session_id\":\"e62459cf-ec0a-49cf-988c-fb6c2c8f78bc\",\"total_cost_usd\":0.1441536,\"usage\":{\"input_tokens\":36021,\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":33152,\"output_tokens\":1743,\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":0,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"\",\"iterations\":[],\"speed\":\"standard\"},\"modelUsage\":{\"claude-sonnet-4-6\":{\"inputTokens\":36021,\"outputTokens\":1743,\"cacheReadInputTokens\":33152,\"cacheCreationInputTokens\":0,\"webSearchRequests\":0,\"costUSD\":0.1441536,\"contextWindow\":200000,\"maxOutputTokens\":32000}},\"permission_denials\":[],\"terminal_reason\":\"completed\",\"fast_mode_state\":\"off\",\"uuid\":\"7c82d7d1-d2fd-43d2-a44e-820145185360\"}\n",
+        "output": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"api_error_status\":null,\"duration_ms\":139644,\"duration_api_ms\":137997,\"num_turns\":9,\"result\":\"\\n\\n[\\n  {\\n    \\\"filename\\\": \\\"Makefile\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 85,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"ISSUE variable is unquoted, causing failure if the value is empty or contains spaces.\\\",\\n        \\\"suggestion\\\": \\\"Quote the variable: $(ISSUE) \u2192 \\\\\\\"$(ISSUE)\\\\\\\"\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Well-structured build file covering tests, lint, format, DB, and migrations with cross-platform Python path support.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"scripts/ci/claude_code_review.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 341,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"Bare `except Exception:` catches all subclasses including `KeyboardInterrupt` and `SystemExit`, masking serious failures during comment cleanup. (Rule 25)\\\",\\n        \\\"suggestion\\\": \\\"Replace with `except (HTTPError, URLError, TimeoutError, OSError) as exc:` to match the pattern used elsewhere in the file.\\\"\\n      },\\n      {\\n        \\\"line\\\": 625,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"Scanning text character-by-character with `enumerate(text)` to find the first `{` is O(N) on the full input and will fail for JSON where the object is not the first occurrence after the loop advances. (Rule 31)\\\",\\n        \\\"suggestion\\\": \\\"Use `text.find('{')` directly instead of a loop over characters.\\\"\\n      },\\n      {\\n        \\\"line\\\": 265,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"In `GitHubClient.request`, `text` can be empty string on a 204 No Content response; the `json.loads('')` call is guarded by a ternary but the branch is dead code that should be removed for clarity.\\\",\\n        \\\"suggestion\\\": \\\"Remove the ternary; return `None` unconditionally when `text` is empty.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Full-featured GitHub PR review pipeline: runs Claude per-file, parses structured JSON from model output, and posts/upser ts summary + inline comments with deduplication.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"scripts/ci/clear_triage_labels.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 29,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"`run_gh` uses `check=False` and discards non-zero exit codes silently; callers log `r.stderr` but execution continues regardless.\\\",\\n        \\\"suggestion\\\": \\\"Consider adding `check=True` or at minimum a warning log when `r.returncode != 0` before returning.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Lightweight utility to strip triage labels from all open GitHub issues using the `gh` CLI; handles dry-run mode, OR semantics across labels, and dedupes results.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"scripts/ci/run_code_review.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 607,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"Bare `except Exception:` catches `KeyboardInterrupt` and `SystemExit` which should terminate immediately; this masks serious failures and prevents clean shutdown. (Rule 25)\\\",\\n        \\\"suggestion\\\": \\\"Reorder the handlers so `except KeyboardInterrupt` comes before a general `except Exception`, or narrow the general clause to `except (HTTPError, URLError, TimeoutError, OSError, ValueError)`.\\\"\\n      },\\n      {\\n        \\\"line\\\": 213,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"Module-level `import re` exists at line 8, yet `stage_fetch` re-imports it locally at line 213 \u2014 redundant import executed on every function call. (Rule 110)\\\",\\n        \\\"suggestion\\\": \\\"Delete `import re` from inside `stage_fetch` and rely on the module-level import.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Six-stage CLI orchestrator (INIT \u2192 FETCH \u2192 DIFF \u2192 REVIEW \u2192 PERSIST \u2192 COMMENT) that wraps `claude_code_review.py` with tty-colored progress output, dry-run support, and GitHub Actions integration.\\\"\\n  }\\n]\",\"stop_reason\":\"end_turn\",\"session_id\":\"c3514dd8-9505-49a5-891e-963cfd2e6871\",\"total_cost_usd\":0.29464260000000003,\"usage\":{\"input_tokens\":48289,\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":232352,\"output_tokens\":5338,\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":0,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"\",\"iterations\":[],\"speed\":\"standard\"},\"modelUsage\":{\"claude-sonnet-4-6\":{\"inputTokens\":48289,\"outputTokens\":5338,\"cacheReadInputTokens\":232352,\"cacheCreationInputTokens\":0,\"webSearchRequests\":0,\"costUSD\":0.29464260000000003,\"contextWindow\":200000,\"maxOutputTokens\":32000}},\"permission_denials\":[],\"terminal_reason\":\"completed\",\"fast_mode_state\":\"off\",\"uuid\":\"2d8880f6-fb04-46a9-944e-cdf7791aeb74\"}\n",
         "parsed": {
-          "filename": "tests/unit/test_tickets_router.py",
+          "filename": "scripts/ci/claude_code_review.py",
           "issues": [
             {
-              "line": 138,
+              "line": 341,
+              "severity": "critical",
+              "message": "Bare `except Exception:` catches all subclasses including `KeyboardInterrupt` and `SystemExit`, masking serious failures during comment cleanup. (Rule 25)",
+              "suggestion": "Replace with `except (HTTPError, URLError, TimeoutError, OSError) as exc:` to match the pattern used elsewhere in the file."
+            },
+            {
+              "line": 625,
               "severity": "warning",
-              "message": "get_db is overridden with lambda: MagicMock() \u2014 a new mock instance on every call \u2014 instead of a single shared mock. FastAPI calls get_db multiple times per request in nested dependency resolution; multiple distinct mocks can cause hard-to-reproduce failures.",
-              "suggestion": "Store the mock session once and reuse it: _mock_session = MagicMock(); app.dependency_overrides[get_db] = lambda: _mock_session"
+              "message": "Scanning text character-by-character with `enumerate(text)` to find the first `{` is O(N) on the full input and will fail for JSON where the object is not the first occurrence after the loop advances. (Rule 31)",
+              "suggestion": "Use `text.find('{')` directly instead of a loop over characters."
             },
             {
-              "line": 122,
+              "line": 265,
               "severity": "info",
-              "message": "Service classes are monkeypatched at the module level (api.routers.tickets.TicketService = lambda session: mock_service) rather than via FastAPI's dependency override mechanism, bypassing the normal DI flow.",
-              "suggestion": "Use FastAPI dependency overrides consistently: define a factory dependency for TicketService and override it, matching how get_db is overridden."
-            },
-            {
-              "line": 140,
-              "severity": "info",
-              "message": "app.exception_handler(AppException) is registered in every test class's fixture rather than once at conftest.py, causing redundant setup.",
-              "suggestion": "Move the AppException handler to tests/unit/conftest.py so all router tests inherit it automatically."
-            },
-            {
-              "line": 494,
-              "severity": "info",
-              "message": "MockActivity is defined inside the test file after most other test classes, while MockTicket and MockReply are defined at module top-level \u2014 inconsistent placement makes the file harder to navigate.",
-              "suggestion": "Move MockActivity to the module-level MockTicket/MockReply block at the top of the file."
+              "message": "In `GitHubClient.request`, `text` can be empty string on a 204 No Content response; the `json.loads('')` call is guarded by a ternary but the branch is dead code that should be removed for clarity.",
+              "suggestion": "Remove the ternary; return `None` unconditionally when `text` is empty."
             }
           ],
-          "summary": "Router tests cover all endpoints well with correct status-code assertions; the main concern is the get_db override creating a fresh MagicMock per call rather than reusing one."
+          "summary": "Full-featured GitHub PR review pipeline: runs Claude per-file, parses structured JSON from model output, and posts/upser ts summary + inline comments with deduplication."
+        }
+      },
+      {
+        "file": "scripts/ci/clear_triage_labels.py",
+        "returncode": 0,
+        "output": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"api_error_status\":null,\"duration_ms\":139644,\"duration_api_ms\":137997,\"num_turns\":9,\"result\":\"\\n\\n[\\n  {\\n    \\\"filename\\\": \\\"Makefile\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 85,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"ISSUE variable is unquoted, causing failure if the value is empty or contains spaces.\\\",\\n        \\\"suggestion\\\": \\\"Quote the variable: $(ISSUE) \u2192 \\\\\\\"$(ISSUE)\\\\\\\"\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Well-structured build file covering tests, lint, format, DB, and migrations with cross-platform Python path support.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"scripts/ci/claude_code_review.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 341,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"Bare `except Exception:` catches all subclasses including `KeyboardInterrupt` and `SystemExit`, masking serious failures during comment cleanup. (Rule 25)\\\",\\n        \\\"suggestion\\\": \\\"Replace with `except (HTTPError, URLError, TimeoutError, OSError) as exc:` to match the pattern used elsewhere in the file.\\\"\\n      },\\n      {\\n        \\\"line\\\": 625,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"Scanning text character-by-character with `enumerate(text)` to find the first `{` is O(N) on the full input and will fail for JSON where the object is not the first occurrence after the loop advances. (Rule 31)\\\",\\n        \\\"suggestion\\\": \\\"Use `text.find('{')` directly instead of a loop over characters.\\\"\\n      },\\n      {\\n        \\\"line\\\": 265,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"In `GitHubClient.request`, `text` can be empty string on a 204 No Content response; the `json.loads('')` call is guarded by a ternary but the branch is dead code that should be removed for clarity.\\\",\\n        \\\"suggestion\\\": \\\"Remove the ternary; return `None` unconditionally when `text` is empty.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Full-featured GitHub PR review pipeline: runs Claude per-file, parses structured JSON from model output, and posts/upser ts summary + inline comments with deduplication.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"scripts/ci/clear_triage_labels.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 29,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"`run_gh` uses `check=False` and discards non-zero exit codes silently; callers log `r.stderr` but execution continues regardless.\\\",\\n        \\\"suggestion\\\": \\\"Consider adding `check=True` or at minimum a warning log when `r.returncode != 0` before returning.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Lightweight utility to strip triage labels from all open GitHub issues using the `gh` CLI; handles dry-run mode, OR semantics across labels, and dedupes results.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"scripts/ci/run_code_review.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 607,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"Bare `except Exception:` catches `KeyboardInterrupt` and `SystemExit` which should terminate immediately; this masks serious failures and prevents clean shutdown. (Rule 25)\\\",\\n        \\\"suggestion\\\": \\\"Reorder the handlers so `except KeyboardInterrupt` comes before a general `except Exception`, or narrow the general clause to `except (HTTPError, URLError, TimeoutError, OSError, ValueError)`.\\\"\\n      },\\n      {\\n        \\\"line\\\": 213,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"Module-level `import re` exists at line 8, yet `stage_fetch` re-imports it locally at line 213 \u2014 redundant import executed on every function call. (Rule 110)\\\",\\n        \\\"suggestion\\\": \\\"Delete `import re` from inside `stage_fetch` and rely on the module-level import.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Six-stage CLI orchestrator (INIT \u2192 FETCH \u2192 DIFF \u2192 REVIEW \u2192 PERSIST \u2192 COMMENT) that wraps `claude_code_review.py` with tty-colored progress output, dry-run support, and GitHub Actions integration.\\\"\\n  }\\n]\",\"stop_reason\":\"end_turn\",\"session_id\":\"c3514dd8-9505-49a5-891e-963cfd2e6871\",\"total_cost_usd\":0.29464260000000003,\"usage\":{\"input_tokens\":48289,\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":232352,\"output_tokens\":5338,\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":0,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"\",\"iterations\":[],\"speed\":\"standard\"},\"modelUsage\":{\"claude-sonnet-4-6\":{\"inputTokens\":48289,\"outputTokens\":5338,\"cacheReadInputTokens\":232352,\"cacheCreationInputTokens\":0,\"webSearchRequests\":0,\"costUSD\":0.29464260000000003,\"contextWindow\":200000,\"maxOutputTokens\":32000}},\"permission_denials\":[],\"terminal_reason\":\"completed\",\"fast_mode_state\":\"off\",\"uuid\":\"2d8880f6-fb04-46a9-944e-cdf7791aeb74\"}\n",
+        "parsed": {
+          "filename": "scripts/ci/clear_triage_labels.py",
+          "issues": [
+            {
+              "line": 29,
+              "severity": "info",
+              "message": "`run_gh` uses `check=False` and discards non-zero exit codes silently; callers log `r.stderr` but execution continues regardless.",
+              "suggestion": "Consider adding `check=True` or at minimum a warning log when `r.returncode != 0` before returning."
+            }
+          ],
+          "summary": "Lightweight utility to strip triage labels from all open GitHub issues using the `gh` CLI; handles dry-run mode, OR semantics across labels, and dedupes results."
+        }
+      },
+      {
+        "file": "scripts/ci/run_code_review.py",
+        "returncode": 0,
+        "output": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"api_error_status\":null,\"duration_ms\":139644,\"duration_api_ms\":137997,\"num_turns\":9,\"result\":\"\\n\\n[\\n  {\\n    \\\"filename\\\": \\\"Makefile\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 85,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"ISSUE variable is unquoted, causing failure if the value is empty or contains spaces.\\\",\\n        \\\"suggestion\\\": \\\"Quote the variable: $(ISSUE) \u2192 \\\\\\\"$(ISSUE)\\\\\\\"\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Well-structured build file covering tests, lint, format, DB, and migrations with cross-platform Python path support.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"scripts/ci/claude_code_review.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 341,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"Bare `except Exception:` catches all subclasses including `KeyboardInterrupt` and `SystemExit`, masking serious failures during comment cleanup. (Rule 25)\\\",\\n        \\\"suggestion\\\": \\\"Replace with `except (HTTPError, URLError, TimeoutError, OSError) as exc:` to match the pattern used elsewhere in the file.\\\"\\n      },\\n      {\\n        \\\"line\\\": 625,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"Scanning text character-by-character with `enumerate(text)` to find the first `{` is O(N) on the full input and will fail for JSON where the object is not the first occurrence after the loop advances. (Rule 31)\\\",\\n        \\\"suggestion\\\": \\\"Use `text.find('{')` directly instead of a loop over characters.\\\"\\n      },\\n      {\\n        \\\"line\\\": 265,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"In `GitHubClient.request`, `text` can be empty string on a 204 No Content response; the `json.loads('')` call is guarded by a ternary but the branch is dead code that should be removed for clarity.\\\",\\n        \\\"suggestion\\\": \\\"Remove the ternary; return `None` unconditionally when `text` is empty.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Full-featured GitHub PR review pipeline: runs Claude per-file, parses structured JSON from model output, and posts/upser ts summary + inline comments with deduplication.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"scripts/ci/clear_triage_labels.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 29,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"`run_gh` uses `check=False` and discards non-zero exit codes silently; callers log `r.stderr` but execution continues regardless.\\\",\\n        \\\"suggestion\\\": \\\"Consider adding `check=True` or at minimum a warning log when `r.returncode != 0` before returning.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Lightweight utility to strip triage labels from all open GitHub issues using the `gh` CLI; handles dry-run mode, OR semantics across labels, and dedupes results.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"scripts/ci/run_code_review.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 607,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"Bare `except Exception:` catches `KeyboardInterrupt` and `SystemExit` which should terminate immediately; this masks serious failures and prevents clean shutdown. (Rule 25)\\\",\\n        \\\"suggestion\\\": \\\"Reorder the handlers so `except KeyboardInterrupt` comes before a general `except Exception`, or narrow the general clause to `except (HTTPError, URLError, TimeoutError, OSError, ValueError)`.\\\"\\n      },\\n      {\\n        \\\"line\\\": 213,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"Module-level `import re` exists at line 8, yet `stage_fetch` re-imports it locally at line 213 \u2014 redundant import executed on every function call. (Rule 110)\\\",\\n        \\\"suggestion\\\": \\\"Delete `import re` from inside `stage_fetch` and rely on the module-level import.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Six-stage CLI orchestrator (INIT \u2192 FETCH \u2192 DIFF \u2192 REVIEW \u2192 PERSIST \u2192 COMMENT) that wraps `claude_code_review.py` with tty-colored progress output, dry-run support, and GitHub Actions integration.\\\"\\n  }\\n]\",\"stop_reason\":\"end_turn\",\"session_id\":\"c3514dd8-9505-49a5-891e-963cfd2e6871\",\"total_cost_usd\":0.29464260000000003,\"usage\":{\"input_tokens\":48289,\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":232352,\"output_tokens\":5338,\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":0,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"\",\"iterations\":[],\"speed\":\"standard\"},\"modelUsage\":{\"claude-sonnet-4-6\":{\"inputTokens\":48289,\"outputTokens\":5338,\"cacheReadInputTokens\":232352,\"cacheCreationInputTokens\":0,\"webSearchRequests\":0,\"costUSD\":0.29464260000000003,\"contextWindow\":200000,\"maxOutputTokens\":32000}},\"permission_denials\":[],\"terminal_reason\":\"completed\",\"fast_mode_state\":\"off\",\"uuid\":\"2d8880f6-fb04-46a9-944e-cdf7791aeb74\"}\n",
+        "parsed": {
+          "filename": "scripts/ci/run_code_review.py",
+          "issues": [
+            {
+              "line": 607,
+              "severity": "critical",
+              "message": "Bare `except Exception:` catches `KeyboardInterrupt` and `SystemExit` which should terminate immediately; this masks serious failures and prevents clean shutdown. (Rule 25)",
+              "suggestion": "Reorder the handlers so `except KeyboardInterrupt` comes before a general `except Exception`, or narrow the general clause to `except (HTTPError, URLError, TimeoutError, OSError, ValueError)`."
+            },
+            {
+              "line": 213,
+              "severity": "warning",
+              "message": "Module-level `import re` exists at line 8, yet `stage_fetch` re-imports it locally at line 213 \u2014 redundant import executed on every function call. (Rule 110)",
+              "suggestion": "Delete `import re` from inside `stage_fetch` and rely on the module-level import."
+            }
+          ],
+          "summary": "Six-stage CLI orchestrator (INIT \u2192 FETCH \u2192 DIFF \u2192 REVIEW \u2192 PERSIST \u2192 COMMENT) that wraps `claude_code_review.py` with tty-colored progress output, dry-run support, and GitHub Actions integration."
         }
       }
     ]
