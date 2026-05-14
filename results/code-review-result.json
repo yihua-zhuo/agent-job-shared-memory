@@ -3,654 +3,97 @@
   "verdict": "fail",
   "critical_issues": [
     {
-      "file": "src/api/routers/marketing.py",
-      "line": 79,
+      "file": ".github/workflows/pipeline-code-review.yml",
+      "line": 51,
       "severity": "critical",
-      "msg": "Missing type annotation on `session` parameter \u2014 should be `session: AsyncSession = Depends(get_db)` per router pattern.",
-      "suggestion": "session=Depends(get_db) \u2192 session: AsyncSession = Depends(get_db)"
+      "msg": "For newly created branches, `github.event.before` is the all-zero SHA `0000000000000000000000000000000000000000`, which `git log` cannot walk. The diff computation will fail or produce an empty diff with no fallback.",
+      "suggestion": "Add a fallback: use `${{ github.event.before || github.sha }}` so new branches use the current SHA as both base and head (empty diff, graceful skip)."
     },
     {
-      "file": "src/api/routers/marketing.py",
-      "line": 94,
+      "file": ".github/workflows/pipeline-code-review.yml",
+      "line": 52,
       "severity": "critical",
-      "msg": "Missing type annotation on `session` parameter \u2014 should be `session: AsyncSession = Depends(get_db)` per router pattern.",
-      "suggestion": "session=Depends(get_db) \u2192 session: AsyncSession = Depends(get_db)"
-    },
-    {
-      "file": "src/api/routers/marketing.py",
-      "line": 113,
-      "severity": "critical",
-      "msg": "Missing type annotation on `session` parameter \u2014 should be `session: AsyncSession = Depends(get_db)` per router pattern.",
-      "suggestion": "session=Depends(get_db) \u2192 session: AsyncSession = Depends(get_db)"
-    },
-    {
-      "file": "src/api/routers/marketing.py",
-      "line": 125,
-      "severity": "critical",
-      "msg": "Missing type annotation on `session` parameter \u2014 should be `session: AsyncSession = Depends(get_db)` per router pattern.",
-      "suggestion": "session=Depends(get_db) \u2192 session: AsyncSession = Depends(get_db)"
-    },
-    {
-      "file": "src/api/routers/marketing.py",
-      "line": 139,
-      "severity": "critical",
-      "msg": "Missing type annotation on `session` parameter \u2014 should be `session: AsyncSession = Depends(get_db)` per router pattern.",
-      "suggestion": "session=Depends(get_db) \u2192 session: AsyncSession = Depends(get_db)"
-    },
-    {
-      "file": "src/api/routers/marketing.py",
-      "line": 151,
-      "severity": "critical",
-      "msg": "Missing type annotation on `session` parameter \u2014 should be `session: AsyncSession = Depends(get_db)` per router pattern.",
-      "suggestion": "session=Depends(get_db) \u2192 session: AsyncSession = Depends(get_db)"
-    },
-    {
-      "file": "src/services/marketing_service.py",
-      "line": 53,
-      "severity": "critical",
-      "msg": "flush() + refresh() pattern violates project rule 123 \u2014 the service is trying to own the transaction lifecycle.",
-      "suggestion": "Remove await self.session.refresh(campaign) and let the router's dependency own the commit/refresh lifecycle."
-    },
-    {
-      "file": "src/services/marketing_service.py",
-      "line": 54,
-      "severity": "critical",
-      "msg": "flush() + refresh() pattern also at line 77 (update_campaign) and line 155 (record_event) \u2014 same violation repeats 3 times.",
-      "suggestion": "Remove all three await self.session.refresh() calls. Flush only when auto-generated IDs or IntegrityError surfacing is needed."
-    },
-    {
-      "file": "src/services/marketing_service.py",
-      "line": 33,
-      "severity": "critical",
-      "msg": "tenant_id defaults to 0 \u2014 allows cross-tenant access if caller omits the parameter (rule 6: every SQL query must filter by tenant_id).",
-      "suggestion": "Remove default: def create_campaign(..., tenant_id: int, ...) so the caller is forced to provide it."
-    },
-    {
-      "file": "src/services/marketing_service.py",
-      "line": 57,
-      "severity": "critical",
-      "msg": "get_campaign and other methods default tenant_id to 0 \u2014 same unsafe default propagates across all methods.",
-      "suggestion": "Remove all tenant_id default values across all method signatures."
-    },
-    {
-      "file": "src/services/marketing_service.py",
-      "line": 67,
-      "severity": "critical",
-      "msg": "update_campaign uses setattr on any attribute present in kwargs with no allowlist \u2014 callers can set internal or unintended fields.",
-      "suggestion": "Maintain an explicit allowlist: ALLOWED_UPDATE_FIELDS = {'name', 'status', 'subject', ...} and only set attributes in that set."
-    },
-    {
-      "file": "src/services/marketing_service.py",
-      "line": 190,
-      "severity": "critical",
-      "msg": "delete_campaign has no tenant_id filter \u2014 delete is not gated by tenant_id, allowing cross-tenant deletion if tenant_id is omitted or defaulted.",
-      "suggestion": "delete_campaign already calls get_campaign which filters by tenant_id, so the fetch is safe; however the explicit session.delete call is fine. No change needed if tenant_id default is removed from method signature."
-    },
-    {
-      "file": "tests/integration/test_marketing_integration.py",
-      "line": 87,
-      "severity": "critical",
-      "msg": "_seed_user is called once per test but the generated suffix is deterministic within a test \u2014 subsequent calls within the same test generate the same UUID suffix, risking unique-constraint violation on username/email.",
-      "suggestion": "Use a counter or pass an incrementing index to uuid.uuid4().hex[:8] so each call in the same test produces a unique suffix: suffix = f'{base}_{call_count}' or pass uuid.uuid4().hex[:8] from the outer test scope."
-    },
-    {
-      "file": "tests/unit/test_marketing_router.py",
-      "line": 90,
-      "severity": "critical",
-      "msg": "test_pagination_params asserts body['data']['page'] == 2 and body['data']['page_size'] == 5 \u2014 the router's list response only returns {items, total} and does not include 'page' or 'page_size' in the data dict, so this assertion will KeyError at runtime.",
-      "suggestion": "Either add pagination metadata to the router response (router should return page/page_size in data) or remove these assertions; verify against the actual router implementation."
+      "msg": "`github.head_ref` is only set for PR events. For `workflow_dispatch` or push events without a PR, `GITHUB_HEAD_REF` env var is empty and `DIFF_HEAD_REF` becomes the literal string `github.head_ref`.",
+      "suggestion": "Use `${{ github.sha }}` as the head ref \u2014 it is always available for all event types including workflow_dispatch."
     }
   ],
   "suggestions": [
     {
-      "file": ".plans/issue-109.md",
-      "line": "",
-      "severity": "info",
-      "msg": "Implementation plan is well-structured; no code to review."
-    },
-    {
-      "file": "src/api/__init__.py",
-      "line": "",
-      "severity": "info",
-      "msg": "Clean aggregation of all feature routers with proper exports; no issues."
-    },
-    {
-      "file": "src/api/routers/marketing.py",
-      "line": 120,
+      "file": ".github/workflows/pipeline-code-review.yml",
+      "line": 37,
       "severity": "warning",
-      "msg": "PUT and PATCH endpoints are functionally identical (same kwargs filtering and same service call) \u2014 code duplication violates DRY.",
-      "suggestion": "Remove update_campaign_put; merge both methods into a single @router.put/@router.patch or have PATCH call PUT with identical body, or introduce a shared internal helper."
-    },
-    {
-      "file": "src/api/routers/marketing.py",
-      "line": 40,
-      "severity": "info",
-      "msg": "CampaignCreate.status field description lists 'scheduled' but the type is `str` with no enum validation \u2014 invalid status values will only fail at the service layer, not at the API boundary.",
-      "suggestion": "Add a Pydantic validator or literal union type to CampaignCreate.status to reject invalid values early with a 422 response."
-    },
-    {
-      "file": "src/api/routers/marketing.py",
-      "line": 61,
-      "severity": "info",
-      "msg": "CampaignPaginationQuery is defined but never used \u2014 page/page_size/status are declared as Query params directly in the handler, making the class dead code.",
-      "suggestion": "Remove CampaignPaginationQuery or use it as the base class for the query parameters."
-    },
-    {
-      "file": "src/api/routers/marketing.py",
-      "line": 0,
-      "severity": "info",
-      "msg": "No OpenAPI operation IDs are set \u2014 Swagger/docs can become ambiguous with many endpoints.",
-      "suggestion": "Add operation_id to each endpoint, e.g. operation_id=\"list_campaigns\", to keep the OpenAPI spec clean and tooling-friendly."
-    },
-    {
-      "file": "src/main.py",
-      "line": "",
-      "severity": "info",
-      "msg": "Router registration is correct, exception handlers are comprehensive, lifespan is properly structured; no issues."
-    },
-    {
-      "file": "src/models/marketing.py",
-      "line": 94,
-      "severity": "warning",
-      "msg": "CampaignEvent lacks to_dict/from_dict methods unlike Campaign \u2014 inconsistent interface.",
-      "suggestion": "Add to_dict() and from_dict() to CampaignEvent for symmetry with Campaign."
-    },
-    {
-      "file": "src/models/marketing.py",
-      "line": 41,
-      "severity": "info",
-      "msg": "target_audience is stored as raw SQL-like string with no parameterized validation \u2014 if this expression is built from user input, SQL injection risk exists.",
-      "suggestion": "Validate target_audience as a safe tag/segment reference rather than raw SQL; do not execute it directly."
-    },
-    {
-      "file": "src/services/marketing_service.py",
-      "line": 14,
-      "severity": "warning",
-      "msg": "_enum_val is defined in the service but is identical to the same-named function nested in Campaign.to_dict \u2014 duplication that can drift.",
-      "suggestion": "Import and reuse the model's _enum_val or move it to a shared utils module."
-    },
-    {
-      "file": "src/services/marketing_service.py",
-      "line": 92,
-      "severity": "info",
-      "msg": "get_campaign_stats divides campaign.open_count / sent \u2014 if sent_count is 0 the guard handles it, but if open_count or click_count are None (nullable DB column), a TypeError would occur.",
-      "suggestion": "Use getattr(campaign, 'open_count', 0) or ensure columns are NOT NULL with a server default."
-    },
-    {
-      "file": "tests/integration/test_marketing_integration.py",
-      "line": 135,
-      "severity": "warning",
-      "msg": "test_list_pagination creates 3 campaigns with names 'Page Test {i} {suffix}' \u2014 if the same test file runs multiple tests in sequence on the same DB, leftover data causes total >= 3 to be unreliable.",
-      "suggestion": "The db_schema fixture truncates tables between tests via TRUNCATE CASCADE, so this is safe; no change needed given the fixture setup."
-    },
-    {
-      "file": "tests/integration/test_marketing_integration.py",
-      "line": 26,
-      "severity": "info",
-      "msg": "_seed_user is an async method defined inside the test class \u2014 it could be shared as a module-level helper or use the existing test fixtures pattern.",
-      "suggestion": "Extract to a pytest fixture or module-level helper to reduce duplication across test methods."
-    },
-    {
-      "file": "tests/unit/test_marketing_router.py",
-      "line": 55,
-      "severity": "warning",
-      "msg": "app.dependency_overrides[get_db] returns a bare MagicMock() \u2014 the mock has no async __aenter__/__aexit__, which means if the router ever uses the session's transaction context (e.g., __aenter__) the mock will return None and the test will fail silently.",
-      "suggestion": "Use AsyncMock() or configure the mock to return a proper async context manager: MagicMock(__aenter__=AsyncMock(return_value=MagicMock()), __aexit__=AsyncMock(return_value=None))"
+      "msg": "Variable `SM_TOKEN` is referenced but never defined. The intent is to use `${{ secrets.COMMIT_GITHUB_TOKEN }}`, but the actual token value comes from `github.token` fallback.",
+      "suggestion": "Rename `SM_TOKEN` to `SM_GITHUB_TOKEN` and set it explicitly: `SM_GITHUB_TOKEN: ${{ secrets.COMMIT_GITHUB_TOKEN || github.token }}`."
     }
   ],
-  "summary": "Reviewed 8 file(s) between origin/master and origin/auto/issue-109.",
+  "summary": "Reviewed 1 file(s) between origin/master and origin/develop.",
   "details": {
     "llm_parsed": {
       "verdict": "fail",
       "critical": [
         {
-          "file": "src/api/routers/marketing.py",
-          "line": 79,
+          "file": ".github/workflows/pipeline-code-review.yml",
+          "line": 51,
           "severity": "critical",
-          "msg": "Missing type annotation on `session` parameter \u2014 should be `session: AsyncSession = Depends(get_db)` per router pattern.",
-          "suggestion": "session=Depends(get_db) \u2192 session: AsyncSession = Depends(get_db)"
+          "msg": "For newly created branches, `github.event.before` is the all-zero SHA `0000000000000000000000000000000000000000`, which `git log` cannot walk. The diff computation will fail or produce an empty diff with no fallback.",
+          "suggestion": "Add a fallback: use `${{ github.event.before || github.sha }}` so new branches use the current SHA as both base and head (empty diff, graceful skip)."
         },
         {
-          "file": "src/api/routers/marketing.py",
-          "line": 94,
+          "file": ".github/workflows/pipeline-code-review.yml",
+          "line": 52,
           "severity": "critical",
-          "msg": "Missing type annotation on `session` parameter \u2014 should be `session: AsyncSession = Depends(get_db)` per router pattern.",
-          "suggestion": "session=Depends(get_db) \u2192 session: AsyncSession = Depends(get_db)"
-        },
-        {
-          "file": "src/api/routers/marketing.py",
-          "line": 113,
-          "severity": "critical",
-          "msg": "Missing type annotation on `session` parameter \u2014 should be `session: AsyncSession = Depends(get_db)` per router pattern.",
-          "suggestion": "session=Depends(get_db) \u2192 session: AsyncSession = Depends(get_db)"
-        },
-        {
-          "file": "src/api/routers/marketing.py",
-          "line": 125,
-          "severity": "critical",
-          "msg": "Missing type annotation on `session` parameter \u2014 should be `session: AsyncSession = Depends(get_db)` per router pattern.",
-          "suggestion": "session=Depends(get_db) \u2192 session: AsyncSession = Depends(get_db)"
-        },
-        {
-          "file": "src/api/routers/marketing.py",
-          "line": 139,
-          "severity": "critical",
-          "msg": "Missing type annotation on `session` parameter \u2014 should be `session: AsyncSession = Depends(get_db)` per router pattern.",
-          "suggestion": "session=Depends(get_db) \u2192 session: AsyncSession = Depends(get_db)"
-        },
-        {
-          "file": "src/api/routers/marketing.py",
-          "line": 151,
-          "severity": "critical",
-          "msg": "Missing type annotation on `session` parameter \u2014 should be `session: AsyncSession = Depends(get_db)` per router pattern.",
-          "suggestion": "session=Depends(get_db) \u2192 session: AsyncSession = Depends(get_db)"
-        },
-        {
-          "file": "src/services/marketing_service.py",
-          "line": 53,
-          "severity": "critical",
-          "msg": "flush() + refresh() pattern violates project rule 123 \u2014 the service is trying to own the transaction lifecycle.",
-          "suggestion": "Remove await self.session.refresh(campaign) and let the router's dependency own the commit/refresh lifecycle."
-        },
-        {
-          "file": "src/services/marketing_service.py",
-          "line": 54,
-          "severity": "critical",
-          "msg": "flush() + refresh() pattern also at line 77 (update_campaign) and line 155 (record_event) \u2014 same violation repeats 3 times.",
-          "suggestion": "Remove all three await self.session.refresh() calls. Flush only when auto-generated IDs or IntegrityError surfacing is needed."
-        },
-        {
-          "file": "src/services/marketing_service.py",
-          "line": 33,
-          "severity": "critical",
-          "msg": "tenant_id defaults to 0 \u2014 allows cross-tenant access if caller omits the parameter (rule 6: every SQL query must filter by tenant_id).",
-          "suggestion": "Remove default: def create_campaign(..., tenant_id: int, ...) so the caller is forced to provide it."
-        },
-        {
-          "file": "src/services/marketing_service.py",
-          "line": 57,
-          "severity": "critical",
-          "msg": "get_campaign and other methods default tenant_id to 0 \u2014 same unsafe default propagates across all methods.",
-          "suggestion": "Remove all tenant_id default values across all method signatures."
-        },
-        {
-          "file": "src/services/marketing_service.py",
-          "line": 67,
-          "severity": "critical",
-          "msg": "update_campaign uses setattr on any attribute present in kwargs with no allowlist \u2014 callers can set internal or unintended fields.",
-          "suggestion": "Maintain an explicit allowlist: ALLOWED_UPDATE_FIELDS = {'name', 'status', 'subject', ...} and only set attributes in that set."
-        },
-        {
-          "file": "src/services/marketing_service.py",
-          "line": 190,
-          "severity": "critical",
-          "msg": "delete_campaign has no tenant_id filter \u2014 delete is not gated by tenant_id, allowing cross-tenant deletion if tenant_id is omitted or defaulted.",
-          "suggestion": "delete_campaign already calls get_campaign which filters by tenant_id, so the fetch is safe; however the explicit session.delete call is fine. No change needed if tenant_id default is removed from method signature."
-        },
-        {
-          "file": "tests/integration/test_marketing_integration.py",
-          "line": 87,
-          "severity": "critical",
-          "msg": "_seed_user is called once per test but the generated suffix is deterministic within a test \u2014 subsequent calls within the same test generate the same UUID suffix, risking unique-constraint violation on username/email.",
-          "suggestion": "Use a counter or pass an incrementing index to uuid.uuid4().hex[:8] so each call in the same test produces a unique suffix: suffix = f'{base}_{call_count}' or pass uuid.uuid4().hex[:8] from the outer test scope."
-        },
-        {
-          "file": "tests/unit/test_marketing_router.py",
-          "line": 90,
-          "severity": "critical",
-          "msg": "test_pagination_params asserts body['data']['page'] == 2 and body['data']['page_size'] == 5 \u2014 the router's list response only returns {items, total} and does not include 'page' or 'page_size' in the data dict, so this assertion will KeyError at runtime.",
-          "suggestion": "Either add pagination metadata to the router response (router should return page/page_size in data) or remove these assertions; verify against the actual router implementation."
+          "msg": "`github.head_ref` is only set for PR events. For `workflow_dispatch` or push events without a PR, `GITHUB_HEAD_REF` env var is empty and `DIFF_HEAD_REF` becomes the literal string `github.head_ref`.",
+          "suggestion": "Use `${{ github.sha }}` as the head ref \u2014 it is always available for all event types including workflow_dispatch."
         }
       ],
       "warnings": [
         {
-          "file": ".plans/issue-109.md",
-          "line": "",
-          "severity": "info",
-          "msg": "Implementation plan is well-structured; no code to review."
-        },
-        {
-          "file": "src/api/__init__.py",
-          "line": "",
-          "severity": "info",
-          "msg": "Clean aggregation of all feature routers with proper exports; no issues."
-        },
-        {
-          "file": "src/api/routers/marketing.py",
-          "line": 120,
+          "file": ".github/workflows/pipeline-code-review.yml",
+          "line": 37,
           "severity": "warning",
-          "msg": "PUT and PATCH endpoints are functionally identical (same kwargs filtering and same service call) \u2014 code duplication violates DRY.",
-          "suggestion": "Remove update_campaign_put; merge both methods into a single @router.put/@router.patch or have PATCH call PUT with identical body, or introduce a shared internal helper."
-        },
-        {
-          "file": "src/api/routers/marketing.py",
-          "line": 40,
-          "severity": "info",
-          "msg": "CampaignCreate.status field description lists 'scheduled' but the type is `str` with no enum validation \u2014 invalid status values will only fail at the service layer, not at the API boundary.",
-          "suggestion": "Add a Pydantic validator or literal union type to CampaignCreate.status to reject invalid values early with a 422 response."
-        },
-        {
-          "file": "src/api/routers/marketing.py",
-          "line": 61,
-          "severity": "info",
-          "msg": "CampaignPaginationQuery is defined but never used \u2014 page/page_size/status are declared as Query params directly in the handler, making the class dead code.",
-          "suggestion": "Remove CampaignPaginationQuery or use it as the base class for the query parameters."
-        },
-        {
-          "file": "src/api/routers/marketing.py",
-          "line": 0,
-          "severity": "info",
-          "msg": "No OpenAPI operation IDs are set \u2014 Swagger/docs can become ambiguous with many endpoints.",
-          "suggestion": "Add operation_id to each endpoint, e.g. operation_id=\"list_campaigns\", to keep the OpenAPI spec clean and tooling-friendly."
-        },
-        {
-          "file": "src/main.py",
-          "line": "",
-          "severity": "info",
-          "msg": "Router registration is correct, exception handlers are comprehensive, lifespan is properly structured; no issues."
-        },
-        {
-          "file": "src/models/marketing.py",
-          "line": 94,
-          "severity": "warning",
-          "msg": "CampaignEvent lacks to_dict/from_dict methods unlike Campaign \u2014 inconsistent interface.",
-          "suggestion": "Add to_dict() and from_dict() to CampaignEvent for symmetry with Campaign."
-        },
-        {
-          "file": "src/models/marketing.py",
-          "line": 41,
-          "severity": "info",
-          "msg": "target_audience is stored as raw SQL-like string with no parameterized validation \u2014 if this expression is built from user input, SQL injection risk exists.",
-          "suggestion": "Validate target_audience as a safe tag/segment reference rather than raw SQL; do not execute it directly."
-        },
-        {
-          "file": "src/services/marketing_service.py",
-          "line": 14,
-          "severity": "warning",
-          "msg": "_enum_val is defined in the service but is identical to the same-named function nested in Campaign.to_dict \u2014 duplication that can drift.",
-          "suggestion": "Import and reuse the model's _enum_val or move it to a shared utils module."
-        },
-        {
-          "file": "src/services/marketing_service.py",
-          "line": 92,
-          "severity": "info",
-          "msg": "get_campaign_stats divides campaign.open_count / sent \u2014 if sent_count is 0 the guard handles it, but if open_count or click_count are None (nullable DB column), a TypeError would occur.",
-          "suggestion": "Use getattr(campaign, 'open_count', 0) or ensure columns are NOT NULL with a server default."
-        },
-        {
-          "file": "tests/integration/test_marketing_integration.py",
-          "line": 135,
-          "severity": "warning",
-          "msg": "test_list_pagination creates 3 campaigns with names 'Page Test {i} {suffix}' \u2014 if the same test file runs multiple tests in sequence on the same DB, leftover data causes total >= 3 to be unreliable.",
-          "suggestion": "The db_schema fixture truncates tables between tests via TRUNCATE CASCADE, so this is safe; no change needed given the fixture setup."
-        },
-        {
-          "file": "tests/integration/test_marketing_integration.py",
-          "line": 26,
-          "severity": "info",
-          "msg": "_seed_user is an async method defined inside the test class \u2014 it could be shared as a module-level helper or use the existing test fixtures pattern.",
-          "suggestion": "Extract to a pytest fixture or module-level helper to reduce duplication across test methods."
-        },
-        {
-          "file": "tests/unit/test_marketing_router.py",
-          "line": 55,
-          "severity": "warning",
-          "msg": "app.dependency_overrides[get_db] returns a bare MagicMock() \u2014 the mock has no async __aenter__/__aexit__, which means if the router ever uses the session's transaction context (e.g., __aenter__) the mock will return None and the test will fail silently.",
-          "suggestion": "Use AsyncMock() or configure the mock to return a proper async context manager: MagicMock(__aenter__=AsyncMock(return_value=MagicMock()), __aexit__=AsyncMock(return_value=None))"
+          "msg": "Variable `SM_TOKEN` is referenced but never defined. The intent is to use `${{ secrets.COMMIT_GITHUB_TOKEN }}`, but the actual token value comes from `github.token` fallback.",
+          "suggestion": "Rename `SM_TOKEN` to `SM_GITHUB_TOKEN` and set it explicitly: `SM_GITHUB_TOKEN: ${{ secrets.COMMIT_GITHUB_TOKEN || github.token }}`."
         }
       ],
-      "summary": "Reviewed 8 file(s) between origin/master and origin/auto/issue-109."
+      "summary": "Reviewed 1 file(s) between origin/master and origin/develop."
     },
     "reviewed_refs": {
       "base": "dd86c921f1e45c7f174a55dd823c837aafe420f1",
-      "head": "71f0b8c0937bea1fdeded9c415b2da6b71e7c8ec",
+      "head": "45390921e0ab7c1044585990d5571738de7103dc",
       "base_label": "origin/master",
-      "head_label": "origin/auto/issue-109"
+      "head_label": "origin/develop"
     },
     "reviewed_files": [
-      ".plans/issue-109.md",
-      "src/api/__init__.py",
-      "src/api/routers/marketing.py",
-      "src/main.py",
-      "src/models/marketing.py",
-      "src/services/marketing_service.py",
-      "tests/integration/test_marketing_integration.py",
-      "tests/unit/test_marketing_router.py"
+      ".github/workflows/pipeline-code-review.yml"
     ],
     "per_file_reviews": [
       {
-        "file": ".plans/issue-109.md",
+        "file": ".github/workflows/pipeline-code-review.yml",
         "returncode": 0,
-        "output": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"api_error_status\":null,\"duration_ms\":295853,\"duration_api_ms\":295731,\"num_turns\":12,\"result\":\"\\n\\nNow I have all the information I need. Here is the review:\\n\\n```json\\n[\\n  {\\n    \\\"filename\\\": \\\".plans/issue-109.md\\\",\\n    \\\"issues\\\": [],\\n    \\\"summary\\\": \\\"Implementation plan is well-structured; no code to review.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"src/api/__init__.py\\\",\\n    \\\"issues\\\": [],\\n    \\\"summary\\\": \\\"Clean aggregation of all feature routers with proper exports; no issues.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"src/api/routers/marketing.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 79,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"Missing type annotation on `session` parameter \u2014 should be `session: AsyncSession = Depends(get_db)` per router pattern.\\\",\\n        \\\"suggestion\\\": \\\"session=Depends(get_db) \u2192 session: AsyncSession = Depends(get_db)\\\"\\n      },\\n      {\\n        \\\"line\\\": 94,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"Missing type annotation on `session` parameter \u2014 should be `session: AsyncSession = Depends(get_db)` per router pattern.\\\",\\n        \\\"suggestion\\\": \\\"session=Depends(get_db) \u2192 session: AsyncSession = Depends(get_db)\\\"\\n      },\\n      {\\n        \\\"line\\\": 113,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"Missing type annotation on `session` parameter \u2014 should be `session: AsyncSession = Depends(get_db)` per router pattern.\\\",\\n        \\\"suggestion\\\": \\\"session=Depends(get_db) \u2192 session: AsyncSession = Depends(get_db)\\\"\\n      },\\n      {\\n        \\\"line\\\": 125,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"Missing type annotation on `session` parameter \u2014 should be `session: AsyncSession = Depends(get_db)` per router pattern.\\\",\\n        \\\"suggestion\\\": \\\"session=Depends(get_db) \u2192 session: AsyncSession = Depends(get_db)\\\"\\n      },\\n      {\\n        \\\"line\\\": 139,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"Missing type annotation on `session` parameter \u2014 should be `session: AsyncSession = Depends(get_db)` per router pattern.\\\",\\n        \\\"suggestion\\\": \\\"session=Depends(get_db) \u2192 session: AsyncSession = Depends(get_db)\\\"\\n      },\\n      {\\n        \\\"line\\\": 151,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"Missing type annotation on `session` parameter \u2014 should be `session: AsyncSession = Depends(get_db)` per router pattern.\\\",\\n        \\\"suggestion\\\": \\\"session=Depends(get_db) \u2192 session: AsyncSession = Depends(get_db)\\\"\\n      },\\n      {\\n        \\\"line\\\": 120,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"PUT and PATCH endpoints are functionally identical (same kwargs filtering and same service call) \u2014 code duplication violates DRY.\\\",\\n        \\\"suggestion\\\": \\\"Remove update_campaign_put; merge both methods into a single @router.put/@router.patch or have PATCH call PUT with identical body, or introduce a shared internal helper.\\\"\\n      },\\n      {\\n        \\\"line\\\": 40,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"CampaignCreate.status field description lists 'scheduled' but the type is `str` with no enum validation \u2014 invalid status values will only fail at the service layer, not at the API boundary.\\\",\\n        \\\"suggestion\\\": \\\"Add a Pydantic validator or literal union type to CampaignCreate.status to reject invalid values early with a 422 response.\\\"\\n      },\\n      {\\n        \\\"line\\\": 61,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"CampaignPaginationQuery is defined but never used \u2014 page/page_size/status are declared as Query params directly in the handler, making the class dead code.\\\",\\n        \\\"suggestion\\\": \\\"Remove CampaignPaginationQuery or use it as the base class for the query parameters.\\\"\\n      },\\n      {\\n        \\\"line\\\": 0,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"No OpenAPI operation IDs are set \u2014 Swagger/docs can become ambiguous with many endpoints.\\\",\\n        \\\"suggestion\\\": \\\"Add operation_id to each endpoint, e.g. operation_id=\\\\\\\"list_campaigns\\\\\\\", to keep the OpenAPI spec clean and tooling-friendly.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Five missing AsyncSession type annotations on session params; PUT and PATCH are copy-paste duplicates; minor enum validation gap in CampaignCreate.status.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"src/main.py\\\",\\n    \\\"issues\\\": [],\\n    \\\"summary\\\": \\\"Router registration is correct, exception handlers are comprehensive, lifespan is properly structured; no issues.\\\"\\n  }\\n]\\n```\",\"stop_reason\":\"end_turn\",\"session_id\":\"cf2f477e-321e-42eb-b44b-e6f47a9e638f\",\"total_cost_usd\":0.236481,\"usage\":{\"input_tokens\":37239,\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":218880,\"output_tokens\":3940,\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":0,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"\",\"iterations\":[],\"speed\":\"standard\"},\"modelUsage\":{\"claude-sonnet-4-6\":{\"inputTokens\":37239,\"outputTokens\":3940,\"cacheReadInputTokens\":218880,\"cacheCreationInputTokens\":0,\"webSearchRequests\":0,\"costUSD\":0.236481,\"contextWindow\":200000,\"maxOutputTokens\":32000}},\"permission_denials\":[],\"terminal_reason\":\"completed\",\"fast_mode_state\":\"off\",\"uuid\":\"36d69f67-f67c-4b96-87fa-c0a20107702b\"}\n",
+        "output": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"api_error_status\":null,\"duration_ms\":166387,\"duration_api_ms\":166266,\"num_turns\":6,\"result\":\"\\n\\n[\\n  {\\n    \\\"filename\\\": \\\".github/workflows/pipeline-code-review.yml\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 51,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"For newly created branches, `github.event.before` is the all-zero SHA `0000000000000000000000000000000000000000`, which `git log` cannot walk. The diff computation will fail or produce an empty diff with no fallback.\\\",\\n        \\\"suggestion\\\": \\\"Add a fallback: use `${{ github.event.before || github.sha }}` so new branches use the current SHA as both base and head (empty diff, graceful skip).\\\"\\n      },\\n      {\\n        \\\"line\\\": 52,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"`github.head_ref` is only set for PR events. For `workflow_dispatch` or push events without a PR, `GITHUB_HEAD_REF` env var is empty and `DIFF_HEAD_REF` becomes the literal string `github.head_ref`.\\\",\\n        \\\"suggestion\\\": \\\"Use `${{ github.sha }}` as the head ref \u2014 it is always available for all event types including workflow_dispatch.\\\"\\n      },\\n      {\\n        \\\"line\\\": 37,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"Variable `SM_TOKEN` is referenced but never defined. The intent is to use `${{ secrets.COMMIT_GITHUB_TOKEN }}`, but the actual token value comes from `github.token` fallback.\\\",\\n        \\\"suggestion\\\": \\\"Rename `SM_TOKEN` to `SM_GITHUB_TOKEN` and set it explicitly: `SM_GITHUB_TOKEN: ${{ secrets.COMMIT_GITHUB_TOKEN || github.token }}`.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Variable resolution for new branches is broken \u2014 `github.event.before` yields a null SHA and `github.head_ref` is empty for non-PR events, making the diff always wrong for new branches and manual workflow dispatches.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"scripts/ci/run_claude_code_review.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 287,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"`CLAUDE_OUTPUT_PATH` is read in `from_env()` but never written by the workflow. The actual path is controlled exclusively by `CODE_REVIEW_RESULT_PATH`, making this env var dead code.\\\",\\n        \\\"suggestion\\\": \\\"Remove the `os.environ.get(\\\\\\\"CLAUDE_OUTPUT_PATH\\\\\\\", ...)` fallback or wire it into the workflow if it was intentionally an external override.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"The runner is well-structured with clean separation of concerns; one dead environment variable reference does not affect correctness but should be removed.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"scripts/ci/post_pr_line_comments.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 150,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"`resolve_thread` silently swallows all exceptions \u2014 `reconcile_review_threads` catches them externally, but the function itself has no logging, making failures invisible during normal execution.\\\",\\n        \\\"suggestion\\\": \\\"Add logging in `resolve_thread`: `log(f\\\\\\\"resolve_thread thread_id={thread_id}\\\\\\\")` before the call and `log(f\\\\\\\"resolve_thread_error {type(e).__name__}: {e}\\\\\\\")` in the except block.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Well-implemented script with thorough pagination, thread reconciliation, and idempotent summary comment updates. One silent exception in `resolve_thread` should be logged for observability.\\\"\\n  }\\n]\",\"stop_reason\":\"end_turn\",\"session_id\":\"4ea08565-8383-4570-b894-5f292cc5cb09\",\"total_cost_usd\":0.32997195,\"usage\":{\"input_tokens\":49006,\"cache_creation_input_tokens\":30749,\"cache_read_input_tokens\":59284,\"output_tokens\":3324,\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":0,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"\",\"iterations\":[],\"speed\":\"standard\"},\"modelUsage\":{\"claude-sonnet-4-6\":{\"inputTokens\":49006,\"outputTokens\":3324,\"cacheReadInputTokens\":59284,\"cacheCreationInputTokens\":30749,\"webSearchRequests\":0,\"costUSD\":0.32997195,\"contextWindow\":200000,\"maxOutputTokens\":32000}},\"permission_denials\":[],\"terminal_reason\":\"completed\",\"fast_mode_state\":\"off\",\"uuid\":\"952a9efd-63bc-4d3c-9e15-473ba8dbf479\"}\n",
         "parsed": {
-          "filename": ".plans/issue-109.md",
-          "issues": [],
-          "summary": "Implementation plan is well-structured; no code to review."
-        }
-      },
-      {
-        "file": "src/api/__init__.py",
-        "returncode": 0,
-        "output": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"api_error_status\":null,\"duration_ms\":295853,\"duration_api_ms\":295731,\"num_turns\":12,\"result\":\"\\n\\nNow I have all the information I need. Here is the review:\\n\\n```json\\n[\\n  {\\n    \\\"filename\\\": \\\".plans/issue-109.md\\\",\\n    \\\"issues\\\": [],\\n    \\\"summary\\\": \\\"Implementation plan is well-structured; no code to review.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"src/api/__init__.py\\\",\\n    \\\"issues\\\": [],\\n    \\\"summary\\\": \\\"Clean aggregation of all feature routers with proper exports; no issues.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"src/api/routers/marketing.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 79,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"Missing type annotation on `session` parameter \u2014 should be `session: AsyncSession = Depends(get_db)` per router pattern.\\\",\\n        \\\"suggestion\\\": \\\"session=Depends(get_db) \u2192 session: AsyncSession = Depends(get_db)\\\"\\n      },\\n      {\\n        \\\"line\\\": 94,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"Missing type annotation on `session` parameter \u2014 should be `session: AsyncSession = Depends(get_db)` per router pattern.\\\",\\n        \\\"suggestion\\\": \\\"session=Depends(get_db) \u2192 session: AsyncSession = Depends(get_db)\\\"\\n      },\\n      {\\n        \\\"line\\\": 113,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"Missing type annotation on `session` parameter \u2014 should be `session: AsyncSession = Depends(get_db)` per router pattern.\\\",\\n        \\\"suggestion\\\": \\\"session=Depends(get_db) \u2192 session: AsyncSession = Depends(get_db)\\\"\\n      },\\n      {\\n        \\\"line\\\": 125,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"Missing type annotation on `session` parameter \u2014 should be `session: AsyncSession = Depends(get_db)` per router pattern.\\\",\\n        \\\"suggestion\\\": \\\"session=Depends(get_db) \u2192 session: AsyncSession = Depends(get_db)\\\"\\n      },\\n      {\\n        \\\"line\\\": 139,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"Missing type annotation on `session` parameter \u2014 should be `session: AsyncSession = Depends(get_db)` per router pattern.\\\",\\n        \\\"suggestion\\\": \\\"session=Depends(get_db) \u2192 session: AsyncSession = Depends(get_db)\\\"\\n      },\\n      {\\n        \\\"line\\\": 151,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"Missing type annotation on `session` parameter \u2014 should be `session: AsyncSession = Depends(get_db)` per router pattern.\\\",\\n        \\\"suggestion\\\": \\\"session=Depends(get_db) \u2192 session: AsyncSession = Depends(get_db)\\\"\\n      },\\n      {\\n        \\\"line\\\": 120,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"PUT and PATCH endpoints are functionally identical (same kwargs filtering and same service call) \u2014 code duplication violates DRY.\\\",\\n        \\\"suggestion\\\": \\\"Remove update_campaign_put; merge both methods into a single @router.put/@router.patch or have PATCH call PUT with identical body, or introduce a shared internal helper.\\\"\\n      },\\n      {\\n        \\\"line\\\": 40,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"CampaignCreate.status field description lists 'scheduled' but the type is `str` with no enum validation \u2014 invalid status values will only fail at the service layer, not at the API boundary.\\\",\\n        \\\"suggestion\\\": \\\"Add a Pydantic validator or literal union type to CampaignCreate.status to reject invalid values early with a 422 response.\\\"\\n      },\\n      {\\n        \\\"line\\\": 61,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"CampaignPaginationQuery is defined but never used \u2014 page/page_size/status are declared as Query params directly in the handler, making the class dead code.\\\",\\n        \\\"suggestion\\\": \\\"Remove CampaignPaginationQuery or use it as the base class for the query parameters.\\\"\\n      },\\n      {\\n        \\\"line\\\": 0,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"No OpenAPI operation IDs are set \u2014 Swagger/docs can become ambiguous with many endpoints.\\\",\\n        \\\"suggestion\\\": \\\"Add operation_id to each endpoint, e.g. operation_id=\\\\\\\"list_campaigns\\\\\\\", to keep the OpenAPI spec clean and tooling-friendly.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Five missing AsyncSession type annotations on session params; PUT and PATCH are copy-paste duplicates; minor enum validation gap in CampaignCreate.status.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"src/main.py\\\",\\n    \\\"issues\\\": [],\\n    \\\"summary\\\": \\\"Router registration is correct, exception handlers are comprehensive, lifespan is properly structured; no issues.\\\"\\n  }\\n]\\n```\",\"stop_reason\":\"end_turn\",\"session_id\":\"cf2f477e-321e-42eb-b44b-e6f47a9e638f\",\"total_cost_usd\":0.236481,\"usage\":{\"input_tokens\":37239,\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":218880,\"output_tokens\":3940,\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":0,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"\",\"iterations\":[],\"speed\":\"standard\"},\"modelUsage\":{\"claude-sonnet-4-6\":{\"inputTokens\":37239,\"outputTokens\":3940,\"cacheReadInputTokens\":218880,\"cacheCreationInputTokens\":0,\"webSearchRequests\":0,\"costUSD\":0.236481,\"contextWindow\":200000,\"maxOutputTokens\":32000}},\"permission_denials\":[],\"terminal_reason\":\"completed\",\"fast_mode_state\":\"off\",\"uuid\":\"36d69f67-f67c-4b96-87fa-c0a20107702b\"}\n",
-        "parsed": {
-          "filename": "src/api/__init__.py",
-          "issues": [],
-          "summary": "Clean aggregation of all feature routers with proper exports; no issues."
-        }
-      },
-      {
-        "file": "src/api/routers/marketing.py",
-        "returncode": 0,
-        "output": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"api_error_status\":null,\"duration_ms\":295853,\"duration_api_ms\":295731,\"num_turns\":12,\"result\":\"\\n\\nNow I have all the information I need. Here is the review:\\n\\n```json\\n[\\n  {\\n    \\\"filename\\\": \\\".plans/issue-109.md\\\",\\n    \\\"issues\\\": [],\\n    \\\"summary\\\": \\\"Implementation plan is well-structured; no code to review.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"src/api/__init__.py\\\",\\n    \\\"issues\\\": [],\\n    \\\"summary\\\": \\\"Clean aggregation of all feature routers with proper exports; no issues.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"src/api/routers/marketing.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 79,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"Missing type annotation on `session` parameter \u2014 should be `session: AsyncSession = Depends(get_db)` per router pattern.\\\",\\n        \\\"suggestion\\\": \\\"session=Depends(get_db) \u2192 session: AsyncSession = Depends(get_db)\\\"\\n      },\\n      {\\n        \\\"line\\\": 94,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"Missing type annotation on `session` parameter \u2014 should be `session: AsyncSession = Depends(get_db)` per router pattern.\\\",\\n        \\\"suggestion\\\": \\\"session=Depends(get_db) \u2192 session: AsyncSession = Depends(get_db)\\\"\\n      },\\n      {\\n        \\\"line\\\": 113,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"Missing type annotation on `session` parameter \u2014 should be `session: AsyncSession = Depends(get_db)` per router pattern.\\\",\\n        \\\"suggestion\\\": \\\"session=Depends(get_db) \u2192 session: AsyncSession = Depends(get_db)\\\"\\n      },\\n      {\\n        \\\"line\\\": 125,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"Missing type annotation on `session` parameter \u2014 should be `session: AsyncSession = Depends(get_db)` per router pattern.\\\",\\n        \\\"suggestion\\\": \\\"session=Depends(get_db) \u2192 session: AsyncSession = Depends(get_db)\\\"\\n      },\\n      {\\n        \\\"line\\\": 139,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"Missing type annotation on `session` parameter \u2014 should be `session: AsyncSession = Depends(get_db)` per router pattern.\\\",\\n        \\\"suggestion\\\": \\\"session=Depends(get_db) \u2192 session: AsyncSession = Depends(get_db)\\\"\\n      },\\n      {\\n        \\\"line\\\": 151,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"Missing type annotation on `session` parameter \u2014 should be `session: AsyncSession = Depends(get_db)` per router pattern.\\\",\\n        \\\"suggestion\\\": \\\"session=Depends(get_db) \u2192 session: AsyncSession = Depends(get_db)\\\"\\n      },\\n      {\\n        \\\"line\\\": 120,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"PUT and PATCH endpoints are functionally identical (same kwargs filtering and same service call) \u2014 code duplication violates DRY.\\\",\\n        \\\"suggestion\\\": \\\"Remove update_campaign_put; merge both methods into a single @router.put/@router.patch or have PATCH call PUT with identical body, or introduce a shared internal helper.\\\"\\n      },\\n      {\\n        \\\"line\\\": 40,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"CampaignCreate.status field description lists 'scheduled' but the type is `str` with no enum validation \u2014 invalid status values will only fail at the service layer, not at the API boundary.\\\",\\n        \\\"suggestion\\\": \\\"Add a Pydantic validator or literal union type to CampaignCreate.status to reject invalid values early with a 422 response.\\\"\\n      },\\n      {\\n        \\\"line\\\": 61,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"CampaignPaginationQuery is defined but never used \u2014 page/page_size/status are declared as Query params directly in the handler, making the class dead code.\\\",\\n        \\\"suggestion\\\": \\\"Remove CampaignPaginationQuery or use it as the base class for the query parameters.\\\"\\n      },\\n      {\\n        \\\"line\\\": 0,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"No OpenAPI operation IDs are set \u2014 Swagger/docs can become ambiguous with many endpoints.\\\",\\n        \\\"suggestion\\\": \\\"Add operation_id to each endpoint, e.g. operation_id=\\\\\\\"list_campaigns\\\\\\\", to keep the OpenAPI spec clean and tooling-friendly.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Five missing AsyncSession type annotations on session params; PUT and PATCH are copy-paste duplicates; minor enum validation gap in CampaignCreate.status.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"src/main.py\\\",\\n    \\\"issues\\\": [],\\n    \\\"summary\\\": \\\"Router registration is correct, exception handlers are comprehensive, lifespan is properly structured; no issues.\\\"\\n  }\\n]\\n```\",\"stop_reason\":\"end_turn\",\"session_id\":\"cf2f477e-321e-42eb-b44b-e6f47a9e638f\",\"total_cost_usd\":0.236481,\"usage\":{\"input_tokens\":37239,\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":218880,\"output_tokens\":3940,\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":0,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"\",\"iterations\":[],\"speed\":\"standard\"},\"modelUsage\":{\"claude-sonnet-4-6\":{\"inputTokens\":37239,\"outputTokens\":3940,\"cacheReadInputTokens\":218880,\"cacheCreationInputTokens\":0,\"webSearchRequests\":0,\"costUSD\":0.236481,\"contextWindow\":200000,\"maxOutputTokens\":32000}},\"permission_denials\":[],\"terminal_reason\":\"completed\",\"fast_mode_state\":\"off\",\"uuid\":\"36d69f67-f67c-4b96-87fa-c0a20107702b\"}\n",
-        "parsed": {
-          "filename": "src/api/routers/marketing.py",
+          "filename": ".github/workflows/pipeline-code-review.yml",
           "issues": [
             {
-              "line": 79,
+              "line": 51,
               "severity": "critical",
-              "message": "Missing type annotation on `session` parameter \u2014 should be `session: AsyncSession = Depends(get_db)` per router pattern.",
-              "suggestion": "session=Depends(get_db) \u2192 session: AsyncSession = Depends(get_db)"
+              "message": "For newly created branches, `github.event.before` is the all-zero SHA `0000000000000000000000000000000000000000`, which `git log` cannot walk. The diff computation will fail or produce an empty diff with no fallback.",
+              "suggestion": "Add a fallback: use `${{ github.event.before || github.sha }}` so new branches use the current SHA as both base and head (empty diff, graceful skip)."
             },
             {
-              "line": 94,
+              "line": 52,
               "severity": "critical",
-              "message": "Missing type annotation on `session` parameter \u2014 should be `session: AsyncSession = Depends(get_db)` per router pattern.",
-              "suggestion": "session=Depends(get_db) \u2192 session: AsyncSession = Depends(get_db)"
+              "message": "`github.head_ref` is only set for PR events. For `workflow_dispatch` or push events without a PR, `GITHUB_HEAD_REF` env var is empty and `DIFF_HEAD_REF` becomes the literal string `github.head_ref`.",
+              "suggestion": "Use `${{ github.sha }}` as the head ref \u2014 it is always available for all event types including workflow_dispatch."
             },
             {
-              "line": 113,
-              "severity": "critical",
-              "message": "Missing type annotation on `session` parameter \u2014 should be `session: AsyncSession = Depends(get_db)` per router pattern.",
-              "suggestion": "session=Depends(get_db) \u2192 session: AsyncSession = Depends(get_db)"
-            },
-            {
-              "line": 125,
-              "severity": "critical",
-              "message": "Missing type annotation on `session` parameter \u2014 should be `session: AsyncSession = Depends(get_db)` per router pattern.",
-              "suggestion": "session=Depends(get_db) \u2192 session: AsyncSession = Depends(get_db)"
-            },
-            {
-              "line": 139,
-              "severity": "critical",
-              "message": "Missing type annotation on `session` parameter \u2014 should be `session: AsyncSession = Depends(get_db)` per router pattern.",
-              "suggestion": "session=Depends(get_db) \u2192 session: AsyncSession = Depends(get_db)"
-            },
-            {
-              "line": 151,
-              "severity": "critical",
-              "message": "Missing type annotation on `session` parameter \u2014 should be `session: AsyncSession = Depends(get_db)` per router pattern.",
-              "suggestion": "session=Depends(get_db) \u2192 session: AsyncSession = Depends(get_db)"
-            },
-            {
-              "line": 120,
+              "line": 37,
               "severity": "warning",
-              "message": "PUT and PATCH endpoints are functionally identical (same kwargs filtering and same service call) \u2014 code duplication violates DRY.",
-              "suggestion": "Remove update_campaign_put; merge both methods into a single @router.put/@router.patch or have PATCH call PUT with identical body, or introduce a shared internal helper."
-            },
-            {
-              "line": 40,
-              "severity": "info",
-              "message": "CampaignCreate.status field description lists 'scheduled' but the type is `str` with no enum validation \u2014 invalid status values will only fail at the service layer, not at the API boundary.",
-              "suggestion": "Add a Pydantic validator or literal union type to CampaignCreate.status to reject invalid values early with a 422 response."
-            },
-            {
-              "line": 61,
-              "severity": "info",
-              "message": "CampaignPaginationQuery is defined but never used \u2014 page/page_size/status are declared as Query params directly in the handler, making the class dead code.",
-              "suggestion": "Remove CampaignPaginationQuery or use it as the base class for the query parameters."
-            },
-            {
-              "line": 0,
-              "severity": "info",
-              "message": "No OpenAPI operation IDs are set \u2014 Swagger/docs can become ambiguous with many endpoints.",
-              "suggestion": "Add operation_id to each endpoint, e.g. operation_id=\"list_campaigns\", to keep the OpenAPI spec clean and tooling-friendly."
+              "message": "Variable `SM_TOKEN` is referenced but never defined. The intent is to use `${{ secrets.COMMIT_GITHUB_TOKEN }}`, but the actual token value comes from `github.token` fallback.",
+              "suggestion": "Rename `SM_TOKEN` to `SM_GITHUB_TOKEN` and set it explicitly: `SM_GITHUB_TOKEN: ${{ secrets.COMMIT_GITHUB_TOKEN || github.token }}`."
             }
           ],
-          "summary": "Five missing AsyncSession type annotations on session params; PUT and PATCH are copy-paste duplicates; minor enum validation gap in CampaignCreate.status."
-        }
-      },
-      {
-        "file": "src/main.py",
-        "returncode": 0,
-        "output": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"api_error_status\":null,\"duration_ms\":295853,\"duration_api_ms\":295731,\"num_turns\":12,\"result\":\"\\n\\nNow I have all the information I need. Here is the review:\\n\\n```json\\n[\\n  {\\n    \\\"filename\\\": \\\".plans/issue-109.md\\\",\\n    \\\"issues\\\": [],\\n    \\\"summary\\\": \\\"Implementation plan is well-structured; no code to review.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"src/api/__init__.py\\\",\\n    \\\"issues\\\": [],\\n    \\\"summary\\\": \\\"Clean aggregation of all feature routers with proper exports; no issues.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"src/api/routers/marketing.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 79,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"Missing type annotation on `session` parameter \u2014 should be `session: AsyncSession = Depends(get_db)` per router pattern.\\\",\\n        \\\"suggestion\\\": \\\"session=Depends(get_db) \u2192 session: AsyncSession = Depends(get_db)\\\"\\n      },\\n      {\\n        \\\"line\\\": 94,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"Missing type annotation on `session` parameter \u2014 should be `session: AsyncSession = Depends(get_db)` per router pattern.\\\",\\n        \\\"suggestion\\\": \\\"session=Depends(get_db) \u2192 session: AsyncSession = Depends(get_db)\\\"\\n      },\\n      {\\n        \\\"line\\\": 113,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"Missing type annotation on `session` parameter \u2014 should be `session: AsyncSession = Depends(get_db)` per router pattern.\\\",\\n        \\\"suggestion\\\": \\\"session=Depends(get_db) \u2192 session: AsyncSession = Depends(get_db)\\\"\\n      },\\n      {\\n        \\\"line\\\": 125,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"Missing type annotation on `session` parameter \u2014 should be `session: AsyncSession = Depends(get_db)` per router pattern.\\\",\\n        \\\"suggestion\\\": \\\"session=Depends(get_db) \u2192 session: AsyncSession = Depends(get_db)\\\"\\n      },\\n      {\\n        \\\"line\\\": 139,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"Missing type annotation on `session` parameter \u2014 should be `session: AsyncSession = Depends(get_db)` per router pattern.\\\",\\n        \\\"suggestion\\\": \\\"session=Depends(get_db) \u2192 session: AsyncSession = Depends(get_db)\\\"\\n      },\\n      {\\n        \\\"line\\\": 151,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"Missing type annotation on `session` parameter \u2014 should be `session: AsyncSession = Depends(get_db)` per router pattern.\\\",\\n        \\\"suggestion\\\": \\\"session=Depends(get_db) \u2192 session: AsyncSession = Depends(get_db)\\\"\\n      },\\n      {\\n        \\\"line\\\": 120,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"PUT and PATCH endpoints are functionally identical (same kwargs filtering and same service call) \u2014 code duplication violates DRY.\\\",\\n        \\\"suggestion\\\": \\\"Remove update_campaign_put; merge both methods into a single @router.put/@router.patch or have PATCH call PUT with identical body, or introduce a shared internal helper.\\\"\\n      },\\n      {\\n        \\\"line\\\": 40,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"CampaignCreate.status field description lists 'scheduled' but the type is `str` with no enum validation \u2014 invalid status values will only fail at the service layer, not at the API boundary.\\\",\\n        \\\"suggestion\\\": \\\"Add a Pydantic validator or literal union type to CampaignCreate.status to reject invalid values early with a 422 response.\\\"\\n      },\\n      {\\n        \\\"line\\\": 61,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"CampaignPaginationQuery is defined but never used \u2014 page/page_size/status are declared as Query params directly in the handler, making the class dead code.\\\",\\n        \\\"suggestion\\\": \\\"Remove CampaignPaginationQuery or use it as the base class for the query parameters.\\\"\\n      },\\n      {\\n        \\\"line\\\": 0,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"No OpenAPI operation IDs are set \u2014 Swagger/docs can become ambiguous with many endpoints.\\\",\\n        \\\"suggestion\\\": \\\"Add operation_id to each endpoint, e.g. operation_id=\\\\\\\"list_campaigns\\\\\\\", to keep the OpenAPI spec clean and tooling-friendly.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Five missing AsyncSession type annotations on session params; PUT and PATCH are copy-paste duplicates; minor enum validation gap in CampaignCreate.status.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"src/main.py\\\",\\n    \\\"issues\\\": [],\\n    \\\"summary\\\": \\\"Router registration is correct, exception handlers are comprehensive, lifespan is properly structured; no issues.\\\"\\n  }\\n]\\n```\",\"stop_reason\":\"end_turn\",\"session_id\":\"cf2f477e-321e-42eb-b44b-e6f47a9e638f\",\"total_cost_usd\":0.236481,\"usage\":{\"input_tokens\":37239,\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":218880,\"output_tokens\":3940,\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":0,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"\",\"iterations\":[],\"speed\":\"standard\"},\"modelUsage\":{\"claude-sonnet-4-6\":{\"inputTokens\":37239,\"outputTokens\":3940,\"cacheReadInputTokens\":218880,\"cacheCreationInputTokens\":0,\"webSearchRequests\":0,\"costUSD\":0.236481,\"contextWindow\":200000,\"maxOutputTokens\":32000}},\"permission_denials\":[],\"terminal_reason\":\"completed\",\"fast_mode_state\":\"off\",\"uuid\":\"36d69f67-f67c-4b96-87fa-c0a20107702b\"}\n",
-        "parsed": {
-          "filename": "src/main.py",
-          "issues": [],
-          "summary": "Router registration is correct, exception handlers are comprehensive, lifespan is properly structured; no issues."
-        }
-      },
-      {
-        "file": "src/models/marketing.py",
-        "returncode": 0,
-        "output": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"api_error_status\":null,\"duration_ms\":280851,\"duration_api_ms\":280743,\"num_turns\":5,\"result\":\"\\n\\n[\\n  {\\n    \\\"filename\\\": \\\"src/models/marketing.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 94,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"CampaignEvent lacks to_dict/from_dict methods unlike Campaign \u2014 inconsistent interface.\\\",\\n        \\\"suggestion\\\": \\\"Add to_dict() and from_dict() to CampaignEvent for symmetry with Campaign.\\\"\\n      },\\n      {\\n        \\\"line\\\": 41,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"target_audience is stored as raw SQL-like string with no parameterized validation \u2014 if this expression is built from user input, SQL injection risk exists.\\\",\\n        \\\"suggestion\\\": \\\"Validate target_audience as a safe tag/segment reference rather than raw SQL; do not execute it directly.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Clean dataclass models with enums; CampaignEvent is missing serialization methods that Campaign has.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"src/services/marketing_service.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 53,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"flush() + refresh() pattern violates project rule 123 \u2014 the service is trying to own the transaction lifecycle.\\\",\\n        \\\"suggestion\\\": \\\"Remove await self.session.refresh(campaign) and let the router's dependency own the commit/refresh lifecycle.\\\"\\n      },\\n      {\\n        \\\"line\\\": 54,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"flush() + refresh() pattern also at line 77 (update_campaign) and line 155 (record_event) \u2014 same violation repeats 3 times.\\\",\\n        \\\"suggestion\\\": \\\"Remove all three await self.session.refresh() calls. Flush only when auto-generated IDs or IntegrityError surfacing is needed.\\\"\\n      },\\n      {\\n        \\\"line\\\": 33,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"tenant_id defaults to 0 \u2014 allows cross-tenant access if caller omits the parameter (rule 6: every SQL query must filter by tenant_id).\\\",\\n        \\\"suggestion\\\": \\\"Remove default: def create_campaign(..., tenant_id: int, ...) so the caller is forced to provide it.\\\"\\n      },\\n      {\\n        \\\"line\\\": 57,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"get_campaign and other methods default tenant_id to 0 \u2014 same unsafe default propagates across all methods.\\\",\\n        \\\"suggestion\\\": \\\"Remove all tenant_id default values across all method signatures.\\\"\\n      },\\n      {\\n        \\\"line\\\": 67,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"update_campaign uses setattr on any attribute present in kwargs with no allowlist \u2014 callers can set internal or unintended fields.\\\",\\n        \\\"suggestion\\\": \\\"Maintain an explicit allowlist: ALLOWED_UPDATE_FIELDS = {'name', 'status', 'subject', ...} and only set attributes in that set.\\\"\\n      },\\n      {\\n        \\\"line\\\": 190,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"delete_campaign has no tenant_id filter \u2014 delete is not gated by tenant_id, allowing cross-tenant deletion if tenant_id is omitted or defaulted.\\\",\\n        \\\"suggestion\\\": \\\"delete_campaign already calls get_campaign which filters by tenant_id, so the fetch is safe; however the explicit session.delete call is fine. No change needed if tenant_id default is removed from method signature.\\\"\\n      },\\n      {\\n        \\\"line\\\": 14,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"_enum_val is defined in the service but is identical to the same-named function nested in Campaign.to_dict \u2014 duplication that can drift.\\\",\\n        \\\"suggestion\\\": \\\"Import and reuse the model's _enum_val or move it to a shared utils module.\\\"\\n      },\\n      {\\n        \\\"line\\\": 92,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"get_campaign_stats divides campaign.open_count / sent \u2014 if sent_count is 0 the guard handles it, but if open_count or click_count are None (nullable DB column), a TypeError would occur.\\\",\\n        \\\"suggestion\\\": \\\"Use getattr(campaign, 'open_count', 0) or ensure columns are NOT NULL with a server default.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Multiple critical violations of transaction-boundary rules (flush+refresh triple) and unsafe tenant_id defaults; update_campaign lacks an allowlist for settable fields.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"tests/integration/test_marketing_integration.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 87,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"_seed_user is called once per test but the generated suffix is deterministic within a test \u2014 subsequent calls within the same test generate the same UUID suffix, risking unique-constraint violation on username/email.\\\",\\n        \\\"suggestion\\\": \\\"Use a counter or pass an incrementing index to uuid.uuid4().hex[:8] so each call in the same test produces a unique suffix: suffix = f'{base}_{call_count}' or pass uuid.uuid4().hex[:8] from the outer test scope.\\\"\\n      },\\n      {\\n        \\\"line\\\": 135,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"test_list_pagination creates 3 campaigns with names 'Page Test {i} {suffix}' \u2014 if the same test file runs multiple tests in sequence on the same DB, leftover data causes total >= 3 to be unreliable.\\\",\\n        \\\"suggestion\\\": \\\"The db_schema fixture truncates tables between tests via TRUNCATE CASCADE, so this is safe; no change needed given the fixture setup.\\\"\\n      },\\n      {\\n        \\\"line\\\": 26,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"_seed_user is an async method defined inside the test class \u2014 it could be shared as a module-level helper or use the existing test fixtures pattern.\\\",\\n        \\\"suggestion\\\": \\\"Extract to a pytest fixture or module-level helper to reduce duplication across test methods.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Integration tests correctly use real DB fixtures and cover CRUD + tenant isolation; _seed_user suffix collision within the same test run is a correctness risk.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"tests/unit/test_marketing_router.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 90,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"test_pagination_params asserts body['data']['page'] == 2 and body['data']['page_size'] == 5 \u2014 the router's list response only returns {items, total} and does not include 'page' or 'page_size' in the data dict, so this assertion will KeyError at runtime.\\\",\\n        \\\"suggestion\\\": \\\"Either add pagination metadata to the router response (router should return page/page_size in data) or remove these assertions; verify against the actual router implementation.\\\"\\n      },\\n      {\\n        \\\"line\\\": 55,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"app.dependency_overrides[get_db] returns a bare MagicMock() \u2014 the mock has no async __aenter__/__aexit__, which means if the router ever uses the session's transaction context (e.g., __aenter__) the mock will return None and the test will fail silently.\\\",\\n        \\\"suggestion\\\": \\\"Use AsyncMock() or configure the mock to return a proper async context manager: MagicMock(__aenter__=AsyncMock(return_value=MagicMock()), __aexit__=AsyncMock(return_value=None))\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Unit tests correctly mock the service layer and cover HTTP status codes; test_pagination_params has a mismatch between expected and actual response shape, and the DB dependency mock lacks async context manager support.\\\"\\n  }\\n]\",\"stop_reason\":\"end_turn\",\"session_id\":\"af4f8129-1409-453a-81a9-0f3e856ef150\",\"total_cost_usd\":0.17945699999999998,\"usage\":{\"input_tokens\":35066,\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":33280,\"output_tokens\":4285,\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":0,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"\",\"iterations\":[],\"speed\":\"standard\"},\"modelUsage\":{\"claude-sonnet-4-6\":{\"inputTokens\":35066,\"outputTokens\":4285,\"cacheReadInputTokens\":33280,\"cacheCreationInputTokens\":0,\"webSearchRequests\":0,\"costUSD\":0.17945699999999998,\"contextWindow\":200000,\"maxOutputTokens\":32000}},\"permission_denials\":[],\"terminal_reason\":\"completed\",\"fast_mode_state\":\"off\",\"uuid\":\"45c1f4bd-c420-4c38-ac76-b9f7d6eb925a\"}\n",
-        "parsed": {
-          "filename": "src/models/marketing.py",
-          "issues": [
-            {
-              "line": 94,
-              "severity": "warning",
-              "message": "CampaignEvent lacks to_dict/from_dict methods unlike Campaign \u2014 inconsistent interface.",
-              "suggestion": "Add to_dict() and from_dict() to CampaignEvent for symmetry with Campaign."
-            },
-            {
-              "line": 41,
-              "severity": "info",
-              "message": "target_audience is stored as raw SQL-like string with no parameterized validation \u2014 if this expression is built from user input, SQL injection risk exists.",
-              "suggestion": "Validate target_audience as a safe tag/segment reference rather than raw SQL; do not execute it directly."
-            }
-          ],
-          "summary": "Clean dataclass models with enums; CampaignEvent is missing serialization methods that Campaign has."
-        }
-      },
-      {
-        "file": "src/services/marketing_service.py",
-        "returncode": 0,
-        "output": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"api_error_status\":null,\"duration_ms\":280851,\"duration_api_ms\":280743,\"num_turns\":5,\"result\":\"\\n\\n[\\n  {\\n    \\\"filename\\\": \\\"src/models/marketing.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 94,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"CampaignEvent lacks to_dict/from_dict methods unlike Campaign \u2014 inconsistent interface.\\\",\\n        \\\"suggestion\\\": \\\"Add to_dict() and from_dict() to CampaignEvent for symmetry with Campaign.\\\"\\n      },\\n      {\\n        \\\"line\\\": 41,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"target_audience is stored as raw SQL-like string with no parameterized validation \u2014 if this expression is built from user input, SQL injection risk exists.\\\",\\n        \\\"suggestion\\\": \\\"Validate target_audience as a safe tag/segment reference rather than raw SQL; do not execute it directly.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Clean dataclass models with enums; CampaignEvent is missing serialization methods that Campaign has.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"src/services/marketing_service.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 53,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"flush() + refresh() pattern violates project rule 123 \u2014 the service is trying to own the transaction lifecycle.\\\",\\n        \\\"suggestion\\\": \\\"Remove await self.session.refresh(campaign) and let the router's dependency own the commit/refresh lifecycle.\\\"\\n      },\\n      {\\n        \\\"line\\\": 54,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"flush() + refresh() pattern also at line 77 (update_campaign) and line 155 (record_event) \u2014 same violation repeats 3 times.\\\",\\n        \\\"suggestion\\\": \\\"Remove all three await self.session.refresh() calls. Flush only when auto-generated IDs or IntegrityError surfacing is needed.\\\"\\n      },\\n      {\\n        \\\"line\\\": 33,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"tenant_id defaults to 0 \u2014 allows cross-tenant access if caller omits the parameter (rule 6: every SQL query must filter by tenant_id).\\\",\\n        \\\"suggestion\\\": \\\"Remove default: def create_campaign(..., tenant_id: int, ...) so the caller is forced to provide it.\\\"\\n      },\\n      {\\n        \\\"line\\\": 57,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"get_campaign and other methods default tenant_id to 0 \u2014 same unsafe default propagates across all methods.\\\",\\n        \\\"suggestion\\\": \\\"Remove all tenant_id default values across all method signatures.\\\"\\n      },\\n      {\\n        \\\"line\\\": 67,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"update_campaign uses setattr on any attribute present in kwargs with no allowlist \u2014 callers can set internal or unintended fields.\\\",\\n        \\\"suggestion\\\": \\\"Maintain an explicit allowlist: ALLOWED_UPDATE_FIELDS = {'name', 'status', 'subject', ...} and only set attributes in that set.\\\"\\n      },\\n      {\\n        \\\"line\\\": 190,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"delete_campaign has no tenant_id filter \u2014 delete is not gated by tenant_id, allowing cross-tenant deletion if tenant_id is omitted or defaulted.\\\",\\n        \\\"suggestion\\\": \\\"delete_campaign already calls get_campaign which filters by tenant_id, so the fetch is safe; however the explicit session.delete call is fine. No change needed if tenant_id default is removed from method signature.\\\"\\n      },\\n      {\\n        \\\"line\\\": 14,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"_enum_val is defined in the service but is identical to the same-named function nested in Campaign.to_dict \u2014 duplication that can drift.\\\",\\n        \\\"suggestion\\\": \\\"Import and reuse the model's _enum_val or move it to a shared utils module.\\\"\\n      },\\n      {\\n        \\\"line\\\": 92,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"get_campaign_stats divides campaign.open_count / sent \u2014 if sent_count is 0 the guard handles it, but if open_count or click_count are None (nullable DB column), a TypeError would occur.\\\",\\n        \\\"suggestion\\\": \\\"Use getattr(campaign, 'open_count', 0) or ensure columns are NOT NULL with a server default.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Multiple critical violations of transaction-boundary rules (flush+refresh triple) and unsafe tenant_id defaults; update_campaign lacks an allowlist for settable fields.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"tests/integration/test_marketing_integration.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 87,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"_seed_user is called once per test but the generated suffix is deterministic within a test \u2014 subsequent calls within the same test generate the same UUID suffix, risking unique-constraint violation on username/email.\\\",\\n        \\\"suggestion\\\": \\\"Use a counter or pass an incrementing index to uuid.uuid4().hex[:8] so each call in the same test produces a unique suffix: suffix = f'{base}_{call_count}' or pass uuid.uuid4().hex[:8] from the outer test scope.\\\"\\n      },\\n      {\\n        \\\"line\\\": 135,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"test_list_pagination creates 3 campaigns with names 'Page Test {i} {suffix}' \u2014 if the same test file runs multiple tests in sequence on the same DB, leftover data causes total >= 3 to be unreliable.\\\",\\n        \\\"suggestion\\\": \\\"The db_schema fixture truncates tables between tests via TRUNCATE CASCADE, so this is safe; no change needed given the fixture setup.\\\"\\n      },\\n      {\\n        \\\"line\\\": 26,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"_seed_user is an async method defined inside the test class \u2014 it could be shared as a module-level helper or use the existing test fixtures pattern.\\\",\\n        \\\"suggestion\\\": \\\"Extract to a pytest fixture or module-level helper to reduce duplication across test methods.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Integration tests correctly use real DB fixtures and cover CRUD + tenant isolation; _seed_user suffix collision within the same test run is a correctness risk.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"tests/unit/test_marketing_router.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 90,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"test_pagination_params asserts body['data']['page'] == 2 and body['data']['page_size'] == 5 \u2014 the router's list response only returns {items, total} and does not include 'page' or 'page_size' in the data dict, so this assertion will KeyError at runtime.\\\",\\n        \\\"suggestion\\\": \\\"Either add pagination metadata to the router response (router should return page/page_size in data) or remove these assertions; verify against the actual router implementation.\\\"\\n      },\\n      {\\n        \\\"line\\\": 55,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"app.dependency_overrides[get_db] returns a bare MagicMock() \u2014 the mock has no async __aenter__/__aexit__, which means if the router ever uses the session's transaction context (e.g., __aenter__) the mock will return None and the test will fail silently.\\\",\\n        \\\"suggestion\\\": \\\"Use AsyncMock() or configure the mock to return a proper async context manager: MagicMock(__aenter__=AsyncMock(return_value=MagicMock()), __aexit__=AsyncMock(return_value=None))\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Unit tests correctly mock the service layer and cover HTTP status codes; test_pagination_params has a mismatch between expected and actual response shape, and the DB dependency mock lacks async context manager support.\\\"\\n  }\\n]\",\"stop_reason\":\"end_turn\",\"session_id\":\"af4f8129-1409-453a-81a9-0f3e856ef150\",\"total_cost_usd\":0.17945699999999998,\"usage\":{\"input_tokens\":35066,\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":33280,\"output_tokens\":4285,\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":0,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"\",\"iterations\":[],\"speed\":\"standard\"},\"modelUsage\":{\"claude-sonnet-4-6\":{\"inputTokens\":35066,\"outputTokens\":4285,\"cacheReadInputTokens\":33280,\"cacheCreationInputTokens\":0,\"webSearchRequests\":0,\"costUSD\":0.17945699999999998,\"contextWindow\":200000,\"maxOutputTokens\":32000}},\"permission_denials\":[],\"terminal_reason\":\"completed\",\"fast_mode_state\":\"off\",\"uuid\":\"45c1f4bd-c420-4c38-ac76-b9f7d6eb925a\"}\n",
-        "parsed": {
-          "filename": "src/services/marketing_service.py",
-          "issues": [
-            {
-              "line": 53,
-              "severity": "critical",
-              "message": "flush() + refresh() pattern violates project rule 123 \u2014 the service is trying to own the transaction lifecycle.",
-              "suggestion": "Remove await self.session.refresh(campaign) and let the router's dependency own the commit/refresh lifecycle."
-            },
-            {
-              "line": 54,
-              "severity": "critical",
-              "message": "flush() + refresh() pattern also at line 77 (update_campaign) and line 155 (record_event) \u2014 same violation repeats 3 times.",
-              "suggestion": "Remove all three await self.session.refresh() calls. Flush only when auto-generated IDs or IntegrityError surfacing is needed."
-            },
-            {
-              "line": 33,
-              "severity": "critical",
-              "message": "tenant_id defaults to 0 \u2014 allows cross-tenant access if caller omits the parameter (rule 6: every SQL query must filter by tenant_id).",
-              "suggestion": "Remove default: def create_campaign(..., tenant_id: int, ...) so the caller is forced to provide it."
-            },
-            {
-              "line": 57,
-              "severity": "critical",
-              "message": "get_campaign and other methods default tenant_id to 0 \u2014 same unsafe default propagates across all methods.",
-              "suggestion": "Remove all tenant_id default values across all method signatures."
-            },
-            {
-              "line": 67,
-              "severity": "critical",
-              "message": "update_campaign uses setattr on any attribute present in kwargs with no allowlist \u2014 callers can set internal or unintended fields.",
-              "suggestion": "Maintain an explicit allowlist: ALLOWED_UPDATE_FIELDS = {'name', 'status', 'subject', ...} and only set attributes in that set."
-            },
-            {
-              "line": 190,
-              "severity": "critical",
-              "message": "delete_campaign has no tenant_id filter \u2014 delete is not gated by tenant_id, allowing cross-tenant deletion if tenant_id is omitted or defaulted.",
-              "suggestion": "delete_campaign already calls get_campaign which filters by tenant_id, so the fetch is safe; however the explicit session.delete call is fine. No change needed if tenant_id default is removed from method signature."
-            },
-            {
-              "line": 14,
-              "severity": "warning",
-              "message": "_enum_val is defined in the service but is identical to the same-named function nested in Campaign.to_dict \u2014 duplication that can drift.",
-              "suggestion": "Import and reuse the model's _enum_val or move it to a shared utils module."
-            },
-            {
-              "line": 92,
-              "severity": "info",
-              "message": "get_campaign_stats divides campaign.open_count / sent \u2014 if sent_count is 0 the guard handles it, but if open_count or click_count are None (nullable DB column), a TypeError would occur.",
-              "suggestion": "Use getattr(campaign, 'open_count', 0) or ensure columns are NOT NULL with a server default."
-            }
-          ],
-          "summary": "Multiple critical violations of transaction-boundary rules (flush+refresh triple) and unsafe tenant_id defaults; update_campaign lacks an allowlist for settable fields."
-        }
-      },
-      {
-        "file": "tests/integration/test_marketing_integration.py",
-        "returncode": 0,
-        "output": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"api_error_status\":null,\"duration_ms\":280851,\"duration_api_ms\":280743,\"num_turns\":5,\"result\":\"\\n\\n[\\n  {\\n    \\\"filename\\\": \\\"src/models/marketing.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 94,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"CampaignEvent lacks to_dict/from_dict methods unlike Campaign \u2014 inconsistent interface.\\\",\\n        \\\"suggestion\\\": \\\"Add to_dict() and from_dict() to CampaignEvent for symmetry with Campaign.\\\"\\n      },\\n      {\\n        \\\"line\\\": 41,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"target_audience is stored as raw SQL-like string with no parameterized validation \u2014 if this expression is built from user input, SQL injection risk exists.\\\",\\n        \\\"suggestion\\\": \\\"Validate target_audience as a safe tag/segment reference rather than raw SQL; do not execute it directly.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Clean dataclass models with enums; CampaignEvent is missing serialization methods that Campaign has.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"src/services/marketing_service.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 53,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"flush() + refresh() pattern violates project rule 123 \u2014 the service is trying to own the transaction lifecycle.\\\",\\n        \\\"suggestion\\\": \\\"Remove await self.session.refresh(campaign) and let the router's dependency own the commit/refresh lifecycle.\\\"\\n      },\\n      {\\n        \\\"line\\\": 54,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"flush() + refresh() pattern also at line 77 (update_campaign) and line 155 (record_event) \u2014 same violation repeats 3 times.\\\",\\n        \\\"suggestion\\\": \\\"Remove all three await self.session.refresh() calls. Flush only when auto-generated IDs or IntegrityError surfacing is needed.\\\"\\n      },\\n      {\\n        \\\"line\\\": 33,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"tenant_id defaults to 0 \u2014 allows cross-tenant access if caller omits the parameter (rule 6: every SQL query must filter by tenant_id).\\\",\\n        \\\"suggestion\\\": \\\"Remove default: def create_campaign(..., tenant_id: int, ...) so the caller is forced to provide it.\\\"\\n      },\\n      {\\n        \\\"line\\\": 57,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"get_campaign and other methods default tenant_id to 0 \u2014 same unsafe default propagates across all methods.\\\",\\n        \\\"suggestion\\\": \\\"Remove all tenant_id default values across all method signatures.\\\"\\n      },\\n      {\\n        \\\"line\\\": 67,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"update_campaign uses setattr on any attribute present in kwargs with no allowlist \u2014 callers can set internal or unintended fields.\\\",\\n        \\\"suggestion\\\": \\\"Maintain an explicit allowlist: ALLOWED_UPDATE_FIELDS = {'name', 'status', 'subject', ...} and only set attributes in that set.\\\"\\n      },\\n      {\\n        \\\"line\\\": 190,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"delete_campaign has no tenant_id filter \u2014 delete is not gated by tenant_id, allowing cross-tenant deletion if tenant_id is omitted or defaulted.\\\",\\n        \\\"suggestion\\\": \\\"delete_campaign already calls get_campaign which filters by tenant_id, so the fetch is safe; however the explicit session.delete call is fine. No change needed if tenant_id default is removed from method signature.\\\"\\n      },\\n      {\\n        \\\"line\\\": 14,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"_enum_val is defined in the service but is identical to the same-named function nested in Campaign.to_dict \u2014 duplication that can drift.\\\",\\n        \\\"suggestion\\\": \\\"Import and reuse the model's _enum_val or move it to a shared utils module.\\\"\\n      },\\n      {\\n        \\\"line\\\": 92,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"get_campaign_stats divides campaign.open_count / sent \u2014 if sent_count is 0 the guard handles it, but if open_count or click_count are None (nullable DB column), a TypeError would occur.\\\",\\n        \\\"suggestion\\\": \\\"Use getattr(campaign, 'open_count', 0) or ensure columns are NOT NULL with a server default.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Multiple critical violations of transaction-boundary rules (flush+refresh triple) and unsafe tenant_id defaults; update_campaign lacks an allowlist for settable fields.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"tests/integration/test_marketing_integration.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 87,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"_seed_user is called once per test but the generated suffix is deterministic within a test \u2014 subsequent calls within the same test generate the same UUID suffix, risking unique-constraint violation on username/email.\\\",\\n        \\\"suggestion\\\": \\\"Use a counter or pass an incrementing index to uuid.uuid4().hex[:8] so each call in the same test produces a unique suffix: suffix = f'{base}_{call_count}' or pass uuid.uuid4().hex[:8] from the outer test scope.\\\"\\n      },\\n      {\\n        \\\"line\\\": 135,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"test_list_pagination creates 3 campaigns with names 'Page Test {i} {suffix}' \u2014 if the same test file runs multiple tests in sequence on the same DB, leftover data causes total >= 3 to be unreliable.\\\",\\n        \\\"suggestion\\\": \\\"The db_schema fixture truncates tables between tests via TRUNCATE CASCADE, so this is safe; no change needed given the fixture setup.\\\"\\n      },\\n      {\\n        \\\"line\\\": 26,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"_seed_user is an async method defined inside the test class \u2014 it could be shared as a module-level helper or use the existing test fixtures pattern.\\\",\\n        \\\"suggestion\\\": \\\"Extract to a pytest fixture or module-level helper to reduce duplication across test methods.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Integration tests correctly use real DB fixtures and cover CRUD + tenant isolation; _seed_user suffix collision within the same test run is a correctness risk.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"tests/unit/test_marketing_router.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 90,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"test_pagination_params asserts body['data']['page'] == 2 and body['data']['page_size'] == 5 \u2014 the router's list response only returns {items, total} and does not include 'page' or 'page_size' in the data dict, so this assertion will KeyError at runtime.\\\",\\n        \\\"suggestion\\\": \\\"Either add pagination metadata to the router response (router should return page/page_size in data) or remove these assertions; verify against the actual router implementation.\\\"\\n      },\\n      {\\n        \\\"line\\\": 55,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"app.dependency_overrides[get_db] returns a bare MagicMock() \u2014 the mock has no async __aenter__/__aexit__, which means if the router ever uses the session's transaction context (e.g., __aenter__) the mock will return None and the test will fail silently.\\\",\\n        \\\"suggestion\\\": \\\"Use AsyncMock() or configure the mock to return a proper async context manager: MagicMock(__aenter__=AsyncMock(return_value=MagicMock()), __aexit__=AsyncMock(return_value=None))\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Unit tests correctly mock the service layer and cover HTTP status codes; test_pagination_params has a mismatch between expected and actual response shape, and the DB dependency mock lacks async context manager support.\\\"\\n  }\\n]\",\"stop_reason\":\"end_turn\",\"session_id\":\"af4f8129-1409-453a-81a9-0f3e856ef150\",\"total_cost_usd\":0.17945699999999998,\"usage\":{\"input_tokens\":35066,\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":33280,\"output_tokens\":4285,\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":0,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"\",\"iterations\":[],\"speed\":\"standard\"},\"modelUsage\":{\"claude-sonnet-4-6\":{\"inputTokens\":35066,\"outputTokens\":4285,\"cacheReadInputTokens\":33280,\"cacheCreationInputTokens\":0,\"webSearchRequests\":0,\"costUSD\":0.17945699999999998,\"contextWindow\":200000,\"maxOutputTokens\":32000}},\"permission_denials\":[],\"terminal_reason\":\"completed\",\"fast_mode_state\":\"off\",\"uuid\":\"45c1f4bd-c420-4c38-ac76-b9f7d6eb925a\"}\n",
-        "parsed": {
-          "filename": "tests/integration/test_marketing_integration.py",
-          "issues": [
-            {
-              "line": 87,
-              "severity": "critical",
-              "message": "_seed_user is called once per test but the generated suffix is deterministic within a test \u2014 subsequent calls within the same test generate the same UUID suffix, risking unique-constraint violation on username/email.",
-              "suggestion": "Use a counter or pass an incrementing index to uuid.uuid4().hex[:8] so each call in the same test produces a unique suffix: suffix = f'{base}_{call_count}' or pass uuid.uuid4().hex[:8] from the outer test scope."
-            },
-            {
-              "line": 135,
-              "severity": "warning",
-              "message": "test_list_pagination creates 3 campaigns with names 'Page Test {i} {suffix}' \u2014 if the same test file runs multiple tests in sequence on the same DB, leftover data causes total >= 3 to be unreliable.",
-              "suggestion": "The db_schema fixture truncates tables between tests via TRUNCATE CASCADE, so this is safe; no change needed given the fixture setup."
-            },
-            {
-              "line": 26,
-              "severity": "info",
-              "message": "_seed_user is an async method defined inside the test class \u2014 it could be shared as a module-level helper or use the existing test fixtures pattern.",
-              "suggestion": "Extract to a pytest fixture or module-level helper to reduce duplication across test methods."
-            }
-          ],
-          "summary": "Integration tests correctly use real DB fixtures and cover CRUD + tenant isolation; _seed_user suffix collision within the same test run is a correctness risk."
-        }
-      },
-      {
-        "file": "tests/unit/test_marketing_router.py",
-        "returncode": 0,
-        "output": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"api_error_status\":null,\"duration_ms\":280851,\"duration_api_ms\":280743,\"num_turns\":5,\"result\":\"\\n\\n[\\n  {\\n    \\\"filename\\\": \\\"src/models/marketing.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 94,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"CampaignEvent lacks to_dict/from_dict methods unlike Campaign \u2014 inconsistent interface.\\\",\\n        \\\"suggestion\\\": \\\"Add to_dict() and from_dict() to CampaignEvent for symmetry with Campaign.\\\"\\n      },\\n      {\\n        \\\"line\\\": 41,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"target_audience is stored as raw SQL-like string with no parameterized validation \u2014 if this expression is built from user input, SQL injection risk exists.\\\",\\n        \\\"suggestion\\\": \\\"Validate target_audience as a safe tag/segment reference rather than raw SQL; do not execute it directly.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Clean dataclass models with enums; CampaignEvent is missing serialization methods that Campaign has.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"src/services/marketing_service.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 53,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"flush() + refresh() pattern violates project rule 123 \u2014 the service is trying to own the transaction lifecycle.\\\",\\n        \\\"suggestion\\\": \\\"Remove await self.session.refresh(campaign) and let the router's dependency own the commit/refresh lifecycle.\\\"\\n      },\\n      {\\n        \\\"line\\\": 54,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"flush() + refresh() pattern also at line 77 (update_campaign) and line 155 (record_event) \u2014 same violation repeats 3 times.\\\",\\n        \\\"suggestion\\\": \\\"Remove all three await self.session.refresh() calls. Flush only when auto-generated IDs or IntegrityError surfacing is needed.\\\"\\n      },\\n      {\\n        \\\"line\\\": 33,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"tenant_id defaults to 0 \u2014 allows cross-tenant access if caller omits the parameter (rule 6: every SQL query must filter by tenant_id).\\\",\\n        \\\"suggestion\\\": \\\"Remove default: def create_campaign(..., tenant_id: int, ...) so the caller is forced to provide it.\\\"\\n      },\\n      {\\n        \\\"line\\\": 57,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"get_campaign and other methods default tenant_id to 0 \u2014 same unsafe default propagates across all methods.\\\",\\n        \\\"suggestion\\\": \\\"Remove all tenant_id default values across all method signatures.\\\"\\n      },\\n      {\\n        \\\"line\\\": 67,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"update_campaign uses setattr on any attribute present in kwargs with no allowlist \u2014 callers can set internal or unintended fields.\\\",\\n        \\\"suggestion\\\": \\\"Maintain an explicit allowlist: ALLOWED_UPDATE_FIELDS = {'name', 'status', 'subject', ...} and only set attributes in that set.\\\"\\n      },\\n      {\\n        \\\"line\\\": 190,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"delete_campaign has no tenant_id filter \u2014 delete is not gated by tenant_id, allowing cross-tenant deletion if tenant_id is omitted or defaulted.\\\",\\n        \\\"suggestion\\\": \\\"delete_campaign already calls get_campaign which filters by tenant_id, so the fetch is safe; however the explicit session.delete call is fine. No change needed if tenant_id default is removed from method signature.\\\"\\n      },\\n      {\\n        \\\"line\\\": 14,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"_enum_val is defined in the service but is identical to the same-named function nested in Campaign.to_dict \u2014 duplication that can drift.\\\",\\n        \\\"suggestion\\\": \\\"Import and reuse the model's _enum_val or move it to a shared utils module.\\\"\\n      },\\n      {\\n        \\\"line\\\": 92,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"get_campaign_stats divides campaign.open_count / sent \u2014 if sent_count is 0 the guard handles it, but if open_count or click_count are None (nullable DB column), a TypeError would occur.\\\",\\n        \\\"suggestion\\\": \\\"Use getattr(campaign, 'open_count', 0) or ensure columns are NOT NULL with a server default.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Multiple critical violations of transaction-boundary rules (flush+refresh triple) and unsafe tenant_id defaults; update_campaign lacks an allowlist for settable fields.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"tests/integration/test_marketing_integration.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 87,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"_seed_user is called once per test but the generated suffix is deterministic within a test \u2014 subsequent calls within the same test generate the same UUID suffix, risking unique-constraint violation on username/email.\\\",\\n        \\\"suggestion\\\": \\\"Use a counter or pass an incrementing index to uuid.uuid4().hex[:8] so each call in the same test produces a unique suffix: suffix = f'{base}_{call_count}' or pass uuid.uuid4().hex[:8] from the outer test scope.\\\"\\n      },\\n      {\\n        \\\"line\\\": 135,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"test_list_pagination creates 3 campaigns with names 'Page Test {i} {suffix}' \u2014 if the same test file runs multiple tests in sequence on the same DB, leftover data causes total >= 3 to be unreliable.\\\",\\n        \\\"suggestion\\\": \\\"The db_schema fixture truncates tables between tests via TRUNCATE CASCADE, so this is safe; no change needed given the fixture setup.\\\"\\n      },\\n      {\\n        \\\"line\\\": 26,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"_seed_user is an async method defined inside the test class \u2014 it could be shared as a module-level helper or use the existing test fixtures pattern.\\\",\\n        \\\"suggestion\\\": \\\"Extract to a pytest fixture or module-level helper to reduce duplication across test methods.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Integration tests correctly use real DB fixtures and cover CRUD + tenant isolation; _seed_user suffix collision within the same test run is a correctness risk.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"tests/unit/test_marketing_router.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 90,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"test_pagination_params asserts body['data']['page'] == 2 and body['data']['page_size'] == 5 \u2014 the router's list response only returns {items, total} and does not include 'page' or 'page_size' in the data dict, so this assertion will KeyError at runtime.\\\",\\n        \\\"suggestion\\\": \\\"Either add pagination metadata to the router response (router should return page/page_size in data) or remove these assertions; verify against the actual router implementation.\\\"\\n      },\\n      {\\n        \\\"line\\\": 55,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"app.dependency_overrides[get_db] returns a bare MagicMock() \u2014 the mock has no async __aenter__/__aexit__, which means if the router ever uses the session's transaction context (e.g., __aenter__) the mock will return None and the test will fail silently.\\\",\\n        \\\"suggestion\\\": \\\"Use AsyncMock() or configure the mock to return a proper async context manager: MagicMock(__aenter__=AsyncMock(return_value=MagicMock()), __aexit__=AsyncMock(return_value=None))\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Unit tests correctly mock the service layer and cover HTTP status codes; test_pagination_params has a mismatch between expected and actual response shape, and the DB dependency mock lacks async context manager support.\\\"\\n  }\\n]\",\"stop_reason\":\"end_turn\",\"session_id\":\"af4f8129-1409-453a-81a9-0f3e856ef150\",\"total_cost_usd\":0.17945699999999998,\"usage\":{\"input_tokens\":35066,\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":33280,\"output_tokens\":4285,\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":0,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"\",\"iterations\":[],\"speed\":\"standard\"},\"modelUsage\":{\"claude-sonnet-4-6\":{\"inputTokens\":35066,\"outputTokens\":4285,\"cacheReadInputTokens\":33280,\"cacheCreationInputTokens\":0,\"webSearchRequests\":0,\"costUSD\":0.17945699999999998,\"contextWindow\":200000,\"maxOutputTokens\":32000}},\"permission_denials\":[],\"terminal_reason\":\"completed\",\"fast_mode_state\":\"off\",\"uuid\":\"45c1f4bd-c420-4c38-ac76-b9f7d6eb925a\"}\n",
-        "parsed": {
-          "filename": "tests/unit/test_marketing_router.py",
-          "issues": [
-            {
-              "line": 90,
-              "severity": "critical",
-              "message": "test_pagination_params asserts body['data']['page'] == 2 and body['data']['page_size'] == 5 \u2014 the router's list response only returns {items, total} and does not include 'page' or 'page_size' in the data dict, so this assertion will KeyError at runtime.",
-              "suggestion": "Either add pagination metadata to the router response (router should return page/page_size in data) or remove these assertions; verify against the actual router implementation."
-            },
-            {
-              "line": 55,
-              "severity": "warning",
-              "message": "app.dependency_overrides[get_db] returns a bare MagicMock() \u2014 the mock has no async __aenter__/__aexit__, which means if the router ever uses the session's transaction context (e.g., __aenter__) the mock will return None and the test will fail silently.",
-              "suggestion": "Use AsyncMock() or configure the mock to return a proper async context manager: MagicMock(__aenter__=AsyncMock(return_value=MagicMock()), __aexit__=AsyncMock(return_value=None))"
-            }
-          ],
-          "summary": "Unit tests correctly mock the service layer and cover HTTP status codes; test_pagination_params has a mismatch between expected and actual response shape, and the DB dependency mock lacks async context manager support."
+          "summary": "Variable resolution for new branches is broken \u2014 `github.event.before` yields a null SHA and `github.head_ref` is empty for non-PR events, making the diff always wrong for new branches and manual workflow dispatches."
         }
       }
     ]
