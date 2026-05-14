@@ -3,213 +3,291 @@
   "verdict": "fail",
   "critical_issues": [
     {
-      "file": "scripts/ci/claude_code_review.py",
-      "line": 341,
+      "file": "src/api/routers/tasks.py",
+      "line": 97,
       "severity": "critical",
-      "msg": "Bare `except Exception:` catches all subclasses including `KeyboardInterrupt` and `SystemExit`, masking serious failures during comment cleanup. (Rule 25)",
-      "suggestion": "Replace with `except (HTTPError, URLError, TimeoutError, OSError) as exc:` to match the pattern used elsewhere in the file."
-    },
-    {
-      "file": "scripts/ci/run_code_review.py",
-      "line": 607,
-      "severity": "critical",
-      "msg": "Bare `except Exception:` catches `KeyboardInterrupt` and `SystemExit` which should terminate immediately; this masks serious failures and prevents clean shutdown. (Rule 25)",
-      "suggestion": "Reorder the handlers so `except KeyboardInterrupt` comes before a general `except Exception`, or narrow the general clause to `except (HTTPError, URLError, TimeoutError, OSError, ValueError)`."
+      "msg": "total = len(items) returns the page size (capped at 100), not the true total matching rows. The service applies LIMIT/OFFSET in SQL so len() undercounts when total > page_size.",
+      "suggestion": "Call a count method on TaskService (e.g., svc.count_tasks(...)) or have list_tasks return (items, total) like list_tickets does. Compare with tickets.py:125 where service returns (items, total) tuple."
     }
   ],
   "suggestions": [
     {
-      "file": "Makefile",
-      "line": 85,
+      "file": ".plans/issue-106.md",
+      "line": "",
       "severity": "info",
-      "msg": "ISSUE variable is unquoted, causing failure if the value is empty or contains spaces.",
-      "suggestion": "Quote the variable: $(ISSUE) \u2192 \"$(ISSUE)\""
+      "msg": "Plan document is detailed and consistent with the implemented files, correctly describing the tasks.py router structure, registration steps, and test strategy. No issues found."
     },
     {
-      "file": "scripts/ci/claude_code_review.py",
-      "line": 625,
+      "file": "src/api/__init__.py",
+      "line": "",
+      "severity": "info",
+      "msg": "Clean aggregation of all feature routers with correct imports and __all__ exports. No issues found."
+    },
+    {
+      "file": "src/api/routers/tasks.py",
+      "line": 31,
+      "severity": "info",
+      "msg": "Message field uses hardcoded Chinese string literal '\u83b7\u53d6\u4efb\u52a1\u5217\u8868\u6210\u529f'. Other routers use English or omit the message. Inconsistent with project style.",
+      "suggestion": "Replace with English string matching the style of other router responses, or remove the message field for consistency."
+    },
+    {
+      "file": "src/main.py",
+      "line": 68,
       "severity": "warning",
-      "msg": "Scanning text character-by-character with `enumerate(text)` to find the first `{` is O(N) on the full input and will fail for JSON where the object is not the first occurrence after the loop advances. (Rule 31)",
-      "suggestion": "Use `text.find('{')` directly instead of a loop over characters."
+      "msg": "CORSMiddleware configured with allow_credentials=True and allow_origins=allowed_origins where the default (when env var is unset) becomes ['*']. Credentials with wildcard origin is unsafe and violates CORS spec \u2014 browsers will reject it.",
+      "suggestion": "When allow_credentials=True, allowed_origins must be an explicit allowlist (never '*'). Ensure settings.cors_origins is non-empty in all environments, or add a validation check that rejects '*' as a value."
     },
     {
-      "file": "scripts/ci/claude_code_review.py",
-      "line": 265,
-      "severity": "info",
-      "msg": "In `GitHubClient.request`, `text` can be empty string on a 204 No Content response; the `json.loads('')` call is guarded by a ternary but the branch is dead code that should be removed for clarity.",
-      "suggestion": "Remove the ternary; return `None` unconditionally when `text` is empty."
-    },
-    {
-      "file": "scripts/ci/clear_triage_labels.py",
-      "line": 29,
-      "severity": "info",
-      "msg": "`run_gh` uses `check=False` and discards non-zero exit codes silently; callers log `r.stderr` but execution continues regardless.",
-      "suggestion": "Consider adding `check=True` or at minimum a warning log when `r.returncode != 0` before returning."
-    },
-    {
-      "file": "scripts/ci/run_code_review.py",
-      "line": 213,
+      "file": "tests/integration/test_tasks_integration.py",
+      "line": 80,
       "severity": "warning",
-      "msg": "Module-level `import re` exists at line 8, yet `stage_fetch` re-imports it locally at line 213 \u2014 redundant import executed on every function call. (Rule 110)",
-      "suggestion": "Delete `import re` from inside `stage_fetch` and rely on the module-level import."
+      "msg": "Assertion uses >= which passes even if the 3 created tasks were not persisted, masking a data-loss bug.",
+      "suggestion": "Use == 3 after ensuring the DB is clean (db_schema should guarantee this, but >= hides violations). If the intent is to assert minimum count, add a comment explaining why."
+    },
+    {
+      "file": "tests/unit/conftest.py",
+      "line": 754,
+      "severity": "info",
+      "msg": "Unhandled SQL in `make_mock_session` returns `MockResult([])` silently \u2014 a missing handler will produce zero rows with no indication that the query was unrecognized.",
+      "suggestion": "Add a debug-mode assertion or log in `_execute_side_effect`: when all handlers return None, log a warning or raise `ValueError(f'No handler matched: {sql_text}')` so unknown queries fail loudly in tests."
+    },
+    {
+      "file": "tests/unit/conftest.py",
+      "line": 619,
+      "severity": "info",
+      "msg": "`make_task_handler` is defined in conftest.py but no existing unit test file imports it \u2014 the task domain has a router-level unit test (test_tasks.py) but no service-layer unit test that exercises the mock handler.",
+      "suggestion": "If TaskService unit tests are intended, create tests/unit/test_task_service.py that imports `make_mock_session` and `make_task_handler` from conftest to provide a real mock session instead of the constructor-level patch used in test_tasks.py."
+    },
+    {
+      "file": "tests/unit/test_tasks.py",
+      "line": 86,
+      "severity": "warning",
+      "msg": "The `get_db` dependency is overridden with a bare `MagicMock()` (no spec, no awaitable `__aenter__`/`__aexit__`), which bypasses the async context-manager contract that FastAPI's dependency injection expects.",
+      "suggestion": "Use `make_mock_session([])` from conftest.py instead of `MagicMock()` for the get_db override, so the mock session has a proper `__aenter__`/`__aexit__` and spec'd methods."
+    },
+    {
+      "file": "tests/unit/test_tasks.py",
+      "line": 104,
+      "severity": "warning",
+      "msg": "Rule 66 / Rule 121: Tests mock `TaskService` at the class level (via `monkeypatch.setattr`) rather than constructing the service with a real mock session. This skips the router's actual session-injection path and the `__init__` contract that session must be AsyncSession.",
+      "suggestion": "Import `make_mock_session` and `make_task_handler` from conftest, then replace the `monkeypatch.setattr('api.routers.tasks.TaskService', lambda session: mock_service)` pattern with: `state = MockState(); mock_db = make_mock_session([make_task_handler(state)]); app.dependency_overrides[get_db] = lambda: mock_db; app.dependency_overrides[TaskService] = lambda session: mock_service`. This keeps the service mock for return-value control while exercising real session injection."
     }
   ],
-  "summary": "Reviewed 4 file(s) between origin/master and origin/develop.",
+  "summary": "Reviewed 7 file(s) between origin/master and origin/auto/issue-106.",
   "details": {
     "llm_parsed": {
       "verdict": "fail",
       "critical": [
         {
-          "file": "scripts/ci/claude_code_review.py",
-          "line": 341,
+          "file": "src/api/routers/tasks.py",
+          "line": 97,
           "severity": "critical",
-          "msg": "Bare `except Exception:` catches all subclasses including `KeyboardInterrupt` and `SystemExit`, masking serious failures during comment cleanup. (Rule 25)",
-          "suggestion": "Replace with `except (HTTPError, URLError, TimeoutError, OSError) as exc:` to match the pattern used elsewhere in the file."
-        },
-        {
-          "file": "scripts/ci/run_code_review.py",
-          "line": 607,
-          "severity": "critical",
-          "msg": "Bare `except Exception:` catches `KeyboardInterrupt` and `SystemExit` which should terminate immediately; this masks serious failures and prevents clean shutdown. (Rule 25)",
-          "suggestion": "Reorder the handlers so `except KeyboardInterrupt` comes before a general `except Exception`, or narrow the general clause to `except (HTTPError, URLError, TimeoutError, OSError, ValueError)`."
+          "msg": "total = len(items) returns the page size (capped at 100), not the true total matching rows. The service applies LIMIT/OFFSET in SQL so len() undercounts when total > page_size.",
+          "suggestion": "Call a count method on TaskService (e.g., svc.count_tasks(...)) or have list_tasks return (items, total) like list_tickets does. Compare with tickets.py:125 where service returns (items, total) tuple."
         }
       ],
       "warnings": [
         {
-          "file": "Makefile",
-          "line": 85,
+          "file": ".plans/issue-106.md",
+          "line": "",
           "severity": "info",
-          "msg": "ISSUE variable is unquoted, causing failure if the value is empty or contains spaces.",
-          "suggestion": "Quote the variable: $(ISSUE) \u2192 \"$(ISSUE)\""
+          "msg": "Plan document is detailed and consistent with the implemented files, correctly describing the tasks.py router structure, registration steps, and test strategy. No issues found."
         },
         {
-          "file": "scripts/ci/claude_code_review.py",
-          "line": 625,
+          "file": "src/api/__init__.py",
+          "line": "",
+          "severity": "info",
+          "msg": "Clean aggregation of all feature routers with correct imports and __all__ exports. No issues found."
+        },
+        {
+          "file": "src/api/routers/tasks.py",
+          "line": 31,
+          "severity": "info",
+          "msg": "Message field uses hardcoded Chinese string literal '\u83b7\u53d6\u4efb\u52a1\u5217\u8868\u6210\u529f'. Other routers use English or omit the message. Inconsistent with project style.",
+          "suggestion": "Replace with English string matching the style of other router responses, or remove the message field for consistency."
+        },
+        {
+          "file": "src/main.py",
+          "line": 68,
           "severity": "warning",
-          "msg": "Scanning text character-by-character with `enumerate(text)` to find the first `{` is O(N) on the full input and will fail for JSON where the object is not the first occurrence after the loop advances. (Rule 31)",
-          "suggestion": "Use `text.find('{')` directly instead of a loop over characters."
+          "msg": "CORSMiddleware configured with allow_credentials=True and allow_origins=allowed_origins where the default (when env var is unset) becomes ['*']. Credentials with wildcard origin is unsafe and violates CORS spec \u2014 browsers will reject it.",
+          "suggestion": "When allow_credentials=True, allowed_origins must be an explicit allowlist (never '*'). Ensure settings.cors_origins is non-empty in all environments, or add a validation check that rejects '*' as a value."
         },
         {
-          "file": "scripts/ci/claude_code_review.py",
-          "line": 265,
-          "severity": "info",
-          "msg": "In `GitHubClient.request`, `text` can be empty string on a 204 No Content response; the `json.loads('')` call is guarded by a ternary but the branch is dead code that should be removed for clarity.",
-          "suggestion": "Remove the ternary; return `None` unconditionally when `text` is empty."
-        },
-        {
-          "file": "scripts/ci/clear_triage_labels.py",
-          "line": 29,
-          "severity": "info",
-          "msg": "`run_gh` uses `check=False` and discards non-zero exit codes silently; callers log `r.stderr` but execution continues regardless.",
-          "suggestion": "Consider adding `check=True` or at minimum a warning log when `r.returncode != 0` before returning."
-        },
-        {
-          "file": "scripts/ci/run_code_review.py",
-          "line": 213,
+          "file": "tests/integration/test_tasks_integration.py",
+          "line": 80,
           "severity": "warning",
-          "msg": "Module-level `import re` exists at line 8, yet `stage_fetch` re-imports it locally at line 213 \u2014 redundant import executed on every function call. (Rule 110)",
-          "suggestion": "Delete `import re` from inside `stage_fetch` and rely on the module-level import."
+          "msg": "Assertion uses >= which passes even if the 3 created tasks were not persisted, masking a data-loss bug.",
+          "suggestion": "Use == 3 after ensuring the DB is clean (db_schema should guarantee this, but >= hides violations). If the intent is to assert minimum count, add a comment explaining why."
+        },
+        {
+          "file": "tests/unit/conftest.py",
+          "line": 754,
+          "severity": "info",
+          "msg": "Unhandled SQL in `make_mock_session` returns `MockResult([])` silently \u2014 a missing handler will produce zero rows with no indication that the query was unrecognized.",
+          "suggestion": "Add a debug-mode assertion or log in `_execute_side_effect`: when all handlers return None, log a warning or raise `ValueError(f'No handler matched: {sql_text}')` so unknown queries fail loudly in tests."
+        },
+        {
+          "file": "tests/unit/conftest.py",
+          "line": 619,
+          "severity": "info",
+          "msg": "`make_task_handler` is defined in conftest.py but no existing unit test file imports it \u2014 the task domain has a router-level unit test (test_tasks.py) but no service-layer unit test that exercises the mock handler.",
+          "suggestion": "If TaskService unit tests are intended, create tests/unit/test_task_service.py that imports `make_mock_session` and `make_task_handler` from conftest to provide a real mock session instead of the constructor-level patch used in test_tasks.py."
+        },
+        {
+          "file": "tests/unit/test_tasks.py",
+          "line": 86,
+          "severity": "warning",
+          "msg": "The `get_db` dependency is overridden with a bare `MagicMock()` (no spec, no awaitable `__aenter__`/`__aexit__`), which bypasses the async context-manager contract that FastAPI's dependency injection expects.",
+          "suggestion": "Use `make_mock_session([])` from conftest.py instead of `MagicMock()` for the get_db override, so the mock session has a proper `__aenter__`/`__aexit__` and spec'd methods."
+        },
+        {
+          "file": "tests/unit/test_tasks.py",
+          "line": 104,
+          "severity": "warning",
+          "msg": "Rule 66 / Rule 121: Tests mock `TaskService` at the class level (via `monkeypatch.setattr`) rather than constructing the service with a real mock session. This skips the router's actual session-injection path and the `__init__` contract that session must be AsyncSession.",
+          "suggestion": "Import `make_mock_session` and `make_task_handler` from conftest, then replace the `monkeypatch.setattr('api.routers.tasks.TaskService', lambda session: mock_service)` pattern with: `state = MockState(); mock_db = make_mock_session([make_task_handler(state)]); app.dependency_overrides[get_db] = lambda: mock_db; app.dependency_overrides[TaskService] = lambda session: mock_service`. This keeps the service mock for return-value control while exercising real session injection."
         }
       ],
-      "summary": "Reviewed 4 file(s) between origin/master and origin/develop."
+      "summary": "Reviewed 7 file(s) between origin/master and origin/auto/issue-106."
     },
     "reviewed_refs": {
-      "base": "12a2e03da77f90ee21047a29c6242d0047f0ecec",
-      "head": "9272222e8a631cc297518634c755d38d38ff3b2d",
+      "base": "d1b04a0fadb7a682f15065e4f234be4f0d8806f9",
+      "head": "9bb937f6f60a5d0ba77a2f88449f63bbf6f1cee0",
       "base_label": "origin/master",
-      "head_label": "origin/develop"
+      "head_label": "origin/auto/issue-106"
     },
     "reviewed_files": [
-      "Makefile",
-      "scripts/ci/claude_code_review.py",
-      "scripts/ci/clear_triage_labels.py",
-      "scripts/ci/run_code_review.py"
+      ".plans/issue-106.md",
+      "src/api/__init__.py",
+      "src/api/routers/tasks.py",
+      "src/main.py",
+      "tests/integration/test_tasks_integration.py",
+      "tests/unit/conftest.py",
+      "tests/unit/test_tasks.py"
     ],
     "per_file_reviews": [
       {
-        "file": "Makefile",
+        "file": ".plans/issue-106.md",
         "returncode": 0,
-        "output": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"api_error_status\":null,\"duration_ms\":139644,\"duration_api_ms\":137997,\"num_turns\":9,\"result\":\"\\n\\n[\\n  {\\n    \\\"filename\\\": \\\"Makefile\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 85,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"ISSUE variable is unquoted, causing failure if the value is empty or contains spaces.\\\",\\n        \\\"suggestion\\\": \\\"Quote the variable: $(ISSUE) \u2192 \\\\\\\"$(ISSUE)\\\\\\\"\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Well-structured build file covering tests, lint, format, DB, and migrations with cross-platform Python path support.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"scripts/ci/claude_code_review.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 341,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"Bare `except Exception:` catches all subclasses including `KeyboardInterrupt` and `SystemExit`, masking serious failures during comment cleanup. (Rule 25)\\\",\\n        \\\"suggestion\\\": \\\"Replace with `except (HTTPError, URLError, TimeoutError, OSError) as exc:` to match the pattern used elsewhere in the file.\\\"\\n      },\\n      {\\n        \\\"line\\\": 625,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"Scanning text character-by-character with `enumerate(text)` to find the first `{` is O(N) on the full input and will fail for JSON where the object is not the first occurrence after the loop advances. (Rule 31)\\\",\\n        \\\"suggestion\\\": \\\"Use `text.find('{')` directly instead of a loop over characters.\\\"\\n      },\\n      {\\n        \\\"line\\\": 265,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"In `GitHubClient.request`, `text` can be empty string on a 204 No Content response; the `json.loads('')` call is guarded by a ternary but the branch is dead code that should be removed for clarity.\\\",\\n        \\\"suggestion\\\": \\\"Remove the ternary; return `None` unconditionally when `text` is empty.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Full-featured GitHub PR review pipeline: runs Claude per-file, parses structured JSON from model output, and posts/upser ts summary + inline comments with deduplication.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"scripts/ci/clear_triage_labels.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 29,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"`run_gh` uses `check=False` and discards non-zero exit codes silently; callers log `r.stderr` but execution continues regardless.\\\",\\n        \\\"suggestion\\\": \\\"Consider adding `check=True` or at minimum a warning log when `r.returncode != 0` before returning.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Lightweight utility to strip triage labels from all open GitHub issues using the `gh` CLI; handles dry-run mode, OR semantics across labels, and dedupes results.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"scripts/ci/run_code_review.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 607,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"Bare `except Exception:` catches `KeyboardInterrupt` and `SystemExit` which should terminate immediately; this masks serious failures and prevents clean shutdown. (Rule 25)\\\",\\n        \\\"suggestion\\\": \\\"Reorder the handlers so `except KeyboardInterrupt` comes before a general `except Exception`, or narrow the general clause to `except (HTTPError, URLError, TimeoutError, OSError, ValueError)`.\\\"\\n      },\\n      {\\n        \\\"line\\\": 213,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"Module-level `import re` exists at line 8, yet `stage_fetch` re-imports it locally at line 213 \u2014 redundant import executed on every function call. (Rule 110)\\\",\\n        \\\"suggestion\\\": \\\"Delete `import re` from inside `stage_fetch` and rely on the module-level import.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Six-stage CLI orchestrator (INIT \u2192 FETCH \u2192 DIFF \u2192 REVIEW \u2192 PERSIST \u2192 COMMENT) that wraps `claude_code_review.py` with tty-colored progress output, dry-run support, and GitHub Actions integration.\\\"\\n  }\\n]\",\"stop_reason\":\"end_turn\",\"session_id\":\"c3514dd8-9505-49a5-891e-963cfd2e6871\",\"total_cost_usd\":0.29464260000000003,\"usage\":{\"input_tokens\":48289,\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":232352,\"output_tokens\":5338,\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":0,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"\",\"iterations\":[],\"speed\":\"standard\"},\"modelUsage\":{\"claude-sonnet-4-6\":{\"inputTokens\":48289,\"outputTokens\":5338,\"cacheReadInputTokens\":232352,\"cacheCreationInputTokens\":0,\"webSearchRequests\":0,\"costUSD\":0.29464260000000003,\"contextWindow\":200000,\"maxOutputTokens\":32000}},\"permission_denials\":[],\"terminal_reason\":\"completed\",\"fast_mode_state\":\"off\",\"uuid\":\"2d8880f6-fb04-46a9-944e-cdf7791aeb74\"}\n",
+        "output": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"api_error_status\":null,\"duration_ms\":122244,\"duration_api_ms\":122153,\"num_turns\":12,\"result\":\"\\n\\n```json\\n[\\n  {\\n    \\\"filename\\\": \\\"src/api/routers/tasks.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 97,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"total = len(items) returns the page size (capped at 100), not the true total matching rows. The service applies LIMIT/OFFSET in SQL so len() undercounts when total > page_size.\\\",\\n        \\\"suggestion\\\": \\\"Call a count method on TaskService (e.g., svc.count_tasks(...)) or have list_tasks return (items, total) like list_tickets does. Compare with tickets.py:125 where service returns (items, total) tuple.\\\"\\n      },\\n      {\\n        \\\"line\\\": 31,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"Message field uses hardcoded Chinese string literal '\u83b7\u53d6\u4efb\u52a1\u5217\u8868\u6210\u529f'. Other routers use English or omit the message. Inconsistent with project style.\\\",\\n        \\\"suggestion\\\": \\\"Replace with English string matching the style of other router responses, or remove the message field for consistency.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Router correctly follows the tickets.py pattern for structure and auth, but list_tasks endpoint miscounts total rows by using len(items) instead of a real count \u2014 causing pagination to report wrong totals.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"src/api/__init__.py\\\",\\n    \\\"issues\\\": [],\\n    \\\"summary\\\": \\\"Clean aggregation of all feature routers with correct imports and __all__ exports. No issues found.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"src/main.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 68,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"CORSMiddleware configured with allow_credentials=True and allow_origins=allowed_origins where the default (when env var is unset) becomes ['*']. Credentials with wildcard origin is unsafe and violates CORS spec \u2014 browsers will reject it.\\\",\\n        \\\"suggestion\\\": \\\"When allow_credentials=True, allowed_origins must be an explicit allowlist (never '*'). Ensure settings.cors_origins is non-empty in all environments, or add a validation check that rejects '*' as a value.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"App factory and lifecycle are clean; global exception handlers, middleware, and router registration are all correct. One CORS security concern with credentials + wildcard origin fallback.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\".plans/issue-106.md\\\",\\n    \\\"issues\\\": [],\\n    \\\"summary\\\": \\\"Plan document is detailed and consistent with the implemented files, correctly describing the tasks.py router structure, registration steps, and test strategy. No issues found.\\\"\\n  }\\n]\\n```\",\"stop_reason\":\"end_turn\",\"session_id\":\"abbac6e0-9342-454a-9843-7f9386dcd0de\",\"total_cost_usd\":0.24697634999999998,\"usage\":{\"input_tokens\":36365,\"cache_creation_input_tokens\":11419,\"cache_read_input_tokens\":167667,\"output_tokens\":2984,\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":0,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"\",\"iterations\":[],\"speed\":\"standard\"},\"modelUsage\":{\"claude-sonnet-4-6\":{\"inputTokens\":36365,\"outputTokens\":2984,\"cacheReadInputTokens\":167667,\"cacheCreationInputTokens\":11419,\"webSearchRequests\":0,\"costUSD\":0.24697634999999998,\"contextWindow\":200000,\"maxOutputTokens\":32000}},\"permission_denials\":[],\"terminal_reason\":\"completed\",\"fast_mode_state\":\"off\",\"uuid\":\"1aecb707-bfea-4943-9327-7b8dd41e834f\"}\n",
         "parsed": {
-          "filename": "Makefile",
-          "issues": [
-            {
-              "line": 85,
-              "severity": "info",
-              "message": "ISSUE variable is unquoted, causing failure if the value is empty or contains spaces.",
-              "suggestion": "Quote the variable: $(ISSUE) \u2192 \"$(ISSUE)\""
-            }
-          ],
-          "summary": "Well-structured build file covering tests, lint, format, DB, and migrations with cross-platform Python path support."
+          "filename": ".plans/issue-106.md",
+          "issues": [],
+          "summary": "Plan document is detailed and consistent with the implemented files, correctly describing the tasks.py router structure, registration steps, and test strategy. No issues found."
         }
       },
       {
-        "file": "scripts/ci/claude_code_review.py",
+        "file": "src/api/__init__.py",
         "returncode": 0,
-        "output": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"api_error_status\":null,\"duration_ms\":139644,\"duration_api_ms\":137997,\"num_turns\":9,\"result\":\"\\n\\n[\\n  {\\n    \\\"filename\\\": \\\"Makefile\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 85,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"ISSUE variable is unquoted, causing failure if the value is empty or contains spaces.\\\",\\n        \\\"suggestion\\\": \\\"Quote the variable: $(ISSUE) \u2192 \\\\\\\"$(ISSUE)\\\\\\\"\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Well-structured build file covering tests, lint, format, DB, and migrations with cross-platform Python path support.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"scripts/ci/claude_code_review.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 341,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"Bare `except Exception:` catches all subclasses including `KeyboardInterrupt` and `SystemExit`, masking serious failures during comment cleanup. (Rule 25)\\\",\\n        \\\"suggestion\\\": \\\"Replace with `except (HTTPError, URLError, TimeoutError, OSError) as exc:` to match the pattern used elsewhere in the file.\\\"\\n      },\\n      {\\n        \\\"line\\\": 625,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"Scanning text character-by-character with `enumerate(text)` to find the first `{` is O(N) on the full input and will fail for JSON where the object is not the first occurrence after the loop advances. (Rule 31)\\\",\\n        \\\"suggestion\\\": \\\"Use `text.find('{')` directly instead of a loop over characters.\\\"\\n      },\\n      {\\n        \\\"line\\\": 265,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"In `GitHubClient.request`, `text` can be empty string on a 204 No Content response; the `json.loads('')` call is guarded by a ternary but the branch is dead code that should be removed for clarity.\\\",\\n        \\\"suggestion\\\": \\\"Remove the ternary; return `None` unconditionally when `text` is empty.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Full-featured GitHub PR review pipeline: runs Claude per-file, parses structured JSON from model output, and posts/upser ts summary + inline comments with deduplication.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"scripts/ci/clear_triage_labels.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 29,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"`run_gh` uses `check=False` and discards non-zero exit codes silently; callers log `r.stderr` but execution continues regardless.\\\",\\n        \\\"suggestion\\\": \\\"Consider adding `check=True` or at minimum a warning log when `r.returncode != 0` before returning.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Lightweight utility to strip triage labels from all open GitHub issues using the `gh` CLI; handles dry-run mode, OR semantics across labels, and dedupes results.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"scripts/ci/run_code_review.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 607,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"Bare `except Exception:` catches `KeyboardInterrupt` and `SystemExit` which should terminate immediately; this masks serious failures and prevents clean shutdown. (Rule 25)\\\",\\n        \\\"suggestion\\\": \\\"Reorder the handlers so `except KeyboardInterrupt` comes before a general `except Exception`, or narrow the general clause to `except (HTTPError, URLError, TimeoutError, OSError, ValueError)`.\\\"\\n      },\\n      {\\n        \\\"line\\\": 213,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"Module-level `import re` exists at line 8, yet `stage_fetch` re-imports it locally at line 213 \u2014 redundant import executed on every function call. (Rule 110)\\\",\\n        \\\"suggestion\\\": \\\"Delete `import re` from inside `stage_fetch` and rely on the module-level import.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Six-stage CLI orchestrator (INIT \u2192 FETCH \u2192 DIFF \u2192 REVIEW \u2192 PERSIST \u2192 COMMENT) that wraps `claude_code_review.py` with tty-colored progress output, dry-run support, and GitHub Actions integration.\\\"\\n  }\\n]\",\"stop_reason\":\"end_turn\",\"session_id\":\"c3514dd8-9505-49a5-891e-963cfd2e6871\",\"total_cost_usd\":0.29464260000000003,\"usage\":{\"input_tokens\":48289,\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":232352,\"output_tokens\":5338,\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":0,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"\",\"iterations\":[],\"speed\":\"standard\"},\"modelUsage\":{\"claude-sonnet-4-6\":{\"inputTokens\":48289,\"outputTokens\":5338,\"cacheReadInputTokens\":232352,\"cacheCreationInputTokens\":0,\"webSearchRequests\":0,\"costUSD\":0.29464260000000003,\"contextWindow\":200000,\"maxOutputTokens\":32000}},\"permission_denials\":[],\"terminal_reason\":\"completed\",\"fast_mode_state\":\"off\",\"uuid\":\"2d8880f6-fb04-46a9-944e-cdf7791aeb74\"}\n",
+        "output": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"api_error_status\":null,\"duration_ms\":122244,\"duration_api_ms\":122153,\"num_turns\":12,\"result\":\"\\n\\n```json\\n[\\n  {\\n    \\\"filename\\\": \\\"src/api/routers/tasks.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 97,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"total = len(items) returns the page size (capped at 100), not the true total matching rows. The service applies LIMIT/OFFSET in SQL so len() undercounts when total > page_size.\\\",\\n        \\\"suggestion\\\": \\\"Call a count method on TaskService (e.g., svc.count_tasks(...)) or have list_tasks return (items, total) like list_tickets does. Compare with tickets.py:125 where service returns (items, total) tuple.\\\"\\n      },\\n      {\\n        \\\"line\\\": 31,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"Message field uses hardcoded Chinese string literal '\u83b7\u53d6\u4efb\u52a1\u5217\u8868\u6210\u529f'. Other routers use English or omit the message. Inconsistent with project style.\\\",\\n        \\\"suggestion\\\": \\\"Replace with English string matching the style of other router responses, or remove the message field for consistency.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Router correctly follows the tickets.py pattern for structure and auth, but list_tasks endpoint miscounts total rows by using len(items) instead of a real count \u2014 causing pagination to report wrong totals.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"src/api/__init__.py\\\",\\n    \\\"issues\\\": [],\\n    \\\"summary\\\": \\\"Clean aggregation of all feature routers with correct imports and __all__ exports. No issues found.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"src/main.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 68,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"CORSMiddleware configured with allow_credentials=True and allow_origins=allowed_origins where the default (when env var is unset) becomes ['*']. Credentials with wildcard origin is unsafe and violates CORS spec \u2014 browsers will reject it.\\\",\\n        \\\"suggestion\\\": \\\"When allow_credentials=True, allowed_origins must be an explicit allowlist (never '*'). Ensure settings.cors_origins is non-empty in all environments, or add a validation check that rejects '*' as a value.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"App factory and lifecycle are clean; global exception handlers, middleware, and router registration are all correct. One CORS security concern with credentials + wildcard origin fallback.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\".plans/issue-106.md\\\",\\n    \\\"issues\\\": [],\\n    \\\"summary\\\": \\\"Plan document is detailed and consistent with the implemented files, correctly describing the tasks.py router structure, registration steps, and test strategy. No issues found.\\\"\\n  }\\n]\\n```\",\"stop_reason\":\"end_turn\",\"session_id\":\"abbac6e0-9342-454a-9843-7f9386dcd0de\",\"total_cost_usd\":0.24697634999999998,\"usage\":{\"input_tokens\":36365,\"cache_creation_input_tokens\":11419,\"cache_read_input_tokens\":167667,\"output_tokens\":2984,\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":0,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"\",\"iterations\":[],\"speed\":\"standard\"},\"modelUsage\":{\"claude-sonnet-4-6\":{\"inputTokens\":36365,\"outputTokens\":2984,\"cacheReadInputTokens\":167667,\"cacheCreationInputTokens\":11419,\"webSearchRequests\":0,\"costUSD\":0.24697634999999998,\"contextWindow\":200000,\"maxOutputTokens\":32000}},\"permission_denials\":[],\"terminal_reason\":\"completed\",\"fast_mode_state\":\"off\",\"uuid\":\"1aecb707-bfea-4943-9327-7b8dd41e834f\"}\n",
         "parsed": {
-          "filename": "scripts/ci/claude_code_review.py",
+          "filename": "src/api/__init__.py",
+          "issues": [],
+          "summary": "Clean aggregation of all feature routers with correct imports and __all__ exports. No issues found."
+        }
+      },
+      {
+        "file": "src/api/routers/tasks.py",
+        "returncode": 0,
+        "output": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"api_error_status\":null,\"duration_ms\":122244,\"duration_api_ms\":122153,\"num_turns\":12,\"result\":\"\\n\\n```json\\n[\\n  {\\n    \\\"filename\\\": \\\"src/api/routers/tasks.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 97,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"total = len(items) returns the page size (capped at 100), not the true total matching rows. The service applies LIMIT/OFFSET in SQL so len() undercounts when total > page_size.\\\",\\n        \\\"suggestion\\\": \\\"Call a count method on TaskService (e.g., svc.count_tasks(...)) or have list_tasks return (items, total) like list_tickets does. Compare with tickets.py:125 where service returns (items, total) tuple.\\\"\\n      },\\n      {\\n        \\\"line\\\": 31,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"Message field uses hardcoded Chinese string literal '\u83b7\u53d6\u4efb\u52a1\u5217\u8868\u6210\u529f'. Other routers use English or omit the message. Inconsistent with project style.\\\",\\n        \\\"suggestion\\\": \\\"Replace with English string matching the style of other router responses, or remove the message field for consistency.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Router correctly follows the tickets.py pattern for structure and auth, but list_tasks endpoint miscounts total rows by using len(items) instead of a real count \u2014 causing pagination to report wrong totals.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"src/api/__init__.py\\\",\\n    \\\"issues\\\": [],\\n    \\\"summary\\\": \\\"Clean aggregation of all feature routers with correct imports and __all__ exports. No issues found.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"src/main.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 68,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"CORSMiddleware configured with allow_credentials=True and allow_origins=allowed_origins where the default (when env var is unset) becomes ['*']. Credentials with wildcard origin is unsafe and violates CORS spec \u2014 browsers will reject it.\\\",\\n        \\\"suggestion\\\": \\\"When allow_credentials=True, allowed_origins must be an explicit allowlist (never '*'). Ensure settings.cors_origins is non-empty in all environments, or add a validation check that rejects '*' as a value.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"App factory and lifecycle are clean; global exception handlers, middleware, and router registration are all correct. One CORS security concern with credentials + wildcard origin fallback.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\".plans/issue-106.md\\\",\\n    \\\"issues\\\": [],\\n    \\\"summary\\\": \\\"Plan document is detailed and consistent with the implemented files, correctly describing the tasks.py router structure, registration steps, and test strategy. No issues found.\\\"\\n  }\\n]\\n```\",\"stop_reason\":\"end_turn\",\"session_id\":\"abbac6e0-9342-454a-9843-7f9386dcd0de\",\"total_cost_usd\":0.24697634999999998,\"usage\":{\"input_tokens\":36365,\"cache_creation_input_tokens\":11419,\"cache_read_input_tokens\":167667,\"output_tokens\":2984,\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":0,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"\",\"iterations\":[],\"speed\":\"standard\"},\"modelUsage\":{\"claude-sonnet-4-6\":{\"inputTokens\":36365,\"outputTokens\":2984,\"cacheReadInputTokens\":167667,\"cacheCreationInputTokens\":11419,\"webSearchRequests\":0,\"costUSD\":0.24697634999999998,\"contextWindow\":200000,\"maxOutputTokens\":32000}},\"permission_denials\":[],\"terminal_reason\":\"completed\",\"fast_mode_state\":\"off\",\"uuid\":\"1aecb707-bfea-4943-9327-7b8dd41e834f\"}\n",
+        "parsed": {
+          "filename": "src/api/routers/tasks.py",
           "issues": [
             {
-              "line": 341,
+              "line": 97,
               "severity": "critical",
-              "message": "Bare `except Exception:` catches all subclasses including `KeyboardInterrupt` and `SystemExit`, masking serious failures during comment cleanup. (Rule 25)",
-              "suggestion": "Replace with `except (HTTPError, URLError, TimeoutError, OSError) as exc:` to match the pattern used elsewhere in the file."
+              "message": "total = len(items) returns the page size (capped at 100), not the true total matching rows. The service applies LIMIT/OFFSET in SQL so len() undercounts when total > page_size.",
+              "suggestion": "Call a count method on TaskService (e.g., svc.count_tasks(...)) or have list_tasks return (items, total) like list_tickets does. Compare with tickets.py:125 where service returns (items, total) tuple."
             },
             {
-              "line": 625,
-              "severity": "warning",
-              "message": "Scanning text character-by-character with `enumerate(text)` to find the first `{` is O(N) on the full input and will fail for JSON where the object is not the first occurrence after the loop advances. (Rule 31)",
-              "suggestion": "Use `text.find('{')` directly instead of a loop over characters."
-            },
-            {
-              "line": 265,
+              "line": 31,
               "severity": "info",
-              "message": "In `GitHubClient.request`, `text` can be empty string on a 204 No Content response; the `json.loads('')` call is guarded by a ternary but the branch is dead code that should be removed for clarity.",
-              "suggestion": "Remove the ternary; return `None` unconditionally when `text` is empty."
+              "message": "Message field uses hardcoded Chinese string literal '\u83b7\u53d6\u4efb\u52a1\u5217\u8868\u6210\u529f'. Other routers use English or omit the message. Inconsistent with project style.",
+              "suggestion": "Replace with English string matching the style of other router responses, or remove the message field for consistency."
             }
           ],
-          "summary": "Full-featured GitHub PR review pipeline: runs Claude per-file, parses structured JSON from model output, and posts/upser ts summary + inline comments with deduplication."
+          "summary": "Router correctly follows the tickets.py pattern for structure and auth, but list_tasks endpoint miscounts total rows by using len(items) instead of a real count \u2014 causing pagination to report wrong totals."
         }
       },
       {
-        "file": "scripts/ci/clear_triage_labels.py",
+        "file": "src/main.py",
         "returncode": 0,
-        "output": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"api_error_status\":null,\"duration_ms\":139644,\"duration_api_ms\":137997,\"num_turns\":9,\"result\":\"\\n\\n[\\n  {\\n    \\\"filename\\\": \\\"Makefile\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 85,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"ISSUE variable is unquoted, causing failure if the value is empty or contains spaces.\\\",\\n        \\\"suggestion\\\": \\\"Quote the variable: $(ISSUE) \u2192 \\\\\\\"$(ISSUE)\\\\\\\"\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Well-structured build file covering tests, lint, format, DB, and migrations with cross-platform Python path support.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"scripts/ci/claude_code_review.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 341,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"Bare `except Exception:` catches all subclasses including `KeyboardInterrupt` and `SystemExit`, masking serious failures during comment cleanup. (Rule 25)\\\",\\n        \\\"suggestion\\\": \\\"Replace with `except (HTTPError, URLError, TimeoutError, OSError) as exc:` to match the pattern used elsewhere in the file.\\\"\\n      },\\n      {\\n        \\\"line\\\": 625,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"Scanning text character-by-character with `enumerate(text)` to find the first `{` is O(N) on the full input and will fail for JSON where the object is not the first occurrence after the loop advances. (Rule 31)\\\",\\n        \\\"suggestion\\\": \\\"Use `text.find('{')` directly instead of a loop over characters.\\\"\\n      },\\n      {\\n        \\\"line\\\": 265,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"In `GitHubClient.request`, `text` can be empty string on a 204 No Content response; the `json.loads('')` call is guarded by a ternary but the branch is dead code that should be removed for clarity.\\\",\\n        \\\"suggestion\\\": \\\"Remove the ternary; return `None` unconditionally when `text` is empty.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Full-featured GitHub PR review pipeline: runs Claude per-file, parses structured JSON from model output, and posts/upser ts summary + inline comments with deduplication.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"scripts/ci/clear_triage_labels.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 29,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"`run_gh` uses `check=False` and discards non-zero exit codes silently; callers log `r.stderr` but execution continues regardless.\\\",\\n        \\\"suggestion\\\": \\\"Consider adding `check=True` or at minimum a warning log when `r.returncode != 0` before returning.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Lightweight utility to strip triage labels from all open GitHub issues using the `gh` CLI; handles dry-run mode, OR semantics across labels, and dedupes results.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"scripts/ci/run_code_review.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 607,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"Bare `except Exception:` catches `KeyboardInterrupt` and `SystemExit` which should terminate immediately; this masks serious failures and prevents clean shutdown. (Rule 25)\\\",\\n        \\\"suggestion\\\": \\\"Reorder the handlers so `except KeyboardInterrupt` comes before a general `except Exception`, or narrow the general clause to `except (HTTPError, URLError, TimeoutError, OSError, ValueError)`.\\\"\\n      },\\n      {\\n        \\\"line\\\": 213,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"Module-level `import re` exists at line 8, yet `stage_fetch` re-imports it locally at line 213 \u2014 redundant import executed on every function call. (Rule 110)\\\",\\n        \\\"suggestion\\\": \\\"Delete `import re` from inside `stage_fetch` and rely on the module-level import.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Six-stage CLI orchestrator (INIT \u2192 FETCH \u2192 DIFF \u2192 REVIEW \u2192 PERSIST \u2192 COMMENT) that wraps `claude_code_review.py` with tty-colored progress output, dry-run support, and GitHub Actions integration.\\\"\\n  }\\n]\",\"stop_reason\":\"end_turn\",\"session_id\":\"c3514dd8-9505-49a5-891e-963cfd2e6871\",\"total_cost_usd\":0.29464260000000003,\"usage\":{\"input_tokens\":48289,\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":232352,\"output_tokens\":5338,\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":0,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"\",\"iterations\":[],\"speed\":\"standard\"},\"modelUsage\":{\"claude-sonnet-4-6\":{\"inputTokens\":48289,\"outputTokens\":5338,\"cacheReadInputTokens\":232352,\"cacheCreationInputTokens\":0,\"webSearchRequests\":0,\"costUSD\":0.29464260000000003,\"contextWindow\":200000,\"maxOutputTokens\":32000}},\"permission_denials\":[],\"terminal_reason\":\"completed\",\"fast_mode_state\":\"off\",\"uuid\":\"2d8880f6-fb04-46a9-944e-cdf7791aeb74\"}\n",
+        "output": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"api_error_status\":null,\"duration_ms\":122244,\"duration_api_ms\":122153,\"num_turns\":12,\"result\":\"\\n\\n```json\\n[\\n  {\\n    \\\"filename\\\": \\\"src/api/routers/tasks.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 97,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"total = len(items) returns the page size (capped at 100), not the true total matching rows. The service applies LIMIT/OFFSET in SQL so len() undercounts when total > page_size.\\\",\\n        \\\"suggestion\\\": \\\"Call a count method on TaskService (e.g., svc.count_tasks(...)) or have list_tasks return (items, total) like list_tickets does. Compare with tickets.py:125 where service returns (items, total) tuple.\\\"\\n      },\\n      {\\n        \\\"line\\\": 31,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"Message field uses hardcoded Chinese string literal '\u83b7\u53d6\u4efb\u52a1\u5217\u8868\u6210\u529f'. Other routers use English or omit the message. Inconsistent with project style.\\\",\\n        \\\"suggestion\\\": \\\"Replace with English string matching the style of other router responses, or remove the message field for consistency.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Router correctly follows the tickets.py pattern for structure and auth, but list_tasks endpoint miscounts total rows by using len(items) instead of a real count \u2014 causing pagination to report wrong totals.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"src/api/__init__.py\\\",\\n    \\\"issues\\\": [],\\n    \\\"summary\\\": \\\"Clean aggregation of all feature routers with correct imports and __all__ exports. No issues found.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"src/main.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 68,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"CORSMiddleware configured with allow_credentials=True and allow_origins=allowed_origins where the default (when env var is unset) becomes ['*']. Credentials with wildcard origin is unsafe and violates CORS spec \u2014 browsers will reject it.\\\",\\n        \\\"suggestion\\\": \\\"When allow_credentials=True, allowed_origins must be an explicit allowlist (never '*'). Ensure settings.cors_origins is non-empty in all environments, or add a validation check that rejects '*' as a value.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"App factory and lifecycle are clean; global exception handlers, middleware, and router registration are all correct. One CORS security concern with credentials + wildcard origin fallback.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\".plans/issue-106.md\\\",\\n    \\\"issues\\\": [],\\n    \\\"summary\\\": \\\"Plan document is detailed and consistent with the implemented files, correctly describing the tasks.py router structure, registration steps, and test strategy. No issues found.\\\"\\n  }\\n]\\n```\",\"stop_reason\":\"end_turn\",\"session_id\":\"abbac6e0-9342-454a-9843-7f9386dcd0de\",\"total_cost_usd\":0.24697634999999998,\"usage\":{\"input_tokens\":36365,\"cache_creation_input_tokens\":11419,\"cache_read_input_tokens\":167667,\"output_tokens\":2984,\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":0,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"\",\"iterations\":[],\"speed\":\"standard\"},\"modelUsage\":{\"claude-sonnet-4-6\":{\"inputTokens\":36365,\"outputTokens\":2984,\"cacheReadInputTokens\":167667,\"cacheCreationInputTokens\":11419,\"webSearchRequests\":0,\"costUSD\":0.24697634999999998,\"contextWindow\":200000,\"maxOutputTokens\":32000}},\"permission_denials\":[],\"terminal_reason\":\"completed\",\"fast_mode_state\":\"off\",\"uuid\":\"1aecb707-bfea-4943-9327-7b8dd41e834f\"}\n",
         "parsed": {
-          "filename": "scripts/ci/clear_triage_labels.py",
+          "filename": "src/main.py",
           "issues": [
             {
-              "line": 29,
-              "severity": "info",
-              "message": "`run_gh` uses `check=False` and discards non-zero exit codes silently; callers log `r.stderr` but execution continues regardless.",
-              "suggestion": "Consider adding `check=True` or at minimum a warning log when `r.returncode != 0` before returning."
+              "line": 68,
+              "severity": "warning",
+              "message": "CORSMiddleware configured with allow_credentials=True and allow_origins=allowed_origins where the default (when env var is unset) becomes ['*']. Credentials with wildcard origin is unsafe and violates CORS spec \u2014 browsers will reject it.",
+              "suggestion": "When allow_credentials=True, allowed_origins must be an explicit allowlist (never '*'). Ensure settings.cors_origins is non-empty in all environments, or add a validation check that rejects '*' as a value."
             }
           ],
-          "summary": "Lightweight utility to strip triage labels from all open GitHub issues using the `gh` CLI; handles dry-run mode, OR semantics across labels, and dedupes results."
+          "summary": "App factory and lifecycle are clean; global exception handlers, middleware, and router registration are all correct. One CORS security concern with credentials + wildcard origin fallback."
         }
       },
       {
-        "file": "scripts/ci/run_code_review.py",
+        "file": "tests/integration/test_tasks_integration.py",
         "returncode": 0,
-        "output": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"api_error_status\":null,\"duration_ms\":139644,\"duration_api_ms\":137997,\"num_turns\":9,\"result\":\"\\n\\n[\\n  {\\n    \\\"filename\\\": \\\"Makefile\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 85,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"ISSUE variable is unquoted, causing failure if the value is empty or contains spaces.\\\",\\n        \\\"suggestion\\\": \\\"Quote the variable: $(ISSUE) \u2192 \\\\\\\"$(ISSUE)\\\\\\\"\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Well-structured build file covering tests, lint, format, DB, and migrations with cross-platform Python path support.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"scripts/ci/claude_code_review.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 341,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"Bare `except Exception:` catches all subclasses including `KeyboardInterrupt` and `SystemExit`, masking serious failures during comment cleanup. (Rule 25)\\\",\\n        \\\"suggestion\\\": \\\"Replace with `except (HTTPError, URLError, TimeoutError, OSError) as exc:` to match the pattern used elsewhere in the file.\\\"\\n      },\\n      {\\n        \\\"line\\\": 625,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"Scanning text character-by-character with `enumerate(text)` to find the first `{` is O(N) on the full input and will fail for JSON where the object is not the first occurrence after the loop advances. (Rule 31)\\\",\\n        \\\"suggestion\\\": \\\"Use `text.find('{')` directly instead of a loop over characters.\\\"\\n      },\\n      {\\n        \\\"line\\\": 265,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"In `GitHubClient.request`, `text` can be empty string on a 204 No Content response; the `json.loads('')` call is guarded by a ternary but the branch is dead code that should be removed for clarity.\\\",\\n        \\\"suggestion\\\": \\\"Remove the ternary; return `None` unconditionally when `text` is empty.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Full-featured GitHub PR review pipeline: runs Claude per-file, parses structured JSON from model output, and posts/upser ts summary + inline comments with deduplication.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"scripts/ci/clear_triage_labels.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 29,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"`run_gh` uses `check=False` and discards non-zero exit codes silently; callers log `r.stderr` but execution continues regardless.\\\",\\n        \\\"suggestion\\\": \\\"Consider adding `check=True` or at minimum a warning log when `r.returncode != 0` before returning.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Lightweight utility to strip triage labels from all open GitHub issues using the `gh` CLI; handles dry-run mode, OR semantics across labels, and dedupes results.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"scripts/ci/run_code_review.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 607,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"Bare `except Exception:` catches `KeyboardInterrupt` and `SystemExit` which should terminate immediately; this masks serious failures and prevents clean shutdown. (Rule 25)\\\",\\n        \\\"suggestion\\\": \\\"Reorder the handlers so `except KeyboardInterrupt` comes before a general `except Exception`, or narrow the general clause to `except (HTTPError, URLError, TimeoutError, OSError, ValueError)`.\\\"\\n      },\\n      {\\n        \\\"line\\\": 213,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"Module-level `import re` exists at line 8, yet `stage_fetch` re-imports it locally at line 213 \u2014 redundant import executed on every function call. (Rule 110)\\\",\\n        \\\"suggestion\\\": \\\"Delete `import re` from inside `stage_fetch` and rely on the module-level import.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Six-stage CLI orchestrator (INIT \u2192 FETCH \u2192 DIFF \u2192 REVIEW \u2192 PERSIST \u2192 COMMENT) that wraps `claude_code_review.py` with tty-colored progress output, dry-run support, and GitHub Actions integration.\\\"\\n  }\\n]\",\"stop_reason\":\"end_turn\",\"session_id\":\"c3514dd8-9505-49a5-891e-963cfd2e6871\",\"total_cost_usd\":0.29464260000000003,\"usage\":{\"input_tokens\":48289,\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":232352,\"output_tokens\":5338,\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":0,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"\",\"iterations\":[],\"speed\":\"standard\"},\"modelUsage\":{\"claude-sonnet-4-6\":{\"inputTokens\":48289,\"outputTokens\":5338,\"cacheReadInputTokens\":232352,\"cacheCreationInputTokens\":0,\"webSearchRequests\":0,\"costUSD\":0.29464260000000003,\"contextWindow\":200000,\"maxOutputTokens\":32000}},\"permission_denials\":[],\"terminal_reason\":\"completed\",\"fast_mode_state\":\"off\",\"uuid\":\"2d8880f6-fb04-46a9-944e-cdf7791aeb74\"}\n",
+        "output": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"api_error_status\":null,\"duration_ms\":808665,\"duration_api_ms\":808351,\"num_turns\":14,\"result\":\"\\n\\nNow I have everything I need. Let me compile the review findings across all three files.\\n\\n[\\n  {\\n    \\\"filename\\\": \\\"tests/integration/test_tasks_integration.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 80,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"Assertion uses >= which passes even if the 3 created tasks were not persisted, masking a data-loss bug.\\\",\\n        \\\"suggestion\\\": \\\"Use == 3 after ensuring the DB is clean (db_schema should guarantee this, but >= hides violations). If the intent is to assert minimum count, add a comment explaining why.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Integration tests are well-structured with good coverage of auth, 404s, and CRUD operations, but have one fragile assertion.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"tests/unit/conftest.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 754,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"Unhandled SQL in `make_mock_session` returns `MockResult([])` silently \u2014 a missing handler will produce zero rows with no indication that the query was unrecognized.\\\",\\n        \\\"suggestion\\\": \\\"Add a debug-mode assertion or log in `_execute_side_effect`: when all handlers return None, log a warning or raise `ValueError(f'No handler matched: {sql_text}')` so unknown queries fail loudly in tests.\\\"\\n      },\\n      {\\n        \\\"line\\\": 619,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"`make_task_handler` is defined in conftest.py but no existing unit test file imports it \u2014 the task domain has a router-level unit test (test_tasks.py) but no service-layer unit test that exercises the mock handler.\\\",\\n        \\\"suggestion\\\": \\\"If TaskService unit tests are intended, create tests/unit/test_task_service.py that imports `make_mock_session` and `make_task_handler` from conftest to provide a real mock session instead of the constructor-level patch used in test_tasks.py.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Comprehensive conftest with good domain coverage and composable handlers; no critical issues, but the silent empty-result fallback for unrecognized queries is a maintenance risk.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"tests/unit/test_tasks.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 86,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"The `get_db` dependency is overridden with a bare `MagicMock()` (no spec, no awaitable `__aenter__`/`__aexit__`), which bypasses the async context-manager contract that FastAPI's dependency injection expects.\\\",\\n        \\\"suggestion\\\": \\\"Use `make_mock_session([])` from conftest.py instead of `MagicMock()` for the get_db override, so the mock session has a proper `__aenter__`/`__aexit__` and spec'd methods.\\\"\\n      },\\n      {\\n        \\\"line\\\": 104,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"Rule 66 / Rule 121: Tests mock `TaskService` at the class level (via `monkeypatch.setattr`) rather than constructing the service with a real mock session. This skips the router's actual session-injection path and the `__init__` contract that session must be AsyncSession.\\\",\\n        \\\"suggestion\\\": \\\"Import `make_mock_session` and `make_task_handler` from conftest, then replace the `monkeypatch.setattr('api.routers.tasks.TaskService', lambda session: mock_service)` pattern with: `state = MockState(); mock_db = make_mock_session([make_task_handler(state)]); app.dependency_overrides[get_db] = lambda: mock_db; app.dependency_overrides[TaskService] = lambda session: mock_service`. This keeps the service mock for return-value control while exercising real session injection.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Router-level unit tests verify HTTP-layer behavior correctly but sidestep DB session injection; the mock-at-constructor approach is valid for pure router logic but provides no coverage of the service instantiation path.\\\"\\n  }\\n]\",\"stop_reason\":\"end_turn\",\"session_id\":\"6c2d7cbc-c4c5-4581-930b-0a2e1d72a3fa\",\"total_cost_usd\":0.68465055,\"usage\":{\"input_tokens\":49473,\"cache_creation_input_tokens\":5853,\"cache_read_input_tokens\":508976,\"output_tokens\":24106,\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":0,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"\",\"iterations\":[],\"speed\":\"standard\"},\"modelUsage\":{\"claude-sonnet-4-6\":{\"inputTokens\":49473,\"outputTokens\":24106,\"cacheReadInputTokens\":508976,\"cacheCreationInputTokens\":5853,\"webSearchRequests\":0,\"costUSD\":0.68465055,\"contextWindow\":200000,\"maxOutputTokens\":32000}},\"permission_denials\":[],\"terminal_reason\":\"completed\",\"fast_mode_state\":\"off\",\"uuid\":\"68bd3cf1-9b79-4557-b0de-a72014b74257\"}\n",
         "parsed": {
-          "filename": "scripts/ci/run_code_review.py",
+          "filename": "tests/integration/test_tasks_integration.py",
           "issues": [
             {
-              "line": 607,
-              "severity": "critical",
-              "message": "Bare `except Exception:` catches `KeyboardInterrupt` and `SystemExit` which should terminate immediately; this masks serious failures and prevents clean shutdown. (Rule 25)",
-              "suggestion": "Reorder the handlers so `except KeyboardInterrupt` comes before a general `except Exception`, or narrow the general clause to `except (HTTPError, URLError, TimeoutError, OSError, ValueError)`."
-            },
-            {
-              "line": 213,
+              "line": 80,
               "severity": "warning",
-              "message": "Module-level `import re` exists at line 8, yet `stage_fetch` re-imports it locally at line 213 \u2014 redundant import executed on every function call. (Rule 110)",
-              "suggestion": "Delete `import re` from inside `stage_fetch` and rely on the module-level import."
+              "message": "Assertion uses >= which passes even if the 3 created tasks were not persisted, masking a data-loss bug.",
+              "suggestion": "Use == 3 after ensuring the DB is clean (db_schema should guarantee this, but >= hides violations). If the intent is to assert minimum count, add a comment explaining why."
             }
           ],
-          "summary": "Six-stage CLI orchestrator (INIT \u2192 FETCH \u2192 DIFF \u2192 REVIEW \u2192 PERSIST \u2192 COMMENT) that wraps `claude_code_review.py` with tty-colored progress output, dry-run support, and GitHub Actions integration."
+          "summary": "Integration tests are well-structured with good coverage of auth, 404s, and CRUD operations, but have one fragile assertion."
+        }
+      },
+      {
+        "file": "tests/unit/conftest.py",
+        "returncode": 0,
+        "output": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"api_error_status\":null,\"duration_ms\":808665,\"duration_api_ms\":808351,\"num_turns\":14,\"result\":\"\\n\\nNow I have everything I need. Let me compile the review findings across all three files.\\n\\n[\\n  {\\n    \\\"filename\\\": \\\"tests/integration/test_tasks_integration.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 80,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"Assertion uses >= which passes even if the 3 created tasks were not persisted, masking a data-loss bug.\\\",\\n        \\\"suggestion\\\": \\\"Use == 3 after ensuring the DB is clean (db_schema should guarantee this, but >= hides violations). If the intent is to assert minimum count, add a comment explaining why.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Integration tests are well-structured with good coverage of auth, 404s, and CRUD operations, but have one fragile assertion.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"tests/unit/conftest.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 754,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"Unhandled SQL in `make_mock_session` returns `MockResult([])` silently \u2014 a missing handler will produce zero rows with no indication that the query was unrecognized.\\\",\\n        \\\"suggestion\\\": \\\"Add a debug-mode assertion or log in `_execute_side_effect`: when all handlers return None, log a warning or raise `ValueError(f'No handler matched: {sql_text}')` so unknown queries fail loudly in tests.\\\"\\n      },\\n      {\\n        \\\"line\\\": 619,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"`make_task_handler` is defined in conftest.py but no existing unit test file imports it \u2014 the task domain has a router-level unit test (test_tasks.py) but no service-layer unit test that exercises the mock handler.\\\",\\n        \\\"suggestion\\\": \\\"If TaskService unit tests are intended, create tests/unit/test_task_service.py that imports `make_mock_session` and `make_task_handler` from conftest to provide a real mock session instead of the constructor-level patch used in test_tasks.py.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Comprehensive conftest with good domain coverage and composable handlers; no critical issues, but the silent empty-result fallback for unrecognized queries is a maintenance risk.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"tests/unit/test_tasks.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 86,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"The `get_db` dependency is overridden with a bare `MagicMock()` (no spec, no awaitable `__aenter__`/`__aexit__`), which bypasses the async context-manager contract that FastAPI's dependency injection expects.\\\",\\n        \\\"suggestion\\\": \\\"Use `make_mock_session([])` from conftest.py instead of `MagicMock()` for the get_db override, so the mock session has a proper `__aenter__`/`__aexit__` and spec'd methods.\\\"\\n      },\\n      {\\n        \\\"line\\\": 104,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"Rule 66 / Rule 121: Tests mock `TaskService` at the class level (via `monkeypatch.setattr`) rather than constructing the service with a real mock session. This skips the router's actual session-injection path and the `__init__` contract that session must be AsyncSession.\\\",\\n        \\\"suggestion\\\": \\\"Import `make_mock_session` and `make_task_handler` from conftest, then replace the `monkeypatch.setattr('api.routers.tasks.TaskService', lambda session: mock_service)` pattern with: `state = MockState(); mock_db = make_mock_session([make_task_handler(state)]); app.dependency_overrides[get_db] = lambda: mock_db; app.dependency_overrides[TaskService] = lambda session: mock_service`. This keeps the service mock for return-value control while exercising real session injection.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Router-level unit tests verify HTTP-layer behavior correctly but sidestep DB session injection; the mock-at-constructor approach is valid for pure router logic but provides no coverage of the service instantiation path.\\\"\\n  }\\n]\",\"stop_reason\":\"end_turn\",\"session_id\":\"6c2d7cbc-c4c5-4581-930b-0a2e1d72a3fa\",\"total_cost_usd\":0.68465055,\"usage\":{\"input_tokens\":49473,\"cache_creation_input_tokens\":5853,\"cache_read_input_tokens\":508976,\"output_tokens\":24106,\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":0,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"\",\"iterations\":[],\"speed\":\"standard\"},\"modelUsage\":{\"claude-sonnet-4-6\":{\"inputTokens\":49473,\"outputTokens\":24106,\"cacheReadInputTokens\":508976,\"cacheCreationInputTokens\":5853,\"webSearchRequests\":0,\"costUSD\":0.68465055,\"contextWindow\":200000,\"maxOutputTokens\":32000}},\"permission_denials\":[],\"terminal_reason\":\"completed\",\"fast_mode_state\":\"off\",\"uuid\":\"68bd3cf1-9b79-4557-b0de-a72014b74257\"}\n",
+        "parsed": {
+          "filename": "tests/unit/conftest.py",
+          "issues": [
+            {
+              "line": 754,
+              "severity": "info",
+              "message": "Unhandled SQL in `make_mock_session` returns `MockResult([])` silently \u2014 a missing handler will produce zero rows with no indication that the query was unrecognized.",
+              "suggestion": "Add a debug-mode assertion or log in `_execute_side_effect`: when all handlers return None, log a warning or raise `ValueError(f'No handler matched: {sql_text}')` so unknown queries fail loudly in tests."
+            },
+            {
+              "line": 619,
+              "severity": "info",
+              "message": "`make_task_handler` is defined in conftest.py but no existing unit test file imports it \u2014 the task domain has a router-level unit test (test_tasks.py) but no service-layer unit test that exercises the mock handler.",
+              "suggestion": "If TaskService unit tests are intended, create tests/unit/test_task_service.py that imports `make_mock_session` and `make_task_handler` from conftest to provide a real mock session instead of the constructor-level patch used in test_tasks.py."
+            }
+          ],
+          "summary": "Comprehensive conftest with good domain coverage and composable handlers; no critical issues, but the silent empty-result fallback for unrecognized queries is a maintenance risk."
+        }
+      },
+      {
+        "file": "tests/unit/test_tasks.py",
+        "returncode": 0,
+        "output": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"api_error_status\":null,\"duration_ms\":808665,\"duration_api_ms\":808351,\"num_turns\":14,\"result\":\"\\n\\nNow I have everything I need. Let me compile the review findings across all three files.\\n\\n[\\n  {\\n    \\\"filename\\\": \\\"tests/integration/test_tasks_integration.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 80,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"Assertion uses >= which passes even if the 3 created tasks were not persisted, masking a data-loss bug.\\\",\\n        \\\"suggestion\\\": \\\"Use == 3 after ensuring the DB is clean (db_schema should guarantee this, but >= hides violations). If the intent is to assert minimum count, add a comment explaining why.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Integration tests are well-structured with good coverage of auth, 404s, and CRUD operations, but have one fragile assertion.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"tests/unit/conftest.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 754,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"Unhandled SQL in `make_mock_session` returns `MockResult([])` silently \u2014 a missing handler will produce zero rows with no indication that the query was unrecognized.\\\",\\n        \\\"suggestion\\\": \\\"Add a debug-mode assertion or log in `_execute_side_effect`: when all handlers return None, log a warning or raise `ValueError(f'No handler matched: {sql_text}')` so unknown queries fail loudly in tests.\\\"\\n      },\\n      {\\n        \\\"line\\\": 619,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"`make_task_handler` is defined in conftest.py but no existing unit test file imports it \u2014 the task domain has a router-level unit test (test_tasks.py) but no service-layer unit test that exercises the mock handler.\\\",\\n        \\\"suggestion\\\": \\\"If TaskService unit tests are intended, create tests/unit/test_task_service.py that imports `make_mock_session` and `make_task_handler` from conftest to provide a real mock session instead of the constructor-level patch used in test_tasks.py.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Comprehensive conftest with good domain coverage and composable handlers; no critical issues, but the silent empty-result fallback for unrecognized queries is a maintenance risk.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"tests/unit/test_tasks.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 86,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"The `get_db` dependency is overridden with a bare `MagicMock()` (no spec, no awaitable `__aenter__`/`__aexit__`), which bypasses the async context-manager contract that FastAPI's dependency injection expects.\\\",\\n        \\\"suggestion\\\": \\\"Use `make_mock_session([])` from conftest.py instead of `MagicMock()` for the get_db override, so the mock session has a proper `__aenter__`/`__aexit__` and spec'd methods.\\\"\\n      },\\n      {\\n        \\\"line\\\": 104,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"Rule 66 / Rule 121: Tests mock `TaskService` at the class level (via `monkeypatch.setattr`) rather than constructing the service with a real mock session. This skips the router's actual session-injection path and the `__init__` contract that session must be AsyncSession.\\\",\\n        \\\"suggestion\\\": \\\"Import `make_mock_session` and `make_task_handler` from conftest, then replace the `monkeypatch.setattr('api.routers.tasks.TaskService', lambda session: mock_service)` pattern with: `state = MockState(); mock_db = make_mock_session([make_task_handler(state)]); app.dependency_overrides[get_db] = lambda: mock_db; app.dependency_overrides[TaskService] = lambda session: mock_service`. This keeps the service mock for return-value control while exercising real session injection.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Router-level unit tests verify HTTP-layer behavior correctly but sidestep DB session injection; the mock-at-constructor approach is valid for pure router logic but provides no coverage of the service instantiation path.\\\"\\n  }\\n]\",\"stop_reason\":\"end_turn\",\"session_id\":\"6c2d7cbc-c4c5-4581-930b-0a2e1d72a3fa\",\"total_cost_usd\":0.68465055,\"usage\":{\"input_tokens\":49473,\"cache_creation_input_tokens\":5853,\"cache_read_input_tokens\":508976,\"output_tokens\":24106,\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":0,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"\",\"iterations\":[],\"speed\":\"standard\"},\"modelUsage\":{\"claude-sonnet-4-6\":{\"inputTokens\":49473,\"outputTokens\":24106,\"cacheReadInputTokens\":508976,\"cacheCreationInputTokens\":5853,\"webSearchRequests\":0,\"costUSD\":0.68465055,\"contextWindow\":200000,\"maxOutputTokens\":32000}},\"permission_denials\":[],\"terminal_reason\":\"completed\",\"fast_mode_state\":\"off\",\"uuid\":\"68bd3cf1-9b79-4557-b0de-a72014b74257\"}\n",
+        "parsed": {
+          "filename": "tests/unit/test_tasks.py",
+          "issues": [
+            {
+              "line": 86,
+              "severity": "warning",
+              "message": "The `get_db` dependency is overridden with a bare `MagicMock()` (no spec, no awaitable `__aenter__`/`__aexit__`), which bypasses the async context-manager contract that FastAPI's dependency injection expects.",
+              "suggestion": "Use `make_mock_session([])` from conftest.py instead of `MagicMock()` for the get_db override, so the mock session has a proper `__aenter__`/`__aexit__` and spec'd methods."
+            },
+            {
+              "line": 104,
+              "severity": "warning",
+              "message": "Rule 66 / Rule 121: Tests mock `TaskService` at the class level (via `monkeypatch.setattr`) rather than constructing the service with a real mock session. This skips the router's actual session-injection path and the `__init__` contract that session must be AsyncSession.",
+              "suggestion": "Import `make_mock_session` and `make_task_handler` from conftest, then replace the `monkeypatch.setattr('api.routers.tasks.TaskService', lambda session: mock_service)` pattern with: `state = MockState(); mock_db = make_mock_session([make_task_handler(state)]); app.dependency_overrides[get_db] = lambda: mock_db; app.dependency_overrides[TaskService] = lambda session: mock_service`. This keeps the service mock for return-value control while exercising real session injection."
+            }
+          ],
+          "summary": "Router-level unit tests verify HTTP-layer behavior correctly but sidestep DB session injection; the mock-at-constructor approach is valid for pure router logic but provides no coverage of the service instantiation path."
         }
       }
     ]
