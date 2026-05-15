@@ -4,171 +4,172 @@
   "critical_issues": [
     {
       "file": "src/services/customer_service.py",
-      "line": 91,
+      "line": 38,
       "severity": "critical",
-      "msg": "result.scalars().all() is not awaited \u2014 in SQLAlchemy 2.x async, Result.all() is a coroutine that must be awaited.",
-      "suggestion": "return result.scalars().all(), total  \u2192  return (await result.scalars().all()), total"
-    },
-    {
-      "file": "src/services/customer_service.py",
-      "line": 148,
-      "severity": "critical",
-      "msg": "result.all() is not awaited \u2014 in SQLAlchemy 2.x async, Result.all() is a coroutine that must be awaited.",
-      "suggestion": "for raw_status, count in result.all():  \u2192  for raw_status, count in await result.all():"
+      "msg": "Duplicate isinstance check: `isinstance(data, CustomerCreateDTO)` is evaluated again at line 38 after already being checked at line 33. The else-branch variable `d` (set on line 36) is in scope but unreachable when data is a DTO \u2014 this is dead code that should be removed.",
+      "suggestion": "Replace the second `if isinstance(data, CustomerCreateDTO):` block at line 38 with `else:`, removing the duplicate condition. The structure should be: if/else on isinstance once, with the body of each branch following immediately."
     }
   ],
   "suggestions": [
     {
-      "file": ".plans/issue-226.md",
-      "line": "",
+      "file": ".plans/issue-227.md",
+      "line": 30,
       "severity": "info",
-      "msg": "Plan document is correctly structured and specifies the required guard, two tests, and acceptance criteria precisely."
+      "msg": "Type annotation `status: str | CustomerStatus` is unusual \u2014 CustomerStatus is an Enum, not a string type, and the plan's phrasing 'str or enum' may confuse implementers.",
+      "suggestion": "Clarify that the DTO accepts `CustomerStatus` enum values (and also coerces plain str for backward compat), so implementers don't incorrectly read this as a plain string union."
     },
     {
-      "file": "src/services/customer_service.py",
-      "line": 140,
+      "file": ".plans/issue-227.md",
+      "line": 12,
+      "severity": "info",
+      "msg": "Plan step 1 says to add `from_dict` classmethod, but CustomerCreateDTO already has one in the current code \u2014 the plan may be documenting an already-merged state rather than a future change.",
+      "suggestion": "Verify whether this plan is describing new work or documenting already-shipped code; update to reflect actual state if CustomerCreateDTO is already implemented."
+    },
+    {
+      "file": "src/models/customer.py",
+      "line": 30,
       "severity": "warning",
-      "msg": "The guard returns {} for tenant_id <= 0, but the plan and test both only exercise tenant_id=0; negative tenant_ids (e.g. -1) are not covered by the test suite, creating a blind spot.",
-      "suggestion": "Add a test case for tenant_id=-1 or parameterize test_count_by_status_zero_tenant to cover both 0 and -1."
+      "msg": "Type annotation `status: str | CustomerStatus` is semantically misleading \u2014 CustomerStatus is an Enum, not a string, and the union suggests a str literal type rather than the enum class.",
+      "suggestion": "Change to `status: CustomerStatus = CustomerStatus.LEAD` (per plan step 1's field spec). Remove str from the union since to_dict/from_dict already handle string coercion internally."
     },
     {
       "file": "tests/unit/test_customer_service.py",
-      "line": 220,
+      "line": 35,
       "severity": "warning",
-      "msg": "TestCountByStatus is marked @pytest.mark.asyncio at class level (line 217) but individual async test methods lack their own decorator, inconsistent with TestCreateCustomerService/TestSearchCustomers where each method carries @pytest.mark.asyncio.",
-      "suggestion": "Add @pytest.mark.asyncio to each async test method inside TestCountByStatus (test_count_by_status_empty, test_count_by_status_returns_counts, etc.)."
-    },
-    {
-      "file": "tests/unit/test_customer_service.py",
-      "line": 300,
-      "severity": "info",
-      "msg": "test_count_by_status_zero_tenant passes tenant_id=0 but the guard is tenant_id <= 0, so negative tenant_ids are not validated by any test.",
-      "suggestion": "Rename the test to test_count_by_status_non_positive_tenant or parameterize it with values=[0, -1] to cover both cases."
+      "msg": "Class docstring says 'Pydantic model' but CustomerCreateDTO is a dataclass, not a Pydantic model.",
+      "suggestion": "Change class docstring to 'Tests for CustomerCreateDTO dataclass.'"
     }
   ],
-  "summary": "Reviewed 3 file(s) between origin/master and origin/auto/issue-226.",
+  "summary": "Reviewed 4 file(s) between origin/master and origin/auto/issue-227.",
   "details": {
     "llm_parsed": {
       "verdict": "fail",
       "critical": [
         {
           "file": "src/services/customer_service.py",
-          "line": 91,
+          "line": 38,
           "severity": "critical",
-          "msg": "result.scalars().all() is not awaited \u2014 in SQLAlchemy 2.x async, Result.all() is a coroutine that must be awaited.",
-          "suggestion": "return result.scalars().all(), total  \u2192  return (await result.scalars().all()), total"
-        },
-        {
-          "file": "src/services/customer_service.py",
-          "line": 148,
-          "severity": "critical",
-          "msg": "result.all() is not awaited \u2014 in SQLAlchemy 2.x async, Result.all() is a coroutine that must be awaited.",
-          "suggestion": "for raw_status, count in result.all():  \u2192  for raw_status, count in await result.all():"
+          "msg": "Duplicate isinstance check: `isinstance(data, CustomerCreateDTO)` is evaluated again at line 38 after already being checked at line 33. The else-branch variable `d` (set on line 36) is in scope but unreachable when data is a DTO \u2014 this is dead code that should be removed.",
+          "suggestion": "Replace the second `if isinstance(data, CustomerCreateDTO):` block at line 38 with `else:`, removing the duplicate condition. The structure should be: if/else on isinstance once, with the body of each branch following immediately."
         }
       ],
       "warnings": [
         {
-          "file": ".plans/issue-226.md",
-          "line": "",
+          "file": ".plans/issue-227.md",
+          "line": 30,
           "severity": "info",
-          "msg": "Plan document is correctly structured and specifies the required guard, two tests, and acceptance criteria precisely."
+          "msg": "Type annotation `status: str | CustomerStatus` is unusual \u2014 CustomerStatus is an Enum, not a string type, and the plan's phrasing 'str or enum' may confuse implementers.",
+          "suggestion": "Clarify that the DTO accepts `CustomerStatus` enum values (and also coerces plain str for backward compat), so implementers don't incorrectly read this as a plain string union."
         },
         {
-          "file": "src/services/customer_service.py",
-          "line": 140,
+          "file": ".plans/issue-227.md",
+          "line": 12,
+          "severity": "info",
+          "msg": "Plan step 1 says to add `from_dict` classmethod, but CustomerCreateDTO already has one in the current code \u2014 the plan may be documenting an already-merged state rather than a future change.",
+          "suggestion": "Verify whether this plan is describing new work or documenting already-shipped code; update to reflect actual state if CustomerCreateDTO is already implemented."
+        },
+        {
+          "file": "src/models/customer.py",
+          "line": 30,
           "severity": "warning",
-          "msg": "The guard returns {} for tenant_id <= 0, but the plan and test both only exercise tenant_id=0; negative tenant_ids (e.g. -1) are not covered by the test suite, creating a blind spot.",
-          "suggestion": "Add a test case for tenant_id=-1 or parameterize test_count_by_status_zero_tenant to cover both 0 and -1."
+          "msg": "Type annotation `status: str | CustomerStatus` is semantically misleading \u2014 CustomerStatus is an Enum, not a string, and the union suggests a str literal type rather than the enum class.",
+          "suggestion": "Change to `status: CustomerStatus = CustomerStatus.LEAD` (per plan step 1's field spec). Remove str from the union since to_dict/from_dict already handle string coercion internally."
         },
         {
           "file": "tests/unit/test_customer_service.py",
-          "line": 220,
+          "line": 35,
           "severity": "warning",
-          "msg": "TestCountByStatus is marked @pytest.mark.asyncio at class level (line 217) but individual async test methods lack their own decorator, inconsistent with TestCreateCustomerService/TestSearchCustomers where each method carries @pytest.mark.asyncio.",
-          "suggestion": "Add @pytest.mark.asyncio to each async test method inside TestCountByStatus (test_count_by_status_empty, test_count_by_status_returns_counts, etc.)."
-        },
-        {
-          "file": "tests/unit/test_customer_service.py",
-          "line": 300,
-          "severity": "info",
-          "msg": "test_count_by_status_zero_tenant passes tenant_id=0 but the guard is tenant_id <= 0, so negative tenant_ids are not validated by any test.",
-          "suggestion": "Rename the test to test_count_by_status_non_positive_tenant or parameterize it with values=[0, -1] to cover both cases."
+          "msg": "Class docstring says 'Pydantic model' but CustomerCreateDTO is a dataclass, not a Pydantic model.",
+          "suggestion": "Change class docstring to 'Tests for CustomerCreateDTO dataclass.'"
         }
       ],
-      "summary": "Reviewed 3 file(s) between origin/master and origin/auto/issue-226."
+      "summary": "Reviewed 4 file(s) between origin/master and origin/auto/issue-227."
     },
     "reviewed_refs": {
       "base": "bd1929297a5a2a93a59748d759d4fa112e9e6cb7",
-      "head": "6f1e1766a01506e88128d843e889b3c46219850b",
+      "head": "16d954b873524a0d75cd22808b6a511588cc956e",
       "base_label": "origin/master",
-      "head_label": "origin/auto/issue-226"
+      "head_label": "origin/auto/issue-227"
     },
     "reviewed_files": [
-      ".plans/issue-226.md",
+      ".plans/issue-227.md",
+      "src/models/customer.py",
       "src/services/customer_service.py",
       "tests/unit/test_customer_service.py"
     ],
     "per_file_reviews": [
       {
-        "file": ".plans/issue-226.md",
+        "file": ".plans/issue-227.md",
         "returncode": 0,
-        "output": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"api_error_status\":null,\"duration_ms\":130508,\"duration_api_ms\":130447,\"ttft_ms\":7163,\"num_turns\":5,\"result\":\"\\n\\nNow I have a full picture of all three files. Let me compile the findings.\\n\\n```json\\n[\\n  {\\n    \\\"filename\\\": \\\".plans/issue-226.md\\\",\\n    \\\"issues\\\": [],\\n    \\\"summary\\\": \\\"Plan document is correctly structured and specifies the required guard, two tests, and acceptance criteria precisely.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"src/services/customer_service.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 91,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"result.scalars().all() is not awaited \u2014 in SQLAlchemy 2.x async, Result.all() is a coroutine that must be awaited.\\\",\\n        \\\"suggestion\\\": \\\"return result.scalars().all(), total  \u2192  return (await result.scalars().all()), total\\\"\\n      },\\n      {\\n        \\\"line\\\": 148,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"result.all() is not awaited \u2014 in SQLAlchemy 2.x async, Result.all() is a coroutine that must be awaited.\\\",\\n        \\\"suggestion\\\": \\\"for raw_status, count in result.all():  \u2192  for raw_status, count in await result.all():\\\"\\n      },\\n      {\\n        \\\"line\\\": 140,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"The guard returns {} for tenant_id <= 0, but the plan and test both only exercise tenant_id=0; negative tenant_ids (e.g. -1) are not covered by the test suite, creating a blind spot.\\\",\\n        \\\"suggestion\\\": \\\"Add a test case for tenant_id=-1 or parameterize test_count_by_status_zero_tenant to cover both 0 and -1.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"The count_by_status guard (line 140-141) is implemented correctly per plan, but two result.all() calls are missing await in async context \u2014 a critical SQLAlchemy 2.x async correctness issue.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"tests/unit/test_customer_service.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 220,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"TestCountByStatus is marked @pytest.mark.asyncio at class level (line 217) but individual async test methods lack their own decorator, inconsistent with TestCreateCustomerService/TestSearchCustomers where each method carries @pytest.mark.asyncio.\\\",\\n        \\\"suggestion\\\": \\\"Add @pytest.mark.asyncio to each async test method inside TestCountByStatus (test_count_by_status_empty, test_count_by_status_returns_counts, etc.).\\\"\\n      },\\n      {\\n        \\\"line\\\": 300,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"test_count_by_status_zero_tenant passes tenant_id=0 but the guard is tenant_id <= 0, so negative tenant_ids are not validated by any test.\\\",\\n        \\\"suggestion\\\": \\\"Rename the test to test_count_by_status_non_positive_tenant or parameterize it with values=[0, -1] to cover both cases.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"The two new tests (test_count_by_status_basic, test_count_by_status_zero_tenant) are present as specified in the plan, but TestCountByStatus test methods lack explicit @pytest.mark.asyncio decorators and the zero-tenant test only covers tenant_id=0, not the full tenant_id <= 0 guard.\\\"\\n  }\\n]\\n```\",\"stop_reason\":\"end_turn\",\"session_id\":\"627bdb15-2d1e-4ffe-9dc5-aa092f5ed4b7\",\"total_cost_usd\":0.21165060000000002,\"usage\":{\"input_tokens\":35742,\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":69632,\"output_tokens\":5569,\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":0,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"\",\"iterations\":[],\"speed\":\"standard\"},\"modelUsage\":{\"claude-sonnet-4-6\":{\"inputTokens\":35742,\"outputTokens\":5569,\"cacheReadInputTokens\":69632,\"cacheCreationInputTokens\":0,\"webSearchRequests\":0,\"costUSD\":0.21165060000000002,\"contextWindow\":200000,\"maxOutputTokens\":32000}},\"permission_denials\":[],\"terminal_reason\":\"completed\",\"fast_mode_state\":\"off\",\"uuid\":\"0407404d-98e0-43bb-a371-3d264513a57e\"}\n",
+        "output": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"api_error_status\":null,\"duration_ms\":119907,\"duration_api_ms\":119839,\"ttft_ms\":5461,\"num_turns\":7,\"result\":\"\\n\\nNow I have all the context needed. Let me produce the review.\\n\\n```json\\n[\\n  {\\n    \\\"filename\\\": \\\".plans/issue-227.md\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 30,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"Type annotation `status: str | CustomerStatus` is unusual \u2014 CustomerStatus is an Enum, not a string type, and the plan's phrasing 'str or enum' may confuse implementers.\\\",\\n        \\\"suggestion\\\": \\\"Clarify that the DTO accepts `CustomerStatus` enum values (and also coerces plain str for backward compat), so implementers don't incorrectly read this as a plain string union.\\\"\\n      },\\n      {\\n        \\\"line\\\": 12,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"Plan step 1 says to add `from_dict` classmethod, but CustomerCreateDTO already has one in the current code \u2014 the plan may be documenting an already-merged state rather than a future change.\\\",\\n        \\\"suggestion\\\": \\\"Verify whether this plan is describing new work or documenting already-shipped code; update to reflect actual state if CustomerCreateDTO is already implemented.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Implementation plan document; issues are informational \u2014 the plan is generally clear but the status type annotation could be clarified and the already-implemented from_dict should be noted.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"src/models/customer.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 30,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"Type annotation `status: str | CustomerStatus` is semantically misleading \u2014 CustomerStatus is an Enum, not a string, and the union suggests a str literal type rather than the enum class.\\\",\\n        \\\"suggestion\\\": \\\"Change to `status: CustomerStatus = CustomerStatus.LEAD` (per plan step 1's field spec). Remove str from the union since to_dict/from_dict already handle string coercion internally.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"CustomerCreateDTO is well-structured with proper from_dict validation and status_value property; one minor type-annotation issue on line 30.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"src/services/customer_service.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 38,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"Duplicate isinstance check: `isinstance(data, CustomerCreateDTO)` is evaluated again at line 38 after already being checked at line 33. The else-branch variable `d` (set on line 36) is in scope but unreachable when data is a DTO \u2014 this is dead code that should be removed.\\\",\\n        \\\"suggestion\\\": \\\"Replace the second `if isinstance(data, CustomerCreateDTO):` block at line 38 with `else:`, removing the duplicate condition. The structure should be: if/else on isinstance once, with the body of each branch following immediately.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"create_customer has a duplicate isinstance guard that makes the else-branch for `d` unreachable dead code \u2014 needs a single if/else structure.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"tests/unit/test_customer_service.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 35,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"Class docstring says 'Pydantic model' but CustomerCreateDTO is a dataclass, not a Pydantic model.\\\",\\n        \\\"suggestion\\\": \\\"Change class docstring to 'Tests for CustomerCreateDTO dataclass.'\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Test suite is well-structured and covers DTO field access, dict backward compat, and edge cases; one stale class docstring reference to Pydantic should be corrected.\\\"\\n  }\\n]\\n```\",\"stop_reason\":\"end_turn\",\"session_id\":\"62c90948-53b4-4a14-be22-a97c66d3957b\",\"total_cost_usd\":0.39731190000000005,\"usage\":{\"input_tokens\":70828,\"cache_creation_input_tokens\":30698,\"cache_read_input_tokens\":49718,\"output_tokens\":3653,\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":0,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"\",\"iterations\":[],\"speed\":\"standard\"},\"modelUsage\":{\"claude-sonnet-4-6\":{\"inputTokens\":70828,\"outputTokens\":3653,\"cacheReadInputTokens\":49718,\"cacheCreationInputTokens\":30698,\"webSearchRequests\":0,\"costUSD\":0.39731190000000005,\"contextWindow\":200000,\"maxOutputTokens\":32000}},\"permission_denials\":[],\"terminal_reason\":\"completed\",\"fast_mode_state\":\"off\",\"uuid\":\"b1d0237c-0de5-4d9c-bdc0-68bbac18ec28\"}\n",
         "parsed": {
-          "filename": ".plans/issue-226.md",
-          "issues": [],
-          "summary": "Plan document is correctly structured and specifies the required guard, two tests, and acceptance criteria precisely."
+          "filename": ".plans/issue-227.md",
+          "issues": [
+            {
+              "line": 30,
+              "severity": "info",
+              "message": "Type annotation `status: str | CustomerStatus` is unusual \u2014 CustomerStatus is an Enum, not a string type, and the plan's phrasing 'str or enum' may confuse implementers.",
+              "suggestion": "Clarify that the DTO accepts `CustomerStatus` enum values (and also coerces plain str for backward compat), so implementers don't incorrectly read this as a plain string union."
+            },
+            {
+              "line": 12,
+              "severity": "info",
+              "message": "Plan step 1 says to add `from_dict` classmethod, but CustomerCreateDTO already has one in the current code \u2014 the plan may be documenting an already-merged state rather than a future change.",
+              "suggestion": "Verify whether this plan is describing new work or documenting already-shipped code; update to reflect actual state if CustomerCreateDTO is already implemented."
+            }
+          ],
+          "summary": "Implementation plan document; issues are informational \u2014 the plan is generally clear but the status type annotation could be clarified and the already-implemented from_dict should be noted."
+        }
+      },
+      {
+        "file": "src/models/customer.py",
+        "returncode": 0,
+        "output": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"api_error_status\":null,\"duration_ms\":119907,\"duration_api_ms\":119839,\"ttft_ms\":5461,\"num_turns\":7,\"result\":\"\\n\\nNow I have all the context needed. Let me produce the review.\\n\\n```json\\n[\\n  {\\n    \\\"filename\\\": \\\".plans/issue-227.md\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 30,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"Type annotation `status: str | CustomerStatus` is unusual \u2014 CustomerStatus is an Enum, not a string type, and the plan's phrasing 'str or enum' may confuse implementers.\\\",\\n        \\\"suggestion\\\": \\\"Clarify that the DTO accepts `CustomerStatus` enum values (and also coerces plain str for backward compat), so implementers don't incorrectly read this as a plain string union.\\\"\\n      },\\n      {\\n        \\\"line\\\": 12,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"Plan step 1 says to add `from_dict` classmethod, but CustomerCreateDTO already has one in the current code \u2014 the plan may be documenting an already-merged state rather than a future change.\\\",\\n        \\\"suggestion\\\": \\\"Verify whether this plan is describing new work or documenting already-shipped code; update to reflect actual state if CustomerCreateDTO is already implemented.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Implementation plan document; issues are informational \u2014 the plan is generally clear but the status type annotation could be clarified and the already-implemented from_dict should be noted.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"src/models/customer.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 30,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"Type annotation `status: str | CustomerStatus` is semantically misleading \u2014 CustomerStatus is an Enum, not a string, and the union suggests a str literal type rather than the enum class.\\\",\\n        \\\"suggestion\\\": \\\"Change to `status: CustomerStatus = CustomerStatus.LEAD` (per plan step 1's field spec). Remove str from the union since to_dict/from_dict already handle string coercion internally.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"CustomerCreateDTO is well-structured with proper from_dict validation and status_value property; one minor type-annotation issue on line 30.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"src/services/customer_service.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 38,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"Duplicate isinstance check: `isinstance(data, CustomerCreateDTO)` is evaluated again at line 38 after already being checked at line 33. The else-branch variable `d` (set on line 36) is in scope but unreachable when data is a DTO \u2014 this is dead code that should be removed.\\\",\\n        \\\"suggestion\\\": \\\"Replace the second `if isinstance(data, CustomerCreateDTO):` block at line 38 with `else:`, removing the duplicate condition. The structure should be: if/else on isinstance once, with the body of each branch following immediately.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"create_customer has a duplicate isinstance guard that makes the else-branch for `d` unreachable dead code \u2014 needs a single if/else structure.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"tests/unit/test_customer_service.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 35,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"Class docstring says 'Pydantic model' but CustomerCreateDTO is a dataclass, not a Pydantic model.\\\",\\n        \\\"suggestion\\\": \\\"Change class docstring to 'Tests for CustomerCreateDTO dataclass.'\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Test suite is well-structured and covers DTO field access, dict backward compat, and edge cases; one stale class docstring reference to Pydantic should be corrected.\\\"\\n  }\\n]\\n```\",\"stop_reason\":\"end_turn\",\"session_id\":\"62c90948-53b4-4a14-be22-a97c66d3957b\",\"total_cost_usd\":0.39731190000000005,\"usage\":{\"input_tokens\":70828,\"cache_creation_input_tokens\":30698,\"cache_read_input_tokens\":49718,\"output_tokens\":3653,\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":0,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"\",\"iterations\":[],\"speed\":\"standard\"},\"modelUsage\":{\"claude-sonnet-4-6\":{\"inputTokens\":70828,\"outputTokens\":3653,\"cacheReadInputTokens\":49718,\"cacheCreationInputTokens\":30698,\"webSearchRequests\":0,\"costUSD\":0.39731190000000005,\"contextWindow\":200000,\"maxOutputTokens\":32000}},\"permission_denials\":[],\"terminal_reason\":\"completed\",\"fast_mode_state\":\"off\",\"uuid\":\"b1d0237c-0de5-4d9c-bdc0-68bbac18ec28\"}\n",
+        "parsed": {
+          "filename": "src/models/customer.py",
+          "issues": [
+            {
+              "line": 30,
+              "severity": "warning",
+              "message": "Type annotation `status: str | CustomerStatus` is semantically misleading \u2014 CustomerStatus is an Enum, not a string, and the union suggests a str literal type rather than the enum class.",
+              "suggestion": "Change to `status: CustomerStatus = CustomerStatus.LEAD` (per plan step 1's field spec). Remove str from the union since to_dict/from_dict already handle string coercion internally."
+            }
+          ],
+          "summary": "CustomerCreateDTO is well-structured with proper from_dict validation and status_value property; one minor type-annotation issue on line 30."
         }
       },
       {
         "file": "src/services/customer_service.py",
         "returncode": 0,
-        "output": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"api_error_status\":null,\"duration_ms\":130508,\"duration_api_ms\":130447,\"ttft_ms\":7163,\"num_turns\":5,\"result\":\"\\n\\nNow I have a full picture of all three files. Let me compile the findings.\\n\\n```json\\n[\\n  {\\n    \\\"filename\\\": \\\".plans/issue-226.md\\\",\\n    \\\"issues\\\": [],\\n    \\\"summary\\\": \\\"Plan document is correctly structured and specifies the required guard, two tests, and acceptance criteria precisely.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"src/services/customer_service.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 91,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"result.scalars().all() is not awaited \u2014 in SQLAlchemy 2.x async, Result.all() is a coroutine that must be awaited.\\\",\\n        \\\"suggestion\\\": \\\"return result.scalars().all(), total  \u2192  return (await result.scalars().all()), total\\\"\\n      },\\n      {\\n        \\\"line\\\": 148,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"result.all() is not awaited \u2014 in SQLAlchemy 2.x async, Result.all() is a coroutine that must be awaited.\\\",\\n        \\\"suggestion\\\": \\\"for raw_status, count in result.all():  \u2192  for raw_status, count in await result.all():\\\"\\n      },\\n      {\\n        \\\"line\\\": 140,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"The guard returns {} for tenant_id <= 0, but the plan and test both only exercise tenant_id=0; negative tenant_ids (e.g. -1) are not covered by the test suite, creating a blind spot.\\\",\\n        \\\"suggestion\\\": \\\"Add a test case for tenant_id=-1 or parameterize test_count_by_status_zero_tenant to cover both 0 and -1.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"The count_by_status guard (line 140-141) is implemented correctly per plan, but two result.all() calls are missing await in async context \u2014 a critical SQLAlchemy 2.x async correctness issue.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"tests/unit/test_customer_service.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 220,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"TestCountByStatus is marked @pytest.mark.asyncio at class level (line 217) but individual async test methods lack their own decorator, inconsistent with TestCreateCustomerService/TestSearchCustomers where each method carries @pytest.mark.asyncio.\\\",\\n        \\\"suggestion\\\": \\\"Add @pytest.mark.asyncio to each async test method inside TestCountByStatus (test_count_by_status_empty, test_count_by_status_returns_counts, etc.).\\\"\\n      },\\n      {\\n        \\\"line\\\": 300,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"test_count_by_status_zero_tenant passes tenant_id=0 but the guard is tenant_id <= 0, so negative tenant_ids are not validated by any test.\\\",\\n        \\\"suggestion\\\": \\\"Rename the test to test_count_by_status_non_positive_tenant or parameterize it with values=[0, -1] to cover both cases.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"The two new tests (test_count_by_status_basic, test_count_by_status_zero_tenant) are present as specified in the plan, but TestCountByStatus test methods lack explicit @pytest.mark.asyncio decorators and the zero-tenant test only covers tenant_id=0, not the full tenant_id <= 0 guard.\\\"\\n  }\\n]\\n```\",\"stop_reason\":\"end_turn\",\"session_id\":\"627bdb15-2d1e-4ffe-9dc5-aa092f5ed4b7\",\"total_cost_usd\":0.21165060000000002,\"usage\":{\"input_tokens\":35742,\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":69632,\"output_tokens\":5569,\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":0,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"\",\"iterations\":[],\"speed\":\"standard\"},\"modelUsage\":{\"claude-sonnet-4-6\":{\"inputTokens\":35742,\"outputTokens\":5569,\"cacheReadInputTokens\":69632,\"cacheCreationInputTokens\":0,\"webSearchRequests\":0,\"costUSD\":0.21165060000000002,\"contextWindow\":200000,\"maxOutputTokens\":32000}},\"permission_denials\":[],\"terminal_reason\":\"completed\",\"fast_mode_state\":\"off\",\"uuid\":\"0407404d-98e0-43bb-a371-3d264513a57e\"}\n",
+        "output": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"api_error_status\":null,\"duration_ms\":119907,\"duration_api_ms\":119839,\"ttft_ms\":5461,\"num_turns\":7,\"result\":\"\\n\\nNow I have all the context needed. Let me produce the review.\\n\\n```json\\n[\\n  {\\n    \\\"filename\\\": \\\".plans/issue-227.md\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 30,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"Type annotation `status: str | CustomerStatus` is unusual \u2014 CustomerStatus is an Enum, not a string type, and the plan's phrasing 'str or enum' may confuse implementers.\\\",\\n        \\\"suggestion\\\": \\\"Clarify that the DTO accepts `CustomerStatus` enum values (and also coerces plain str for backward compat), so implementers don't incorrectly read this as a plain string union.\\\"\\n      },\\n      {\\n        \\\"line\\\": 12,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"Plan step 1 says to add `from_dict` classmethod, but CustomerCreateDTO already has one in the current code \u2014 the plan may be documenting an already-merged state rather than a future change.\\\",\\n        \\\"suggestion\\\": \\\"Verify whether this plan is describing new work or documenting already-shipped code; update to reflect actual state if CustomerCreateDTO is already implemented.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Implementation plan document; issues are informational \u2014 the plan is generally clear but the status type annotation could be clarified and the already-implemented from_dict should be noted.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"src/models/customer.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 30,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"Type annotation `status: str | CustomerStatus` is semantically misleading \u2014 CustomerStatus is an Enum, not a string, and the union suggests a str literal type rather than the enum class.\\\",\\n        \\\"suggestion\\\": \\\"Change to `status: CustomerStatus = CustomerStatus.LEAD` (per plan step 1's field spec). Remove str from the union since to_dict/from_dict already handle string coercion internally.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"CustomerCreateDTO is well-structured with proper from_dict validation and status_value property; one minor type-annotation issue on line 30.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"src/services/customer_service.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 38,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"Duplicate isinstance check: `isinstance(data, CustomerCreateDTO)` is evaluated again at line 38 after already being checked at line 33. The else-branch variable `d` (set on line 36) is in scope but unreachable when data is a DTO \u2014 this is dead code that should be removed.\\\",\\n        \\\"suggestion\\\": \\\"Replace the second `if isinstance(data, CustomerCreateDTO):` block at line 38 with `else:`, removing the duplicate condition. The structure should be: if/else on isinstance once, with the body of each branch following immediately.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"create_customer has a duplicate isinstance guard that makes the else-branch for `d` unreachable dead code \u2014 needs a single if/else structure.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"tests/unit/test_customer_service.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 35,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"Class docstring says 'Pydantic model' but CustomerCreateDTO is a dataclass, not a Pydantic model.\\\",\\n        \\\"suggestion\\\": \\\"Change class docstring to 'Tests for CustomerCreateDTO dataclass.'\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Test suite is well-structured and covers DTO field access, dict backward compat, and edge cases; one stale class docstring reference to Pydantic should be corrected.\\\"\\n  }\\n]\\n```\",\"stop_reason\":\"end_turn\",\"session_id\":\"62c90948-53b4-4a14-be22-a97c66d3957b\",\"total_cost_usd\":0.39731190000000005,\"usage\":{\"input_tokens\":70828,\"cache_creation_input_tokens\":30698,\"cache_read_input_tokens\":49718,\"output_tokens\":3653,\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":0,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"\",\"iterations\":[],\"speed\":\"standard\"},\"modelUsage\":{\"claude-sonnet-4-6\":{\"inputTokens\":70828,\"outputTokens\":3653,\"cacheReadInputTokens\":49718,\"cacheCreationInputTokens\":30698,\"webSearchRequests\":0,\"costUSD\":0.39731190000000005,\"contextWindow\":200000,\"maxOutputTokens\":32000}},\"permission_denials\":[],\"terminal_reason\":\"completed\",\"fast_mode_state\":\"off\",\"uuid\":\"b1d0237c-0de5-4d9c-bdc0-68bbac18ec28\"}\n",
         "parsed": {
           "filename": "src/services/customer_service.py",
           "issues": [
             {
-              "line": 91,
+              "line": 38,
               "severity": "critical",
-              "message": "result.scalars().all() is not awaited \u2014 in SQLAlchemy 2.x async, Result.all() is a coroutine that must be awaited.",
-              "suggestion": "return result.scalars().all(), total  \u2192  return (await result.scalars().all()), total"
-            },
-            {
-              "line": 148,
-              "severity": "critical",
-              "message": "result.all() is not awaited \u2014 in SQLAlchemy 2.x async, Result.all() is a coroutine that must be awaited.",
-              "suggestion": "for raw_status, count in result.all():  \u2192  for raw_status, count in await result.all():"
-            },
-            {
-              "line": 140,
-              "severity": "warning",
-              "message": "The guard returns {} for tenant_id <= 0, but the plan and test both only exercise tenant_id=0; negative tenant_ids (e.g. -1) are not covered by the test suite, creating a blind spot.",
-              "suggestion": "Add a test case for tenant_id=-1 or parameterize test_count_by_status_zero_tenant to cover both 0 and -1."
+              "message": "Duplicate isinstance check: `isinstance(data, CustomerCreateDTO)` is evaluated again at line 38 after already being checked at line 33. The else-branch variable `d` (set on line 36) is in scope but unreachable when data is a DTO \u2014 this is dead code that should be removed.",
+              "suggestion": "Replace the second `if isinstance(data, CustomerCreateDTO):` block at line 38 with `else:`, removing the duplicate condition. The structure should be: if/else on isinstance once, with the body of each branch following immediately."
             }
           ],
-          "summary": "The count_by_status guard (line 140-141) is implemented correctly per plan, but two result.all() calls are missing await in async context \u2014 a critical SQLAlchemy 2.x async correctness issue."
+          "summary": "create_customer has a duplicate isinstance guard that makes the else-branch for `d` unreachable dead code \u2014 needs a single if/else structure."
         }
       },
       {
         "file": "tests/unit/test_customer_service.py",
         "returncode": 0,
-        "output": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"api_error_status\":null,\"duration_ms\":130508,\"duration_api_ms\":130447,\"ttft_ms\":7163,\"num_turns\":5,\"result\":\"\\n\\nNow I have a full picture of all three files. Let me compile the findings.\\n\\n```json\\n[\\n  {\\n    \\\"filename\\\": \\\".plans/issue-226.md\\\",\\n    \\\"issues\\\": [],\\n    \\\"summary\\\": \\\"Plan document is correctly structured and specifies the required guard, two tests, and acceptance criteria precisely.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"src/services/customer_service.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 91,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"result.scalars().all() is not awaited \u2014 in SQLAlchemy 2.x async, Result.all() is a coroutine that must be awaited.\\\",\\n        \\\"suggestion\\\": \\\"return result.scalars().all(), total  \u2192  return (await result.scalars().all()), total\\\"\\n      },\\n      {\\n        \\\"line\\\": 148,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"result.all() is not awaited \u2014 in SQLAlchemy 2.x async, Result.all() is a coroutine that must be awaited.\\\",\\n        \\\"suggestion\\\": \\\"for raw_status, count in result.all():  \u2192  for raw_status, count in await result.all():\\\"\\n      },\\n      {\\n        \\\"line\\\": 140,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"The guard returns {} for tenant_id <= 0, but the plan and test both only exercise tenant_id=0; negative tenant_ids (e.g. -1) are not covered by the test suite, creating a blind spot.\\\",\\n        \\\"suggestion\\\": \\\"Add a test case for tenant_id=-1 or parameterize test_count_by_status_zero_tenant to cover both 0 and -1.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"The count_by_status guard (line 140-141) is implemented correctly per plan, but two result.all() calls are missing await in async context \u2014 a critical SQLAlchemy 2.x async correctness issue.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"tests/unit/test_customer_service.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 220,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"TestCountByStatus is marked @pytest.mark.asyncio at class level (line 217) but individual async test methods lack their own decorator, inconsistent with TestCreateCustomerService/TestSearchCustomers where each method carries @pytest.mark.asyncio.\\\",\\n        \\\"suggestion\\\": \\\"Add @pytest.mark.asyncio to each async test method inside TestCountByStatus (test_count_by_status_empty, test_count_by_status_returns_counts, etc.).\\\"\\n      },\\n      {\\n        \\\"line\\\": 300,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"test_count_by_status_zero_tenant passes tenant_id=0 but the guard is tenant_id <= 0, so negative tenant_ids are not validated by any test.\\\",\\n        \\\"suggestion\\\": \\\"Rename the test to test_count_by_status_non_positive_tenant or parameterize it with values=[0, -1] to cover both cases.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"The two new tests (test_count_by_status_basic, test_count_by_status_zero_tenant) are present as specified in the plan, but TestCountByStatus test methods lack explicit @pytest.mark.asyncio decorators and the zero-tenant test only covers tenant_id=0, not the full tenant_id <= 0 guard.\\\"\\n  }\\n]\\n```\",\"stop_reason\":\"end_turn\",\"session_id\":\"627bdb15-2d1e-4ffe-9dc5-aa092f5ed4b7\",\"total_cost_usd\":0.21165060000000002,\"usage\":{\"input_tokens\":35742,\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":69632,\"output_tokens\":5569,\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":0,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"\",\"iterations\":[],\"speed\":\"standard\"},\"modelUsage\":{\"claude-sonnet-4-6\":{\"inputTokens\":35742,\"outputTokens\":5569,\"cacheReadInputTokens\":69632,\"cacheCreationInputTokens\":0,\"webSearchRequests\":0,\"costUSD\":0.21165060000000002,\"contextWindow\":200000,\"maxOutputTokens\":32000}},\"permission_denials\":[],\"terminal_reason\":\"completed\",\"fast_mode_state\":\"off\",\"uuid\":\"0407404d-98e0-43bb-a371-3d264513a57e\"}\n",
+        "output": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"api_error_status\":null,\"duration_ms\":119907,\"duration_api_ms\":119839,\"ttft_ms\":5461,\"num_turns\":7,\"result\":\"\\n\\nNow I have all the context needed. Let me produce the review.\\n\\n```json\\n[\\n  {\\n    \\\"filename\\\": \\\".plans/issue-227.md\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 30,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"Type annotation `status: str | CustomerStatus` is unusual \u2014 CustomerStatus is an Enum, not a string type, and the plan's phrasing 'str or enum' may confuse implementers.\\\",\\n        \\\"suggestion\\\": \\\"Clarify that the DTO accepts `CustomerStatus` enum values (and also coerces plain str for backward compat), so implementers don't incorrectly read this as a plain string union.\\\"\\n      },\\n      {\\n        \\\"line\\\": 12,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"Plan step 1 says to add `from_dict` classmethod, but CustomerCreateDTO already has one in the current code \u2014 the plan may be documenting an already-merged state rather than a future change.\\\",\\n        \\\"suggestion\\\": \\\"Verify whether this plan is describing new work or documenting already-shipped code; update to reflect actual state if CustomerCreateDTO is already implemented.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Implementation plan document; issues are informational \u2014 the plan is generally clear but the status type annotation could be clarified and the already-implemented from_dict should be noted.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"src/models/customer.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 30,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"Type annotation `status: str | CustomerStatus` is semantically misleading \u2014 CustomerStatus is an Enum, not a string, and the union suggests a str literal type rather than the enum class.\\\",\\n        \\\"suggestion\\\": \\\"Change to `status: CustomerStatus = CustomerStatus.LEAD` (per plan step 1's field spec). Remove str from the union since to_dict/from_dict already handle string coercion internally.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"CustomerCreateDTO is well-structured with proper from_dict validation and status_value property; one minor type-annotation issue on line 30.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"src/services/customer_service.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 38,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"Duplicate isinstance check: `isinstance(data, CustomerCreateDTO)` is evaluated again at line 38 after already being checked at line 33. The else-branch variable `d` (set on line 36) is in scope but unreachable when data is a DTO \u2014 this is dead code that should be removed.\\\",\\n        \\\"suggestion\\\": \\\"Replace the second `if isinstance(data, CustomerCreateDTO):` block at line 38 with `else:`, removing the duplicate condition. The structure should be: if/else on isinstance once, with the body of each branch following immediately.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"create_customer has a duplicate isinstance guard that makes the else-branch for `d` unreachable dead code \u2014 needs a single if/else structure.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"tests/unit/test_customer_service.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 35,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"Class docstring says 'Pydantic model' but CustomerCreateDTO is a dataclass, not a Pydantic model.\\\",\\n        \\\"suggestion\\\": \\\"Change class docstring to 'Tests for CustomerCreateDTO dataclass.'\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Test suite is well-structured and covers DTO field access, dict backward compat, and edge cases; one stale class docstring reference to Pydantic should be corrected.\\\"\\n  }\\n]\\n```\",\"stop_reason\":\"end_turn\",\"session_id\":\"62c90948-53b4-4a14-be22-a97c66d3957b\",\"total_cost_usd\":0.39731190000000005,\"usage\":{\"input_tokens\":70828,\"cache_creation_input_tokens\":30698,\"cache_read_input_tokens\":49718,\"output_tokens\":3653,\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":0,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"\",\"iterations\":[],\"speed\":\"standard\"},\"modelUsage\":{\"claude-sonnet-4-6\":{\"inputTokens\":70828,\"outputTokens\":3653,\"cacheReadInputTokens\":49718,\"cacheCreationInputTokens\":30698,\"webSearchRequests\":0,\"costUSD\":0.39731190000000005,\"contextWindow\":200000,\"maxOutputTokens\":32000}},\"permission_denials\":[],\"terminal_reason\":\"completed\",\"fast_mode_state\":\"off\",\"uuid\":\"b1d0237c-0de5-4d9c-bdc0-68bbac18ec28\"}\n",
         "parsed": {
           "filename": "tests/unit/test_customer_service.py",
           "issues": [
             {
-              "line": 220,
+              "line": 35,
               "severity": "warning",
-              "message": "TestCountByStatus is marked @pytest.mark.asyncio at class level (line 217) but individual async test methods lack their own decorator, inconsistent with TestCreateCustomerService/TestSearchCustomers where each method carries @pytest.mark.asyncio.",
-              "suggestion": "Add @pytest.mark.asyncio to each async test method inside TestCountByStatus (test_count_by_status_empty, test_count_by_status_returns_counts, etc.)."
-            },
-            {
-              "line": 300,
-              "severity": "info",
-              "message": "test_count_by_status_zero_tenant passes tenant_id=0 but the guard is tenant_id <= 0, so negative tenant_ids are not validated by any test.",
-              "suggestion": "Rename the test to test_count_by_status_non_positive_tenant or parameterize it with values=[0, -1] to cover both cases."
+              "message": "Class docstring says 'Pydantic model' but CustomerCreateDTO is a dataclass, not a Pydantic model.",
+              "suggestion": "Change class docstring to 'Tests for CustomerCreateDTO dataclass.'"
             }
           ],
-          "summary": "The two new tests (test_count_by_status_basic, test_count_by_status_zero_tenant) are present as specified in the plan, but TestCountByStatus test methods lack explicit @pytest.mark.asyncio decorators and the zero-tenant test only covers tenant_id=0, not the full tenant_id <= 0 guard."
+          "summary": "Test suite is well-structured and covers DTO field access, dict backward compat, and edge cases; one stale class docstring reference to Pydantic should be corrected."
         }
       }
     ]
