@@ -1,186 +1,149 @@
 {
-  "status": "fail",
-  "verdict": "fail",
-  "critical_issues": [
-    {
-      "file": ".plans/issue-273.md",
-      "line": 0,
-      "severity": "critical",
-      "msg": "Plan creates models for five tables (tenants, users, roles, permissions, user_roles) that already exist under the same names in src/db/models/ \u2014 both files subclass a Base, and SQLAlchemy requires one Base per table. Registering the same table name under a different Base causes mapper conflicts at runtime.",
-      "suggestion": "Either make the internal/ models inherit from db.base.Base (consolidating into src/db/models/) or give the identity tables different __tablename__ values (e.g. 'identity_tenants') to avoid the registry collision. Align the plan with whichever path is intended."
-    },
-    {
-      "file": "src/internal/db/models/identity.py",
-      "line": 0,
-      "severity": "critical",
-      "msg": "Five models (TenantModel, UserModel, RoleModel, PermissionModel, UserRoleModel) use __tablename__ values that are already registered to Base from db.base (in src/db/models/tenant.py, user.py, rbac.py). SQLAlchemy declarative bases are independent registries \u2014 assigning the same table name to a different Base subclass produces undefined mapper behavior and will fail or silently corrupt queries.",
-      "suggestion": "Have identity.py import and extend from db.base.Base instead of internal.db.engine.Base, or move these 5 models into src/db/models/ and keep only OrganizationModel/DepartmentModel in internal/. Alternatively, rename the tables (e.g. __tablename__ = 'id_tenants') with migration support."
-    }
-  ],
+  "status": "pass",
+  "verdict": "pass",
+  "critical_issues": [],
   "suggestions": [
     {
-      "file": "src/internal/db/models/__init__.py",
-      "line": "",
-      "severity": "info",
-      "msg": "Clean re-export of all 8 identity model classes \u2014 no standalone issues, but it inherits the identity.py conflict."
-    },
-    {
-      "file": "src/internal/db/models/identity.py",
-      "line": 21,
+      "file": ".github/workflows/ci.yml",
+      "line": 25,
       "severity": "warning",
-      "msg": "Rule 22 / PEP 8 violation: mapped_column(JSON, default=dict) uses a mutable default argument (the dict literal). The same dict object is shared across all instances until the column replaces it at INSERT time.",
-      "suggestion": "Use default=lambda: dict or default=dict (callable) so the callable is invoked per-row: mapped_column(JSON, default=lambda: dict, nullable=False)"
+      "msg": "Ruff lint runs after pytest, so if tests fail, linting is never reported in the same run \u2014 developers miss both signals simultaneously.",
+      "suggestion": "Run lint in parallel with tests using a separate job or a matrix strategy, so both results are visible regardless of outcome."
     },
     {
-      "file": "src/internal/db/models/identity.py",
-      "line": 115,
+      "file": ".github/workflows/ci.yml",
+      "line": 32,
       "severity": "info",
-      "msg": "DepartmentModel.children relationship uses cascade='all, delete-orphan' on a self-referential FK with parent_id. Without an index on parent_id, hierarchical queries (children loader) at scale can degrade.",
-      "suggestion": "Add index=True to the parent_id mapped_column: mapped_column(ForeignKey('departments.id', ondelete='SET NULL'), nullable=True, index=True)"
+      "msg": "The code-review job has no on-failure policy \u2014 if the external gateway call fails, the job fails silently in terms of actionable feedback in the workflow UI.",
+      "suggestion": "Consider adding continue-on-error: true or explicit error handling/step-level condition so CI status is interpretable when the external agent is unreachable."
     },
     {
-      "file": "tests/unit/test_identity_models.py",
-      "line": 79,
+      "file": ".github/workflows/ci.yml",
+      "line": 7,
       "severity": "info",
-      "msg": "Rule 4 (classes represent real domain concepts) / Rule 11 (meaningful names): The guard 'not hasattr(TenantModel, \"__table__\")' is dead code \u2014 SQLAlchemy declarative classes always have __table__. The left side of 'or' always evaluates True so the right side always runs; however the test still passes because the second branch is correct. Keeping the dead branch is misleading.",
-      "suggestion": "Remove the hasattr guard and keep only: assert 'tenant_id' not in [c.name for c in TenantModel.__table__.columns]"
+      "msg": "PYTHON_VERSION is set globally but used identically in both jobs; duplication is minimal but a shared action would eliminate the need to keep it in sync.",
+      "suggestion": "No action needed \u2014 this is minor and may not warrant the indirection cost of a composite action."
+    },
+    {
+      "file": ".plans/issue-434.md",
+      "line": 44,
+      "severity": "info",
+      "msg": "The plan flags a risk about removed jobs ('coordinator', 'unit-test', 'integration-test', 'build', 'deploy') but does not resolve it \u2014 no decision is recorded.",
+      "suggestion": "Add a resolved decision statement: e.g., 'These jobs are superseded by issue #434 and are intentionally removed.'"
+    },
+    {
+      "file": ".plans/issue-434.md",
+      "line": 45,
+      "severity": "info",
+      "msg": "The plan identifies that the code-review entry point script may not exist, but does not assign ownership or a concrete step to create it before the workflow is merged.",
+      "suggestion": "Add a pre-flight step: 'Verify scripts/ci/run_code_review.py exists; if not, create it or update the step to a known stub.'"
     }
   ],
-  "summary": "Reviewed 4 file(s) between origin/master and origin/auto/issue-273.",
+  "summary": "Reviewed 2 file(s) between origin/master and origin/auto/issue-434.",
   "details": {
     "llm_parsed": {
-      "verdict": "fail",
-      "critical": [
-        {
-          "file": ".plans/issue-273.md",
-          "line": 0,
-          "severity": "critical",
-          "msg": "Plan creates models for five tables (tenants, users, roles, permissions, user_roles) that already exist under the same names in src/db/models/ \u2014 both files subclass a Base, and SQLAlchemy requires one Base per table. Registering the same table name under a different Base causes mapper conflicts at runtime.",
-          "suggestion": "Either make the internal/ models inherit from db.base.Base (consolidating into src/db/models/) or give the identity tables different __tablename__ values (e.g. 'identity_tenants') to avoid the registry collision. Align the plan with whichever path is intended."
-        },
-        {
-          "file": "src/internal/db/models/identity.py",
-          "line": 0,
-          "severity": "critical",
-          "msg": "Five models (TenantModel, UserModel, RoleModel, PermissionModel, UserRoleModel) use __tablename__ values that are already registered to Base from db.base (in src/db/models/tenant.py, user.py, rbac.py). SQLAlchemy declarative bases are independent registries \u2014 assigning the same table name to a different Base subclass produces undefined mapper behavior and will fail or silently corrupt queries.",
-          "suggestion": "Have identity.py import and extend from db.base.Base instead of internal.db.engine.Base, or move these 5 models into src/db/models/ and keep only OrganizationModel/DepartmentModel in internal/. Alternatively, rename the tables (e.g. __tablename__ = 'id_tenants') with migration support."
-        }
-      ],
+      "verdict": "pass",
+      "critical": [],
       "warnings": [
         {
-          "file": "src/internal/db/models/__init__.py",
-          "line": "",
-          "severity": "info",
-          "msg": "Clean re-export of all 8 identity model classes \u2014 no standalone issues, but it inherits the identity.py conflict."
-        },
-        {
-          "file": "src/internal/db/models/identity.py",
-          "line": 21,
+          "file": ".github/workflows/ci.yml",
+          "line": 25,
           "severity": "warning",
-          "msg": "Rule 22 / PEP 8 violation: mapped_column(JSON, default=dict) uses a mutable default argument (the dict literal). The same dict object is shared across all instances until the column replaces it at INSERT time.",
-          "suggestion": "Use default=lambda: dict or default=dict (callable) so the callable is invoked per-row: mapped_column(JSON, default=lambda: dict, nullable=False)"
+          "msg": "Ruff lint runs after pytest, so if tests fail, linting is never reported in the same run \u2014 developers miss both signals simultaneously.",
+          "suggestion": "Run lint in parallel with tests using a separate job or a matrix strategy, so both results are visible regardless of outcome."
         },
         {
-          "file": "src/internal/db/models/identity.py",
-          "line": 115,
+          "file": ".github/workflows/ci.yml",
+          "line": 32,
           "severity": "info",
-          "msg": "DepartmentModel.children relationship uses cascade='all, delete-orphan' on a self-referential FK with parent_id. Without an index on parent_id, hierarchical queries (children loader) at scale can degrade.",
-          "suggestion": "Add index=True to the parent_id mapped_column: mapped_column(ForeignKey('departments.id', ondelete='SET NULL'), nullable=True, index=True)"
+          "msg": "The code-review job has no on-failure policy \u2014 if the external gateway call fails, the job fails silently in terms of actionable feedback in the workflow UI.",
+          "suggestion": "Consider adding continue-on-error: true or explicit error handling/step-level condition so CI status is interpretable when the external agent is unreachable."
         },
         {
-          "file": "tests/unit/test_identity_models.py",
-          "line": 79,
+          "file": ".github/workflows/ci.yml",
+          "line": 7,
           "severity": "info",
-          "msg": "Rule 4 (classes represent real domain concepts) / Rule 11 (meaningful names): The guard 'not hasattr(TenantModel, \"__table__\")' is dead code \u2014 SQLAlchemy declarative classes always have __table__. The left side of 'or' always evaluates True so the right side always runs; however the test still passes because the second branch is correct. Keeping the dead branch is misleading.",
-          "suggestion": "Remove the hasattr guard and keep only: assert 'tenant_id' not in [c.name for c in TenantModel.__table__.columns]"
+          "msg": "PYTHON_VERSION is set globally but used identically in both jobs; duplication is minimal but a shared action would eliminate the need to keep it in sync.",
+          "suggestion": "No action needed \u2014 this is minor and may not warrant the indirection cost of a composite action."
+        },
+        {
+          "file": ".plans/issue-434.md",
+          "line": 44,
+          "severity": "info",
+          "msg": "The plan flags a risk about removed jobs ('coordinator', 'unit-test', 'integration-test', 'build', 'deploy') but does not resolve it \u2014 no decision is recorded.",
+          "suggestion": "Add a resolved decision statement: e.g., 'These jobs are superseded by issue #434 and are intentionally removed.'"
+        },
+        {
+          "file": ".plans/issue-434.md",
+          "line": 45,
+          "severity": "info",
+          "msg": "The plan identifies that the code-review entry point script may not exist, but does not assign ownership or a concrete step to create it before the workflow is merged.",
+          "suggestion": "Add a pre-flight step: 'Verify scripts/ci/run_code_review.py exists; if not, create it or update the step to a known stub.'"
         }
       ],
-      "summary": "Reviewed 4 file(s) between origin/master and origin/auto/issue-273."
+      "summary": "Reviewed 2 file(s) between origin/master and origin/auto/issue-434."
     },
     "reviewed_refs": {
       "base": "bd1929297a5a2a93a59748d759d4fa112e9e6cb7",
-      "head": "fecd1a13169b3dbee8484e950c931d0cfa995ea4",
+      "head": "6276725f3babf0023b2dbc22fa7bce000dbb66ba",
       "base_label": "origin/master",
-      "head_label": "origin/auto/issue-273"
+      "head_label": "origin/auto/issue-434"
     },
     "reviewed_files": [
-      ".plans/issue-273.md",
-      "src/internal/db/models/__init__.py",
-      "src/internal/db/models/identity.py",
-      "tests/unit/test_identity_models.py"
+      ".github/workflows/ci.yml",
+      ".plans/issue-434.md"
     ],
     "per_file_reviews": [
       {
-        "file": ".plans/issue-273.md",
+        "file": ".github/workflows/ci.yml",
         "returncode": 0,
-        "output": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"api_error_status\":null,\"duration_ms\":241952,\"duration_api_ms\":241712,\"ttft_ms\":5018,\"num_turns\":27,\"result\":\"\\n\\n```json\\n[\\n  {\\n    \\\"filename\\\": \\\".plans/issue-273.md\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 0,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"Plan creates models for five tables (tenants, users, roles, permissions, user_roles) that already exist under the same names in src/db/models/ \u2014 both files subclass a Base, and SQLAlchemy requires one Base per table. Registering the same table name under a different Base causes mapper conflicts at runtime.\\\",\\n        \\\"suggestion\\\": \\\"Either make the internal/ models inherit from db.base.Base (consolidating into src/db/models/) or give the identity tables different __tablename__ values (e.g. 'identity_tenants') to avoid the registry collision. Align the plan with whichever path is intended.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Plan correctly specifies all 8 models and acceptance criteria but documents a table-name collision with existing models in src/db/models/.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"src/internal/db/models/__init__.py\\\",\\n    \\\"issues\\\": [],\\n    \\\"summary\\\": \\\"Clean re-export of all 8 identity model classes \u2014 no standalone issues, but it inherits the identity.py conflict.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"src/internal/db/models/identity.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 0,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"Five models (TenantModel, UserModel, RoleModel, PermissionModel, UserRoleModel) use __tablename__ values that are already registered to Base from db.base (in src/db/models/tenant.py, user.py, rbac.py). SQLAlchemy declarative bases are independent registries \u2014 assigning the same table name to a different Base subclass produces undefined mapper behavior and will fail or silently corrupt queries.\\\",\\n        \\\"suggestion\\\": \\\"Have identity.py import and extend from db.base.Base instead of internal.db.engine.Base, or move these 5 models into src/db/models/ and keep only OrganizationModel/DepartmentModel in internal/. Alternatively, rename the tables (e.g. __tablename__ = 'id_tenants') with migration support.\\\"\\n      },\\n      {\\n        \\\"line\\\": 21,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"Rule 22 / PEP 8 violation: mapped_column(JSON, default=dict) uses a mutable default argument (the dict literal). The same dict object is shared across all instances until the column replaces it at INSERT time.\\\",\\n        \\\"suggestion\\\": \\\"Use default=lambda: dict or default=dict (callable) so the callable is invoked per-row: mapped_column(JSON, default=lambda: dict, nullable=False)\\\"\\n      },\\n      {\\n        \\\"line\\\": 115,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"DepartmentModel.children relationship uses cascade='all, delete-orphan' on a self-referential FK with parent_id. Without an index on parent_id, hierarchical queries (children loader) at scale can degrade.\\\",\\n        \\\"suggestion\\\": \\\"Add index=True to the parent_id mapped_column: mapped_column(ForeignKey('departments.id', ondelete='SET NULL'), nullable=True, index=True)\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"All 8 models are structurally correct and follow existing patterns, but the five models sharing table names with src/db/models/ cause a critical Base-registry collision. The mutable default on settings is a minor fix.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"tests/unit/test_identity_models.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 79,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"Rule 4 (classes represent real domain concepts) / Rule 11 (meaningful names): The guard 'not hasattr(TenantModel, \\\\\\\"__table__\\\\\\\")' is dead code \u2014 SQLAlchemy declarative classes always have __table__. The left side of 'or' always evaluates True so the right side always runs; however the test still passes because the second branch is correct. Keeping the dead branch is misleading.\\\",\\n        \\\"suggestion\\\": \\\"Remove the hasattr guard and keep only: assert 'tenant_id' not in [c.name for c in TenantModel.__table__.columns]\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Tests are well-structured, verify defaults via __table__.columns rather than Python instantiation, and cover relationships and constraints correctly. The dead hasattr guard on line 79 should be simplified for clarity.\\\"\\n  }\\n]\\n```\",\"stop_reason\":\"end_turn\",\"session_id\":\"7c5a981e-3451-4672-8a3b-aa94b6715e8d\",\"total_cost_usd\":0.6809124,\"usage\":{\"input_tokens\":47412,\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":810688,\"output_tokens\":19698,\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":0,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"\",\"iterations\":[],\"speed\":\"standard\"},\"modelUsage\":{\"claude-sonnet-4-6\":{\"inputTokens\":47412,\"outputTokens\":19698,\"cacheReadInputTokens\":810688,\"cacheCreationInputTokens\":0,\"webSearchRequests\":0,\"costUSD\":0.6809124,\"contextWindow\":200000,\"maxOutputTokens\":32000}},\"permission_denials\":[],\"terminal_reason\":\"completed\",\"fast_mode_state\":\"off\",\"uuid\":\"3e694335-1d1d-4ad5-89a9-5df1bd1e65e0\"}\n",
+        "output": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"api_error_status\":null,\"duration_ms\":26812,\"duration_api_ms\":26769,\"ttft_ms\":4426,\"num_turns\":3,\"result\":\"\\n\\n[\\n  {\\n    \\\"filename\\\": \\\".github/workflows/ci.yml\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 25,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"Ruff lint runs after pytest, so if tests fail, linting is never reported in the same run \u2014 developers miss both signals simultaneously.\\\",\\n        \\\"suggestion\\\": \\\"Run lint in parallel with tests using a separate job or a matrix strategy, so both results are visible regardless of outcome.\\\"\\n      },\\n      {\\n        \\\"line\\\": 32,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"The code-review job has no on-failure policy \u2014 if the external gateway call fails, the job fails silently in terms of actionable feedback in the workflow UI.\\\",\\n        \\\"suggestion\\\": \\\"Consider adding continue-on-error: true or explicit error handling/step-level condition so CI status is interpretable when the external agent is unreachable.\\\"\\n      },\\n      {\\n        \\\"line\\\": 7,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"PYTHON_VERSION is set globally but used identically in both jobs; duplication is minimal but a shared action would eliminate the need to keep it in sync.\\\",\\n        \\\"suggestion\\\": \\\"No action needed \u2014 this is minor and may not warrant the indirection cost of a composite action.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"The CI workflow is functional and well-structured for a two-job pipeline, but runs lint only after tests pass, masking lint failures when tests fail.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\".plans/issue-434.md\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 44,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"The plan flags a risk about removed jobs ('coordinator', 'unit-test', 'integration-test', 'build', 'deploy') but does not resolve it \u2014 no decision is recorded.\\\",\\n        \\\"suggestion\\\": \\\"Add a resolved decision statement: e.g., 'These jobs are superseded by issue #434 and are intentionally removed.'\\\"\\n      },\\n      {\\n        \\\"line\\\": 45,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"The plan identifies that the code-review entry point script may not exist, but does not assign ownership or a concrete step to create it before the workflow is merged.\\\",\\n        \\\"suggestion\\\": \\\"Add a pre-flight step: 'Verify scripts/ci/run_code_review.py exists; if not, create it or update the step to a known stub.'\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"The plan is thorough and accurately describes the intended workflow replacement, but leaves two open risk items unresolved before implementation can be considered complete.\\\"\\n  }\\n]\",\"stop_reason\":\"end_turn\",\"session_id\":\"b1832508-2f32-464f-b859-92485f1d89fe\",\"total_cost_usd\":0.2202654,\"usage\":{\"input_tokens\":29985,\"cache_creation_input_tokens\":30684,\"cache_read_input_tokens\":2368,\"output_tokens\":969,\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":0,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"\",\"iterations\":[],\"speed\":\"standard\"},\"modelUsage\":{\"claude-sonnet-4-6\":{\"inputTokens\":29985,\"outputTokens\":969,\"cacheReadInputTokens\":2368,\"cacheCreationInputTokens\":30684,\"webSearchRequests\":0,\"costUSD\":0.2202654,\"contextWindow\":200000,\"maxOutputTokens\":32000}},\"permission_denials\":[],\"terminal_reason\":\"completed\",\"fast_mode_state\":\"off\",\"uuid\":\"79d1589f-4095-4243-b146-c93e0f6739fe\"}\n",
         "parsed": {
-          "filename": ".plans/issue-273.md",
+          "filename": ".github/workflows/ci.yml",
           "issues": [
             {
-              "line": 0,
-              "severity": "critical",
-              "message": "Plan creates models for five tables (tenants, users, roles, permissions, user_roles) that already exist under the same names in src/db/models/ \u2014 both files subclass a Base, and SQLAlchemy requires one Base per table. Registering the same table name under a different Base causes mapper conflicts at runtime.",
-              "suggestion": "Either make the internal/ models inherit from db.base.Base (consolidating into src/db/models/) or give the identity tables different __tablename__ values (e.g. 'identity_tenants') to avoid the registry collision. Align the plan with whichever path is intended."
-            }
-          ],
-          "summary": "Plan correctly specifies all 8 models and acceptance criteria but documents a table-name collision with existing models in src/db/models/."
-        }
-      },
-      {
-        "file": "src/internal/db/models/__init__.py",
-        "returncode": 0,
-        "output": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"api_error_status\":null,\"duration_ms\":241952,\"duration_api_ms\":241712,\"ttft_ms\":5018,\"num_turns\":27,\"result\":\"\\n\\n```json\\n[\\n  {\\n    \\\"filename\\\": \\\".plans/issue-273.md\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 0,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"Plan creates models for five tables (tenants, users, roles, permissions, user_roles) that already exist under the same names in src/db/models/ \u2014 both files subclass a Base, and SQLAlchemy requires one Base per table. Registering the same table name under a different Base causes mapper conflicts at runtime.\\\",\\n        \\\"suggestion\\\": \\\"Either make the internal/ models inherit from db.base.Base (consolidating into src/db/models/) or give the identity tables different __tablename__ values (e.g. 'identity_tenants') to avoid the registry collision. Align the plan with whichever path is intended.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Plan correctly specifies all 8 models and acceptance criteria but documents a table-name collision with existing models in src/db/models/.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"src/internal/db/models/__init__.py\\\",\\n    \\\"issues\\\": [],\\n    \\\"summary\\\": \\\"Clean re-export of all 8 identity model classes \u2014 no standalone issues, but it inherits the identity.py conflict.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"src/internal/db/models/identity.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 0,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"Five models (TenantModel, UserModel, RoleModel, PermissionModel, UserRoleModel) use __tablename__ values that are already registered to Base from db.base (in src/db/models/tenant.py, user.py, rbac.py). SQLAlchemy declarative bases are independent registries \u2014 assigning the same table name to a different Base subclass produces undefined mapper behavior and will fail or silently corrupt queries.\\\",\\n        \\\"suggestion\\\": \\\"Have identity.py import and extend from db.base.Base instead of internal.db.engine.Base, or move these 5 models into src/db/models/ and keep only OrganizationModel/DepartmentModel in internal/. Alternatively, rename the tables (e.g. __tablename__ = 'id_tenants') with migration support.\\\"\\n      },\\n      {\\n        \\\"line\\\": 21,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"Rule 22 / PEP 8 violation: mapped_column(JSON, default=dict) uses a mutable default argument (the dict literal). The same dict object is shared across all instances until the column replaces it at INSERT time.\\\",\\n        \\\"suggestion\\\": \\\"Use default=lambda: dict or default=dict (callable) so the callable is invoked per-row: mapped_column(JSON, default=lambda: dict, nullable=False)\\\"\\n      },\\n      {\\n        \\\"line\\\": 115,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"DepartmentModel.children relationship uses cascade='all, delete-orphan' on a self-referential FK with parent_id. Without an index on parent_id, hierarchical queries (children loader) at scale can degrade.\\\",\\n        \\\"suggestion\\\": \\\"Add index=True to the parent_id mapped_column: mapped_column(ForeignKey('departments.id', ondelete='SET NULL'), nullable=True, index=True)\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"All 8 models are structurally correct and follow existing patterns, but the five models sharing table names with src/db/models/ cause a critical Base-registry collision. The mutable default on settings is a minor fix.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"tests/unit/test_identity_models.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 79,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"Rule 4 (classes represent real domain concepts) / Rule 11 (meaningful names): The guard 'not hasattr(TenantModel, \\\\\\\"__table__\\\\\\\")' is dead code \u2014 SQLAlchemy declarative classes always have __table__. The left side of 'or' always evaluates True so the right side always runs; however the test still passes because the second branch is correct. Keeping the dead branch is misleading.\\\",\\n        \\\"suggestion\\\": \\\"Remove the hasattr guard and keep only: assert 'tenant_id' not in [c.name for c in TenantModel.__table__.columns]\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Tests are well-structured, verify defaults via __table__.columns rather than Python instantiation, and cover relationships and constraints correctly. The dead hasattr guard on line 79 should be simplified for clarity.\\\"\\n  }\\n]\\n```\",\"stop_reason\":\"end_turn\",\"session_id\":\"7c5a981e-3451-4672-8a3b-aa94b6715e8d\",\"total_cost_usd\":0.6809124,\"usage\":{\"input_tokens\":47412,\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":810688,\"output_tokens\":19698,\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":0,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"\",\"iterations\":[],\"speed\":\"standard\"},\"modelUsage\":{\"claude-sonnet-4-6\":{\"inputTokens\":47412,\"outputTokens\":19698,\"cacheReadInputTokens\":810688,\"cacheCreationInputTokens\":0,\"webSearchRequests\":0,\"costUSD\":0.6809124,\"contextWindow\":200000,\"maxOutputTokens\":32000}},\"permission_denials\":[],\"terminal_reason\":\"completed\",\"fast_mode_state\":\"off\",\"uuid\":\"3e694335-1d1d-4ad5-89a9-5df1bd1e65e0\"}\n",
-        "parsed": {
-          "filename": "src/internal/db/models/__init__.py",
-          "issues": [],
-          "summary": "Clean re-export of all 8 identity model classes \u2014 no standalone issues, but it inherits the identity.py conflict."
-        }
-      },
-      {
-        "file": "src/internal/db/models/identity.py",
-        "returncode": 0,
-        "output": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"api_error_status\":null,\"duration_ms\":241952,\"duration_api_ms\":241712,\"ttft_ms\":5018,\"num_turns\":27,\"result\":\"\\n\\n```json\\n[\\n  {\\n    \\\"filename\\\": \\\".plans/issue-273.md\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 0,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"Plan creates models for five tables (tenants, users, roles, permissions, user_roles) that already exist under the same names in src/db/models/ \u2014 both files subclass a Base, and SQLAlchemy requires one Base per table. Registering the same table name under a different Base causes mapper conflicts at runtime.\\\",\\n        \\\"suggestion\\\": \\\"Either make the internal/ models inherit from db.base.Base (consolidating into src/db/models/) or give the identity tables different __tablename__ values (e.g. 'identity_tenants') to avoid the registry collision. Align the plan with whichever path is intended.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Plan correctly specifies all 8 models and acceptance criteria but documents a table-name collision with existing models in src/db/models/.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"src/internal/db/models/__init__.py\\\",\\n    \\\"issues\\\": [],\\n    \\\"summary\\\": \\\"Clean re-export of all 8 identity model classes \u2014 no standalone issues, but it inherits the identity.py conflict.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"src/internal/db/models/identity.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 0,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"Five models (TenantModel, UserModel, RoleModel, PermissionModel, UserRoleModel) use __tablename__ values that are already registered to Base from db.base (in src/db/models/tenant.py, user.py, rbac.py). SQLAlchemy declarative bases are independent registries \u2014 assigning the same table name to a different Base subclass produces undefined mapper behavior and will fail or silently corrupt queries.\\\",\\n        \\\"suggestion\\\": \\\"Have identity.py import and extend from db.base.Base instead of internal.db.engine.Base, or move these 5 models into src/db/models/ and keep only OrganizationModel/DepartmentModel in internal/. Alternatively, rename the tables (e.g. __tablename__ = 'id_tenants') with migration support.\\\"\\n      },\\n      {\\n        \\\"line\\\": 21,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"Rule 22 / PEP 8 violation: mapped_column(JSON, default=dict) uses a mutable default argument (the dict literal). The same dict object is shared across all instances until the column replaces it at INSERT time.\\\",\\n        \\\"suggestion\\\": \\\"Use default=lambda: dict or default=dict (callable) so the callable is invoked per-row: mapped_column(JSON, default=lambda: dict, nullable=False)\\\"\\n      },\\n      {\\n        \\\"line\\\": 115,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"DepartmentModel.children relationship uses cascade='all, delete-orphan' on a self-referential FK with parent_id. Without an index on parent_id, hierarchical queries (children loader) at scale can degrade.\\\",\\n        \\\"suggestion\\\": \\\"Add index=True to the parent_id mapped_column: mapped_column(ForeignKey('departments.id', ondelete='SET NULL'), nullable=True, index=True)\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"All 8 models are structurally correct and follow existing patterns, but the five models sharing table names with src/db/models/ cause a critical Base-registry collision. The mutable default on settings is a minor fix.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"tests/unit/test_identity_models.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 79,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"Rule 4 (classes represent real domain concepts) / Rule 11 (meaningful names): The guard 'not hasattr(TenantModel, \\\\\\\"__table__\\\\\\\")' is dead code \u2014 SQLAlchemy declarative classes always have __table__. The left side of 'or' always evaluates True so the right side always runs; however the test still passes because the second branch is correct. Keeping the dead branch is misleading.\\\",\\n        \\\"suggestion\\\": \\\"Remove the hasattr guard and keep only: assert 'tenant_id' not in [c.name for c in TenantModel.__table__.columns]\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Tests are well-structured, verify defaults via __table__.columns rather than Python instantiation, and cover relationships and constraints correctly. The dead hasattr guard on line 79 should be simplified for clarity.\\\"\\n  }\\n]\\n```\",\"stop_reason\":\"end_turn\",\"session_id\":\"7c5a981e-3451-4672-8a3b-aa94b6715e8d\",\"total_cost_usd\":0.6809124,\"usage\":{\"input_tokens\":47412,\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":810688,\"output_tokens\":19698,\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":0,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"\",\"iterations\":[],\"speed\":\"standard\"},\"modelUsage\":{\"claude-sonnet-4-6\":{\"inputTokens\":47412,\"outputTokens\":19698,\"cacheReadInputTokens\":810688,\"cacheCreationInputTokens\":0,\"webSearchRequests\":0,\"costUSD\":0.6809124,\"contextWindow\":200000,\"maxOutputTokens\":32000}},\"permission_denials\":[],\"terminal_reason\":\"completed\",\"fast_mode_state\":\"off\",\"uuid\":\"3e694335-1d1d-4ad5-89a9-5df1bd1e65e0\"}\n",
-        "parsed": {
-          "filename": "src/internal/db/models/identity.py",
-          "issues": [
-            {
-              "line": 0,
-              "severity": "critical",
-              "message": "Five models (TenantModel, UserModel, RoleModel, PermissionModel, UserRoleModel) use __tablename__ values that are already registered to Base from db.base (in src/db/models/tenant.py, user.py, rbac.py). SQLAlchemy declarative bases are independent registries \u2014 assigning the same table name to a different Base subclass produces undefined mapper behavior and will fail or silently corrupt queries.",
-              "suggestion": "Have identity.py import and extend from db.base.Base instead of internal.db.engine.Base, or move these 5 models into src/db/models/ and keep only OrganizationModel/DepartmentModel in internal/. Alternatively, rename the tables (e.g. __tablename__ = 'id_tenants') with migration support."
-            },
-            {
-              "line": 21,
+              "line": 25,
               "severity": "warning",
-              "message": "Rule 22 / PEP 8 violation: mapped_column(JSON, default=dict) uses a mutable default argument (the dict literal). The same dict object is shared across all instances until the column replaces it at INSERT time.",
-              "suggestion": "Use default=lambda: dict or default=dict (callable) so the callable is invoked per-row: mapped_column(JSON, default=lambda: dict, nullable=False)"
+              "message": "Ruff lint runs after pytest, so if tests fail, linting is never reported in the same run \u2014 developers miss both signals simultaneously.",
+              "suggestion": "Run lint in parallel with tests using a separate job or a matrix strategy, so both results are visible regardless of outcome."
             },
             {
-              "line": 115,
+              "line": 32,
               "severity": "info",
-              "message": "DepartmentModel.children relationship uses cascade='all, delete-orphan' on a self-referential FK with parent_id. Without an index on parent_id, hierarchical queries (children loader) at scale can degrade.",
-              "suggestion": "Add index=True to the parent_id mapped_column: mapped_column(ForeignKey('departments.id', ondelete='SET NULL'), nullable=True, index=True)"
+              "message": "The code-review job has no on-failure policy \u2014 if the external gateway call fails, the job fails silently in terms of actionable feedback in the workflow UI.",
+              "suggestion": "Consider adding continue-on-error: true or explicit error handling/step-level condition so CI status is interpretable when the external agent is unreachable."
+            },
+            {
+              "line": 7,
+              "severity": "info",
+              "message": "PYTHON_VERSION is set globally but used identically in both jobs; duplication is minimal but a shared action would eliminate the need to keep it in sync.",
+              "suggestion": "No action needed \u2014 this is minor and may not warrant the indirection cost of a composite action."
             }
           ],
-          "summary": "All 8 models are structurally correct and follow existing patterns, but the five models sharing table names with src/db/models/ cause a critical Base-registry collision. The mutable default on settings is a minor fix."
+          "summary": "The CI workflow is functional and well-structured for a two-job pipeline, but runs lint only after tests pass, masking lint failures when tests fail."
         }
       },
       {
-        "file": "tests/unit/test_identity_models.py",
+        "file": ".plans/issue-434.md",
         "returncode": 0,
-        "output": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"api_error_status\":null,\"duration_ms\":241952,\"duration_api_ms\":241712,\"ttft_ms\":5018,\"num_turns\":27,\"result\":\"\\n\\n```json\\n[\\n  {\\n    \\\"filename\\\": \\\".plans/issue-273.md\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 0,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"Plan creates models for five tables (tenants, users, roles, permissions, user_roles) that already exist under the same names in src/db/models/ \u2014 both files subclass a Base, and SQLAlchemy requires one Base per table. Registering the same table name under a different Base causes mapper conflicts at runtime.\\\",\\n        \\\"suggestion\\\": \\\"Either make the internal/ models inherit from db.base.Base (consolidating into src/db/models/) or give the identity tables different __tablename__ values (e.g. 'identity_tenants') to avoid the registry collision. Align the plan with whichever path is intended.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Plan correctly specifies all 8 models and acceptance criteria but documents a table-name collision with existing models in src/db/models/.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"src/internal/db/models/__init__.py\\\",\\n    \\\"issues\\\": [],\\n    \\\"summary\\\": \\\"Clean re-export of all 8 identity model classes \u2014 no standalone issues, but it inherits the identity.py conflict.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"src/internal/db/models/identity.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 0,\\n        \\\"severity\\\": \\\"critical\\\",\\n        \\\"message\\\": \\\"Five models (TenantModel, UserModel, RoleModel, PermissionModel, UserRoleModel) use __tablename__ values that are already registered to Base from db.base (in src/db/models/tenant.py, user.py, rbac.py). SQLAlchemy declarative bases are independent registries \u2014 assigning the same table name to a different Base subclass produces undefined mapper behavior and will fail or silently corrupt queries.\\\",\\n        \\\"suggestion\\\": \\\"Have identity.py import and extend from db.base.Base instead of internal.db.engine.Base, or move these 5 models into src/db/models/ and keep only OrganizationModel/DepartmentModel in internal/. Alternatively, rename the tables (e.g. __tablename__ = 'id_tenants') with migration support.\\\"\\n      },\\n      {\\n        \\\"line\\\": 21,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"Rule 22 / PEP 8 violation: mapped_column(JSON, default=dict) uses a mutable default argument (the dict literal). The same dict object is shared across all instances until the column replaces it at INSERT time.\\\",\\n        \\\"suggestion\\\": \\\"Use default=lambda: dict or default=dict (callable) so the callable is invoked per-row: mapped_column(JSON, default=lambda: dict, nullable=False)\\\"\\n      },\\n      {\\n        \\\"line\\\": 115,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"DepartmentModel.children relationship uses cascade='all, delete-orphan' on a self-referential FK with parent_id. Without an index on parent_id, hierarchical queries (children loader) at scale can degrade.\\\",\\n        \\\"suggestion\\\": \\\"Add index=True to the parent_id mapped_column: mapped_column(ForeignKey('departments.id', ondelete='SET NULL'), nullable=True, index=True)\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"All 8 models are structurally correct and follow existing patterns, but the five models sharing table names with src/db/models/ cause a critical Base-registry collision. The mutable default on settings is a minor fix.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\"tests/unit/test_identity_models.py\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 79,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"Rule 4 (classes represent real domain concepts) / Rule 11 (meaningful names): The guard 'not hasattr(TenantModel, \\\\\\\"__table__\\\\\\\")' is dead code \u2014 SQLAlchemy declarative classes always have __table__. The left side of 'or' always evaluates True so the right side always runs; however the test still passes because the second branch is correct. Keeping the dead branch is misleading.\\\",\\n        \\\"suggestion\\\": \\\"Remove the hasattr guard and keep only: assert 'tenant_id' not in [c.name for c in TenantModel.__table__.columns]\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"Tests are well-structured, verify defaults via __table__.columns rather than Python instantiation, and cover relationships and constraints correctly. The dead hasattr guard on line 79 should be simplified for clarity.\\\"\\n  }\\n]\\n```\",\"stop_reason\":\"end_turn\",\"session_id\":\"7c5a981e-3451-4672-8a3b-aa94b6715e8d\",\"total_cost_usd\":0.6809124,\"usage\":{\"input_tokens\":47412,\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":810688,\"output_tokens\":19698,\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":0,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"\",\"iterations\":[],\"speed\":\"standard\"},\"modelUsage\":{\"claude-sonnet-4-6\":{\"inputTokens\":47412,\"outputTokens\":19698,\"cacheReadInputTokens\":810688,\"cacheCreationInputTokens\":0,\"webSearchRequests\":0,\"costUSD\":0.6809124,\"contextWindow\":200000,\"maxOutputTokens\":32000}},\"permission_denials\":[],\"terminal_reason\":\"completed\",\"fast_mode_state\":\"off\",\"uuid\":\"3e694335-1d1d-4ad5-89a9-5df1bd1e65e0\"}\n",
+        "output": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"api_error_status\":null,\"duration_ms\":26812,\"duration_api_ms\":26769,\"ttft_ms\":4426,\"num_turns\":3,\"result\":\"\\n\\n[\\n  {\\n    \\\"filename\\\": \\\".github/workflows/ci.yml\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 25,\\n        \\\"severity\\\": \\\"warning\\\",\\n        \\\"message\\\": \\\"Ruff lint runs after pytest, so if tests fail, linting is never reported in the same run \u2014 developers miss both signals simultaneously.\\\",\\n        \\\"suggestion\\\": \\\"Run lint in parallel with tests using a separate job or a matrix strategy, so both results are visible regardless of outcome.\\\"\\n      },\\n      {\\n        \\\"line\\\": 32,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"The code-review job has no on-failure policy \u2014 if the external gateway call fails, the job fails silently in terms of actionable feedback in the workflow UI.\\\",\\n        \\\"suggestion\\\": \\\"Consider adding continue-on-error: true or explicit error handling/step-level condition so CI status is interpretable when the external agent is unreachable.\\\"\\n      },\\n      {\\n        \\\"line\\\": 7,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"PYTHON_VERSION is set globally but used identically in both jobs; duplication is minimal but a shared action would eliminate the need to keep it in sync.\\\",\\n        \\\"suggestion\\\": \\\"No action needed \u2014 this is minor and may not warrant the indirection cost of a composite action.\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"The CI workflow is functional and well-structured for a two-job pipeline, but runs lint only after tests pass, masking lint failures when tests fail.\\\"\\n  },\\n  {\\n    \\\"filename\\\": \\\".plans/issue-434.md\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"line\\\": 44,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"The plan flags a risk about removed jobs ('coordinator', 'unit-test', 'integration-test', 'build', 'deploy') but does not resolve it \u2014 no decision is recorded.\\\",\\n        \\\"suggestion\\\": \\\"Add a resolved decision statement: e.g., 'These jobs are superseded by issue #434 and are intentionally removed.'\\\"\\n      },\\n      {\\n        \\\"line\\\": 45,\\n        \\\"severity\\\": \\\"info\\\",\\n        \\\"message\\\": \\\"The plan identifies that the code-review entry point script may not exist, but does not assign ownership or a concrete step to create it before the workflow is merged.\\\",\\n        \\\"suggestion\\\": \\\"Add a pre-flight step: 'Verify scripts/ci/run_code_review.py exists; if not, create it or update the step to a known stub.'\\\"\\n      }\\n    ],\\n    \\\"summary\\\": \\\"The plan is thorough and accurately describes the intended workflow replacement, but leaves two open risk items unresolved before implementation can be considered complete.\\\"\\n  }\\n]\",\"stop_reason\":\"end_turn\",\"session_id\":\"b1832508-2f32-464f-b859-92485f1d89fe\",\"total_cost_usd\":0.2202654,\"usage\":{\"input_tokens\":29985,\"cache_creation_input_tokens\":30684,\"cache_read_input_tokens\":2368,\"output_tokens\":969,\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":0,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"\",\"iterations\":[],\"speed\":\"standard\"},\"modelUsage\":{\"claude-sonnet-4-6\":{\"inputTokens\":29985,\"outputTokens\":969,\"cacheReadInputTokens\":2368,\"cacheCreationInputTokens\":30684,\"webSearchRequests\":0,\"costUSD\":0.2202654,\"contextWindow\":200000,\"maxOutputTokens\":32000}},\"permission_denials\":[],\"terminal_reason\":\"completed\",\"fast_mode_state\":\"off\",\"uuid\":\"79d1589f-4095-4243-b146-c93e0f6739fe\"}\n",
         "parsed": {
-          "filename": "tests/unit/test_identity_models.py",
+          "filename": ".plans/issue-434.md",
           "issues": [
             {
-              "line": 79,
+              "line": 44,
               "severity": "info",
-              "message": "Rule 4 (classes represent real domain concepts) / Rule 11 (meaningful names): The guard 'not hasattr(TenantModel, \"__table__\")' is dead code \u2014 SQLAlchemy declarative classes always have __table__. The left side of 'or' always evaluates True so the right side always runs; however the test still passes because the second branch is correct. Keeping the dead branch is misleading.",
-              "suggestion": "Remove the hasattr guard and keep only: assert 'tenant_id' not in [c.name for c in TenantModel.__table__.columns]"
+              "message": "The plan flags a risk about removed jobs ('coordinator', 'unit-test', 'integration-test', 'build', 'deploy') but does not resolve it \u2014 no decision is recorded.",
+              "suggestion": "Add a resolved decision statement: e.g., 'These jobs are superseded by issue #434 and are intentionally removed.'"
+            },
+            {
+              "line": 45,
+              "severity": "info",
+              "message": "The plan identifies that the code-review entry point script may not exist, but does not assign ownership or a concrete step to create it before the workflow is merged.",
+              "suggestion": "Add a pre-flight step: 'Verify scripts/ci/run_code_review.py exists; if not, create it or update the step to a known stub.'"
             }
           ],
-          "summary": "Tests are well-structured, verify defaults via __table__.columns rather than Python instantiation, and cover relationships and constraints correctly. The dead hasattr guard on line 79 should be simplified for clarity."
+          "summary": "The plan is thorough and accurately describes the intended workflow replacement, but leaves two open risk items unresolved before implementation can be considered complete."
         }
       }
     ]
